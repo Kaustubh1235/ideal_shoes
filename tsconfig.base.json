@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "incremental": true,
+    "allowSyntheticDefaultImports": true,
+    "jsx": "preserve",
+    "verbatimModuleSyntax": false,
+    "baseUrl": ".",
+    "paths": {
+      "@bharatboot/db": ["./packages/db/src/index.ts"],
+      "@bharatboot/db/*": ["./packages/db/src/*"],
+      "@bharatboot/ui": ["./packages/ui/src/index.ts"],
+      "@bharatboot/ui/*": ["./packages/ui/src/*"],
+      "@bharatboot/types": ["./packages/types/src/index.ts"],
+      "@bharatboot/types/*": ["./packages/types/src/*"],
+      "@bharatboot/gst": ["./packages/gst/src/index.ts"],
+      "@bharatboot/gst/*": ["./packages/gst/src/*"]
+    }
+  },
+  "exclude": ["node_modules", ".next", "dist", "build", ".turbo"]
+}

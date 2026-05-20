@@ -1,0 +1,38 @@
+{
+  "name": "bharatboot",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.11.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json,yaml,yml}\"",
+    "db:up": "docker compose -f infra/docker/compose.yml up -d postgres redis minio mailhog",
+    "db:migrate": "cd apps/api && alembic upgrade head",
+    "db:revision": "cd apps/api && alembic revision --autogenerate -m",
+    "db:downgrade": "cd apps/api && alembic downgrade -1",
+    "db:seed": "tsx scripts/seed.ts",
+    "prisma:pull": "bash scripts/prisma-pull.sh",
+    "prisma:generate": "cd packages/db && prisma generate",
+    "openapi:codegen": "bash scripts/openapi-codegen.sh",
+    "stack:up": "docker compose -f infra/docker/compose.yml up --build",
+    "stack:down": "docker compose -f infra/docker/compose.yml down",
+    "stack:prod": "docker compose -f infra/docker/compose.prod.yml up -d",
+    "task:tender-poll": "cd apps/api && python -m app.services.tenders.cppp_rss"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "prettier": "^3.3.3",
+    "tsx": "^4.19.0",
+    "turbo": "^2.1.0",
+    "typescript": "^5.5.4"
+  }
+}

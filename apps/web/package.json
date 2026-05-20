@@ -1,0 +1,53 @@
+{
+  "name": "@bharatboot/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@auth/prisma-adapter": "^2.4.2",
+    "@bharatboot/db": "workspace:*",
+    "@bharatboot/gst": "workspace:*",
+    "@bharatboot/types": "workspace:*",
+    "@bharatboot/ui": "workspace:*",
+    "@hookform/resolvers": "^3.9.0",
+    "@prisma/client": "^5.20.0",
+    "argon2": "^0.41.1",
+    "bcryptjs": "^2.4.3",
+    "ioredis": "^5.4.1",
+    "jose": "^5.9.3",
+    "lucide-react": "^0.439.0",
+    "nanoid": "^5.0.7",
+    "next": "14.2.13",
+    "next-auth": "5.0.0-beta.20",
+    "next-themes": "^0.3.0",
+    "otpauth": "^9.3.2",
+    "razorpay": "^2.9.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.53.0",
+    "recharts": "^2.12.7",
+    "sonner": "^1.5.0",
+    "tailwindcss-animate": "^1.0.7",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.13",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

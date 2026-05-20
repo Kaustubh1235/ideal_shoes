@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tax Invoice {{ invoice.invoice_no }}</title>
+<style>
+  @page {
+    size: A4;
+    margin: 16mm 14mm 18mm 14mm;
+    @bottom-center {
+      content: "Page " counter(page) " of " counter(pages);
+      font-family: "Source Sans 3", "DejaVu Sans", sans-serif;
+      font-size: 9pt;
+      color: #555;
+    }
+  }
+  body {
+    font-family: "Source Sans 3", "DejaVu Sans", sans-serif;
+    font-size: 9.5pt;
+    color: #1a1a1a;
+    line-height: 1.35;
+  }
+  .row { display: flex; }
+  .col { flex: 1; }
+  .border { border: 1pt solid #333; }
+  .pad { padding: 6pt 8pt; }
+  table { width: 100%; border-collapse: collapse; margin-top: 4pt; }
+  th, td { border: 1pt solid #333; padding: 4pt 6pt; vertical-align: top; }
+  th { background: #3D4F27; color: #FAF8F5; font-weight: 600; text-align: left; font-size: 9pt; }
+  .right { text-align: right; }
+  .center { text-align: center; }
+  .small { font-size: 8.5pt; color: #555; }
+  h1 { font-family: "Oswald", "DejaVu Sans", sans-serif; font-size: 18pt; letter-spacing: 1pt; margin: 0; text-transform: uppercase; color: #3D4F27; }
+  h2 { font-family: "Oswald", "DejaVu Sans", sans-serif; font-size: 11pt; margin: 0 0 4pt; text-transform: uppercase; letter-spacing: 0.5pt; }
+  .meta-table th { background: #f0eee5; color: #1a1a1a; text-align: left; font-weight: 600; width: 38%; }
+  .totals td { padding: 5pt 8pt; }
+  .totals .label { text-align: right; }
+  .totals .value { text-align: right; width: 110pt; }
+  .totals .grand { font-weight: 700; background: #f0eee5; }
+  .header-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 2pt solid #3D4F27; padding-bottom: 6pt; margin-bottom: 8pt;
+  }
+  .badge {
+    display: inline-block; padding: 2pt 6pt; border-radius: 3pt;
+    background: #C4A962; color: #1a1a1a; font-size: 8.5pt; font-weight: 600;
+    letter-spacing: 0.5pt; text-transform: uppercase;
+  }
+  .qr { width: 90pt; height: 90pt; }
+  .signature { margin-top: 30pt; border-top: 1pt solid #999; padding-top: 4pt; text-align: center; width: 180pt; }
+</style>
+</head>
+<body>
+
+<div class="header-bar">
+  <div>
+    <h1>{{ seller.trade_name or seller.legal_name }}</h1>
+    <div class="small">{{ seller.legal_name }}</div>
+  </div>
+  <div class="right">
+    <span class="badge">Tax Invoice</span>
+    <div class="small" style="margin-top: 4pt;">Original for Recipient</div>
+  </div>
+</div>
+
+<table class="meta-table">
+  <tr>
+    <th>Invoice No.</th>
+    <td>{{ invoice.invoice_no }}</td>
+    <th>Date</th>
+    <td>{{ invoice.issued_at_display }}</td>
+  </tr>
+  <tr>
+    <th>Place of Supply</th>
+    <td>{{ invoice.place_of_supply_name }} ({{ invoice.place_of_supply }})</td>
+    <th>Reverse Charge</th>
+    <td>{{ "Yes" if invoice.reverse_charge else "No" }}</td>
+  </tr>
+  {% if invoice.irn %}
+  <tr>
+    <th>IRN</th>
+    <td colspan="3" style="font-family: monospace; font-size: 8pt;">{{ invoice.irn }}</td>
+  </tr>
+  <tr>
+    <th>Ack No.</th>
+    <td>{{ invoice.ack_no }}</td>
+    <th>Ack Date</th>
+    <td>{{ invoice.ack_date_display }}</td>
+  </tr>
+  {% endif %}
+</table>
+
+<div class="row" style="margin-top: 10pt;">
+  <div class="col border pad" style="margin-right: 6pt;">
+    <h2>Seller</h2>
+    <div><strong>{{ seller.legal_name }}</strong></div>
+    <div>{{ seller.address.line1 }}{% if seller.address.line2 %}, {{ seller.address.line2 }}{% endif %}</div>
+    <div>{{ seller.address.city }}, {{ seller.address.state }} - {{ seller.address.pincode }}</div>
+    <div>GSTIN: <strong>{{ seller.gstin }}</strong></div>
+    {% if seller.email %}<div class="small">Email: {{ seller.email }}</div>{% endif %}
+    {% if seller.phone %}<div class="small">Phone: {{ seller.phone }}</div>{% endif %}
+  </div>
+  <div class="col border pad">
+    <h2>Buyer</h2>
+    <div><strong>{{ buyer.legal_name }}</strong></div>
+    <div>{{ buyer.billing_address.line1 }}{% if buyer.billing_address.line2 %}, {{ buyer.billing_address.line2 }}{% endif %}</div>
+    <div>{{ buyer.billing_address.city }}, {{ buyer.billing_address.state }} - {{ buyer.billing_address.pincode }}</div>
+    {% if buyer.gstin %}<div>GSTIN: <strong>{{ buyer.gstin }}</strong></div>{% endif %}
+    {% if buyer.email %}<div class="small">Email: {{ buyer.email }}</div>{% endif %}
+    {% if buyer.phone %}<div class="small">Phone: {{ buyer.phone }}</div>{% endif %}
+  </div>
+</div>
+
+<table style="margin-top: 10pt;">
+  <thead>
+    <tr>
+      <th style="width: 18pt;">#</th>
+      <th>Description</th>
+      <th style="width: 50pt;">HSN</th>
+      <th class="right" style="width: 38pt;">Qty</th>
+      <th class="right" style="width: 64pt;">Rate</th>
+      <th class="right" style="width: 60pt;">Discount</th>
+      <th class="right" style="width: 72pt;">Taxable</th>
+      {% if is_inter_state %}
+      <th class="right" style="width: 68pt;">IGST</th>
+      {% else %}
+      <th class="right" style="width: 60pt;">CGST</th>
+      <th class="right" style="width: 60pt;">SGST</th>
+      {% endif %}
+      <th class="right" style="width: 78pt;">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for line in lines %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ line.description }}</td>
+      <td>{{ line.hsn_code }}</td>
+      <td class="right">{{ line.quantity }}</td>
+      <td class="right">{{ line.unit_price|inr }}</td>
+      <td class="right">{{ line.discount|inr }}</td>
+      <td class="right">{{ line.taxable_value|inr }}</td>
+      {% if is_inter_state %}
+      <td class="right">{{ line.igst|inr }}<div class="small">{{ (line.gst_rate * 100)|round(2) }}%</div></td>
+      {% else %}
+      <td class="right">{{ line.cgst|inr }}<div class="small">{{ (line.gst_rate * 50)|round(2) }}%</div></td>
+      <td class="right">{{ line.sgst|inr }}<div class="small">{{ (line.gst_rate * 50)|round(2) }}%</div></td>
+      {% endif %}
+      <td class="right">{{ line.line_total|inr }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="row" style="margin-top: 10pt;">
+  <div class="col border pad" style="margin-right: 6pt;">
+    <h2>Amount in Words</h2>
+    <div>{{ invoice.amount_in_words }}</div>
+    {% if invoice.signed_qr %}
+    <div style="margin-top: 10pt;">
+      <h2>Signed QR</h2>
+      <img class="qr" src="data:image/png;base64,{{ invoice.signed_qr }}" />
+    </div>
+    {% endif %}
+  </div>
+  <div class="col border pad">
+    <table class="totals">
+      <tr><td class="label">Subtotal</td><td class="value">{{ totals.subtotal|inr }}</td></tr>
+      {% if totals.total_discount > 0 %}
+      <tr><td class="label">Discount</td><td class="value">- {{ totals.total_discount|inr }}</td></tr>
+      {% endif %}
+      <tr><td class="label">Taxable Value</td><td class="value">{{ totals.taxable_value|inr }}</td></tr>
+      {% if is_inter_state %}
+      <tr><td class="label">IGST</td><td class="value">{{ totals.igst_total|inr }}</td></tr>
+      {% else %}
+      <tr><td class="label">CGST</td><td class="value">{{ totals.cgst_total|inr }}</td></tr>
+      <tr><td class="label">SGST</td><td class="value">{{ totals.sgst_total|inr }}</td></tr>
+      {% endif %}
+      {% if totals.cess_total > 0 %}
+      <tr><td class="label">Cess</td><td class="value">{{ totals.cess_total|inr }}</td></tr>
+      {% endif %}
+      <tr><td class="label">Round Off</td><td class="value">{{ totals.round_off|inr }}</td></tr>
+      <tr class="grand"><td class="label">Grand Total</td><td class="value">{{ totals.grand_total|inr }}</td></tr>
+    </table>
+
+    <div class="signature">
+      Authorised Signatory<br/>
+      <span class="small">for {{ seller.legal_name }}</span>
+    </div>
+  </div>
+</div>
+
+<div class="small" style="margin-top: 14pt; border-top: 1pt solid #ccc; padding-top: 6pt;">
+  Subject to {{ seller.address.city }} jurisdiction. E. & O. E.
+  Goods once sold will not be taken back unless defective. Please notify of discrepancies within 7 days.
+</div>
+
+</body>
+</html>

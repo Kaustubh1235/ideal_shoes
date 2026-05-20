@@ -1,0 +1,42 @@
+import { Button, Input, Label, Textarea } from "@bharatboot/ui";
+import { dealerApplyAction } from "@/app/actions/dealer";
+
+export default function DealerApplicationPage() {
+  return (
+    <div className="container py-12 max-w-2xl">
+      <h1 className="font-display text-3xl uppercase tracking-wide">Become a Dealer</h1>
+      <p className="text-ink/70 mt-2">
+        Apply for an authorised dealer account. We&apos;ll review your application and
+        provision login + price tier within 2 business days.
+      </p>
+
+      <form action={dealerApplyAction} className="mt-8 space-y-6 rounded-lg border border-olive-100 bg-cream p-6">
+        <div className="grid gap-3 md:grid-cols-2">
+          <div><Label htmlFor="businessName">Business / Firm Name</Label><Input name="businessName" required /></div>
+          <div><Label htmlFor="contactName">Contact Person</Label><Input name="contactName" required /></div>
+          <div><Label htmlFor="email">Email</Label><Input name="email" type="email" required /></div>
+          <div><Label htmlFor="phone">Phone</Label><Input name="phone" pattern="[6-9][0-9]{9}" required /></div>
+          <div><Label htmlFor="gstin">GSTIN</Label><Input name="gstin" required /></div>
+          <div><Label htmlFor="pan">PAN</Label><Input name="pan" pattern="[A-Z]{5}[0-9]{4}[A-Z]{1}" required /></div>
+          <div><Label htmlFor="yearsInBusiness">Years in Business</Label><Input name="yearsInBusiness" type="number" min={0} /></div>
+          <div><Label htmlFor="monthlyValue">Estimated Monthly Orders (₹)</Label><Input name="monthlyValue" type="number" min={0} /></div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="md:col-span-2"><Label htmlFor="line1">Billing Address Line 1</Label><Input name="line1" required /></div>
+          <div><Label htmlFor="city">City</Label><Input name="city" required /></div>
+          <div><Label htmlFor="pincode">Pincode</Label><Input name="pincode" pattern="[1-9][0-9]{5}" required /></div>
+          <div><Label htmlFor="state">State</Label><Input name="state" required /></div>
+          <div><Label htmlFor="stateCode">State Code</Label><Input name="stateCode" pattern="[0-9]{2}" required /></div>
+        </div>
+
+        <div>
+          <Label htmlFor="notes">Notes (optional)</Label>
+          <Textarea name="notes" rows={3} />
+        </div>
+
+        <Button type="submit" size="lg" className="w-full">Submit Application</Button>
+      </form>
+    </div>
+  );
+}

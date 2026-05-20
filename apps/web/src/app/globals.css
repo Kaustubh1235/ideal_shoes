@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 33% 97%;       /* cream */
+    --foreground: 0 0% 10%;
+    --card: 40 33% 99%;
+    --card-foreground: 0 0% 10%;
+    --popover: 40 33% 99%;
+    --popover-foreground: 0 0% 10%;
+    --primary: 78 33% 23%;          /* olive 600 */
+    --primary-foreground: 40 33% 97%;
+    --secondary: 41 49% 58%;        /* khaki 400 */
+    --secondary-foreground: 0 0% 10%;
+    --muted: 40 14% 90%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 25 76% 31%;           /* umber 400 */
+    --accent-foreground: 40 33% 97%;
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 40 33% 97%;
+    --border: 78 14% 80%;
+    --input: 78 14% 80%;
+    --ring: 78 33% 30%;
+    --radius: 4px;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display tracking-wide;
+  }
+}
+
+/* Hide focus ring for mouse users, keep for keyboard */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Smooth scrollbar on Chromium for the storefront */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-olive-200 rounded;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-olive-300;
+}

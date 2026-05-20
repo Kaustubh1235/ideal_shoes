@@ -1,0 +1,11 @@
+{
+  "name": "@bharatboot/config",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.js",
+  "files": [
+    "tsconfig.json",
+    "tailwind.preset.js",
+    "eslint.config.js"
+  ]
+}
