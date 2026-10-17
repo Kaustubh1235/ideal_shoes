@@ -24,15 +24,15 @@ export default async function OrderDetailPage({ params }: { params: { orderId: s
     <div className="container py-8 max-w-3xl">
       <div className="flex justify-between flex-wrap gap-3">
         <div>
-          <h1 className="font-display text-3xl uppercase tracking-wide">{order.orderNo}</h1>
+          <h1 className="font-display text-3xl">{order.orderNo}</h1>
           <p className="text-ink/60 text-sm">{order.placedAt?.toLocaleString("en-IN") ?? "—"}</p>
         </div>
         <Badge variant="outline">{order.status}</Badge>
       </div>
 
-      <section className="mt-8 rounded-lg border border-olive-100 bg-cream">
-        <div className="p-4 border-b font-display uppercase text-sm tracking-wide">Items</div>
-        <div className="divide-y divide-olive-100">
+      <section className="mt-8 rounded-lg border border-leather-100 bg-cream">
+        <div className="p-4 border-b font-display text-sm tracking-wide">Items</div>
+        <div className="divide-y divide-leather-100">
           {order.items.map((it) => (
             <div key={it.id} className="p-4 flex justify-between">
               <div>
@@ -63,18 +63,18 @@ export default async function OrderDetailPage({ params }: { params: { orderId: s
       )}
 
       {order.shipments[0] && (
-        <section className="mt-6 rounded-lg border border-olive-100 bg-cream p-4">
-          <h2 className="font-display uppercase text-sm tracking-wide">Shipment</h2>
+        <section className="mt-6 rounded-lg border border-leather-100 bg-cream p-4">
+          <h2 className="font-display text-sm tracking-wide">Shipment</h2>
           <p className="mt-2 text-sm">
             {order.shipments[0].courier ?? "Pending courier"} · AWB {order.shipments[0].awb ?? "—"} · <Badge variant="outline">{order.shipments[0].status}</Badge>
           </p>
           {order.shipments[0].trackingUrl && (
-            <a className="text-sm text-olive-700 underline" href={order.shipments[0].trackingUrl} target="_blank" rel="noreferrer">Track package</a>
+            <a className="text-sm text-leather-700 underline" href={order.shipments[0].trackingUrl} target="_blank" rel="noreferrer">Track package</a>
           )}
         </section>
       )}
 
-      <Link href="/account/orders" className="mt-8 inline-block text-sm text-olive-700 underline">← All orders</Link>
+      <Link href="/account/orders" className="mt-8 inline-block text-sm text-leather-700 underline">← All orders</Link>
     </div>
   );
 }

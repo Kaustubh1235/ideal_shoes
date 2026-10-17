@@ -120,7 +120,7 @@ export async function placeOrderAction(formData: FormData) {
   const grand_total = Math.round(preRound / 100) * 100;
   const round_off = grand_total - preRound;
 
-  const orderNo = `BBT-${new Date().getFullYear().toString().slice(-2)}-${nanoid(8).toUpperCase()}`;
+  const orderNo = `IDX-${new Date().getFullYear().toString().slice(-2)}-${nanoid(8).toUpperCase()}`;
 
   const order = await prisma.$transaction(async (tx) => {
     const billing = await tx.address.create({

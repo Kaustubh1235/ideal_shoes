@@ -12,7 +12,7 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
   return (
     <div className="min-h-screen grid place-items-center bg-cream">
       <div className="text-center max-w-md">
-        <p className="font-display text-5xl uppercase tracking-widest text-umber-400">Error</p>
+        <p className="font-display text-5xl uppercase tracking-widest text-oxblood-400">Error</p>
         <h1 className="mt-3 font-display text-2xl uppercase">Something broke</h1>
         <p className="mt-2 text-ink/60 text-sm">
           {error.message || "An unexpected error occurred."}

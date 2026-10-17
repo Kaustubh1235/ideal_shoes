@@ -56,8 +56,8 @@ class Settings(BaseSettings):
 
     # Seller identity
     seller_gstin: str = ""
-    seller_legal_name: str = "BharatBoot Manufacturing Pvt Ltd"
-    seller_trade_name: str = "BharatBoot"
+    seller_legal_name: str = "Ideal Shoes"
+    seller_trade_name: str = "IDEALX"
     seller_state_code: str = "27"
     seller_address_json: str = '{"line1":"","line2":"","city":"","state":"","pincode":"","country":"India"}'
     seller_email: str = ""

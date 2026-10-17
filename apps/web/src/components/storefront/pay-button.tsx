@@ -45,7 +45,7 @@ export function PayButton({
       amount,
       currency: "INR",
       order_id: rzpOrderId,
-      name: "BharatBoot",
+      name: "IDEALX",
       description: `Order ${orderNo}`,
       handler: async (response: any) => {
         try {

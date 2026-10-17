@@ -18,7 +18,7 @@ export default async function CartPage() {
         <EmptyState
           icon={<ShoppingCart className="size-12" />}
           title="Your cart is empty"
-          description="Add some boots, shoes, or jackets to get started."
+          description="Add a bag, a pair of shoes or a belt to get started."
           action={<Button asChild><Link href="/products">Browse Products</Link></Button>}
         />
       </div>
@@ -59,7 +59,7 @@ export default async function CartPage() {
 
   return (
     <div className="container py-8">
-      <h1 className="font-display text-3xl uppercase tracking-wide">Your Cart</h1>
+      <h1 className="font-display text-3xl">Your Cart</h1>
 
       <div className="mt-8 grid gap-8 md:grid-cols-3">
         <div className="md:col-span-2 space-y-3">
@@ -68,8 +68,8 @@ export default async function CartPage() {
           ))}
         </div>
 
-        <aside className="rounded-lg border border-olive-100 bg-cream p-6 h-fit sticky top-24">
-          <h2 className="font-display uppercase text-lg">Order Summary</h2>
+        <aside className="rounded-lg border border-leather-100 bg-cream p-6 h-fit sticky top-24">
+          <h2 className="font-display text-lg">Order Summary</h2>
           <dl className="mt-4 space-y-2 text-sm">
             <div className="flex justify-between"><dt>Subtotal</dt><dd>{inr(subtotal)}</dd></div>
             <div className="flex justify-between text-ink/70"><dt>GST (est.)</dt><dd>{inr(taxPreview)}</dd></div>
@@ -82,7 +82,7 @@ export default async function CartPage() {
           <Button asChild size="lg" className="mt-6 w-full">
             <Link href="/checkout">Proceed to Checkout</Link>
           </Button>
-          <Link href="/products" className="mt-3 block text-center text-sm text-olive-700 hover:underline">
+          <Link href="/products" className="mt-3 block text-center text-sm text-leather-700 hover:underline">
             Continue shopping
           </Link>
         </aside>

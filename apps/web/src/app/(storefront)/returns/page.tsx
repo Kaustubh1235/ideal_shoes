@@ -1,7 +1,7 @@
 export default function ReturnsPage() {
   return (
     <div className="container py-12 max-w-2xl prose prose-sm">
-      <h1 className="font-display text-3xl uppercase not-prose">Returns &amp; RMA</h1>
+      <h1 className="font-display text-3xl not-prose">Returns &amp; RMA</h1>
       <p className="mt-4">
         Returns accepted within 30 days of delivery for manufacturing defects or fit issues.
       </p>

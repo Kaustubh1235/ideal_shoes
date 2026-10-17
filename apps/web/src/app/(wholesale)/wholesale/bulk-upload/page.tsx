@@ -21,7 +21,7 @@ export default function BulkUploadPage() {
                 type="file"
                 accept=".csv,text/csv"
                 required
-                className="flex h-10 w-full rounded-md border border-olive-200 bg-cream px-3 py-2 text-sm"
+                className="flex h-10 w-full rounded-md border border-leather-200 bg-cream px-3 py-2 text-sm"
               />
             </div>
             <Button type="submit" size="lg">Upload &amp; Add to Cart</Button>
@@ -31,11 +31,11 @@ export default function BulkUploadPage() {
 
       <details className="mt-6 text-sm">
         <summary className="cursor-pointer font-medium">Example CSV</summary>
-        <pre className="mt-2 rounded bg-olive-50 p-3 text-xs">
+        <pre className="mt-2 rounded bg-leather-50 p-3 text-xs">
 sku,size,color,quantity{"\n"}
-BBT-ARMY-001,9,Olive,50{"\n"}
-BBT-ARMY-001,10,Olive,30{"\n"}
-BBT-OXF-002,8,Black,20
+IDX-SHOE-CHELSEA-9-DARKBROWN,9,Dark Brown,12{"\n"}
+IDX-SHOE-CHELSEA-10-DARKBROWN,10,Dark Brown,12{"\n"}
+IDX-BAG-MSGR-OS-TAN,OS,Tan,6
         </pre>
       </details>
     </div>

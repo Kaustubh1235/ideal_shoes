@@ -40,8 +40,8 @@ export default async function WholesaleCatalogPage() {
             ...p.variants.map((v) => tierByVariant.get(v.id) ?? v.priceOverride ?? p.basePrice),
           );
           return (
-            <Link key={p.id} href={`/wholesale/catalog/${p.slug}`} className="rounded-lg border border-olive-100 bg-cream overflow-hidden hover:border-olive-300">
-              <div className="aspect-[4/3] bg-olive-50">
+            <Link key={p.id} href={`/wholesale/catalog/${p.slug}`} className="rounded-lg border border-leather-100 bg-cream overflow-hidden hover:border-leather-300">
+              <div className="aspect-[4/3] bg-leather-50">
                 {p.images[0] ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img src={p.images[0].url} alt={p.name} className="h-full w-full object-cover" />

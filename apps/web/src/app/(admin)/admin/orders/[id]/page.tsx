@@ -64,7 +64,7 @@ export default async function AdminOrderDetail({ params }: { params: { id: strin
             </thead>
             <tbody>
               {order.items.map((it) => (
-                <tr key={it.id} className="border-t border-olive-100">
+                <tr key={it.id} className="border-t border-leather-100">
                   <td className="py-2 font-mono text-xs">{it.sku}</td>
                   <td>{it.name}</td>
                   <td>{it.hsnCode}</td>

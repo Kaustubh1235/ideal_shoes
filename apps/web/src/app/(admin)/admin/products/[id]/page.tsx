@@ -72,7 +72,7 @@ export default async function AdminProductDetail({ params }: { params: { id: str
             <div className="grid grid-cols-4 gap-3">
               {product.images.map((img) => (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img key={img.id} src={img.url} alt={img.alt ?? ""} className="aspect-square rounded border border-olive-100 object-cover" />
+                <img key={img.id} src={img.url} alt={img.alt ?? ""} className="aspect-square rounded border border-leather-100 object-cover" />
               ))}
             </div>
           )}

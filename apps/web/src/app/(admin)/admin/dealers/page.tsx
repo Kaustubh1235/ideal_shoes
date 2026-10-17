@@ -13,7 +13,7 @@ export default async function AdminDealersPage() {
   return (
     <div className="space-y-4">
       <h1 className="font-display text-2xl uppercase">Dealers</h1>
-      <div className="rounded-lg border border-olive-100 bg-cream">
+      <div className="rounded-lg border border-leather-100 bg-cream">
         <Table>
           <TableHeader>
             <TableRow>

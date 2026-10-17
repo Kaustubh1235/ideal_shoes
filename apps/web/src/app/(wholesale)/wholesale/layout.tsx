@@ -22,24 +22,24 @@ export default async function WholesaleLayout({ children }: { children: React.Re
         <p className="text-ink/70 mt-2">
           Your dealer account is {dealer?.status ?? "not yet set up"}. Approval typically takes 2 business days.
         </p>
-        <Link href="/" className="mt-6 inline-block text-olive-700 underline">Back to storefront</Link>
+        <Link href="/" className="mt-6 inline-block text-leather-700 underline">Back to storefront</Link>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b border-olive-200 bg-olive-700 text-cream">
+      <header className="border-b border-leather-200 bg-leather-700 text-cream">
         <div className="container py-3 flex items-center gap-4">
           <Link href="/wholesale" className="font-display uppercase tracking-wider text-xl">
-            BharatBoot · B2B
+            IDEALX · Wholesale
           </Link>
           <nav className="ml-6 flex items-center gap-5 text-sm uppercase tracking-wide">
-            <Link href="/wholesale/catalog" className="hover:text-khaki-400">Catalog</Link>
-            <Link href="/wholesale/quotes" className="hover:text-khaki-400">Quotes</Link>
-            <Link href="/wholesale/bulk-upload" className="hover:text-khaki-400">Bulk Upload</Link>
-            <Link href="/wholesale/orders" className="hover:text-khaki-400">Orders</Link>
-            <Link href="/wholesale/credit" className="hover:text-khaki-400">Credit</Link>
+            <Link href="/wholesale/catalog" className="hover:text-sand-400">Catalog</Link>
+            <Link href="/wholesale/quotes" className="hover:text-sand-400">Quotes</Link>
+            <Link href="/wholesale/bulk-upload" className="hover:text-sand-400">Bulk Upload</Link>
+            <Link href="/wholesale/orders" className="hover:text-sand-400">Orders</Link>
+            <Link href="/wholesale/credit" className="hover:text-sand-400">Credit</Link>
           </nav>
           <div className="ml-auto text-right text-xs text-cream/80">
             <p className="font-medium">{dealer.businessName}</p>

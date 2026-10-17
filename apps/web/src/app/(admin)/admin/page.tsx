@@ -96,7 +96,7 @@ export default async function AdminDashboard() {
             </thead>
             <tbody>
               {recentOrders.map((o) => (
-                <tr key={o.id} className="border-t border-olive-100">
+                <tr key={o.id} className="border-t border-leather-100">
                   <td className="py-2">{o.orderNo}</td>
                   <td>{o.user?.email ?? o.user?.phone ?? "—"}</td>
                   <td>{o.status}</td>

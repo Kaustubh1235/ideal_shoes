@@ -22,13 +22,13 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
   return (
     <div className="container py-8">
       <nav className="text-xs text-ink/60 flex items-center gap-1 mb-4">
-        <Link href="/" className="hover:text-olive-700">Home</Link>
+        <Link href="/" className="hover:text-leather-700">Home</Link>
         <ChevronRight className="size-3" />
-        <Link href="/products" className="hover:text-olive-700">Products</Link>
+        <Link href="/products" className="hover:text-leather-700">Products</Link>
         {product.category && (
           <>
             <ChevronRight className="size-3" />
-            <Link href={`/products?category=${product.category.slug}`} className="hover:text-olive-700">
+            <Link href={`/products?category=${product.category.slug}`} className="hover:text-leather-700">
               {product.category.name}
             </Link>
           </>
@@ -39,7 +39,7 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
 
       <div className="grid gap-10 md:grid-cols-2">
         <div>
-          <div className="aspect-square bg-olive-50 rounded-md overflow-hidden border border-olive-100">
+          <div className="aspect-square bg-leather-50 rounded-md overflow-hidden border border-leather-100">
             {product.images[0] ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img src={product.images[0].url} alt={product.name} className="h-full w-full object-cover" />
@@ -53,7 +53,7 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
             <div className="mt-3 grid grid-cols-4 gap-2">
               {product.images.slice(0, 4).map((img) => (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img key={img.id} src={img.url} alt={img.alt ?? ""} className="aspect-square w-full rounded object-cover border border-olive-100" />
+                <img key={img.id} src={img.url} alt={img.alt ?? ""} className="aspect-square w-full rounded object-cover border border-leather-100" />
               ))}
             </div>
           )}
@@ -67,12 +67,12 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
         </div>
 
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-olive-600">{product.category?.name}</p>
-          <h1 className="mt-1 font-display text-3xl uppercase tracking-wide">{product.name}</h1>
+          <p className="text-xs uppercase tracking-[0.2em] text-leather-600">{product.category?.name}</p>
+          <h1 className="mt-1 font-display text-3xl">{product.name}</h1>
           <p className="mt-1 text-sm text-ink/60">SKU: {product.sku}</p>
 
           <div className="mt-4 flex items-baseline gap-3">
-            <span className="font-display text-2xl text-olive-700">{rupeesOnly(product.basePrice)}</span>
+            <span className="font-display text-2xl text-leather-700">{rupeesOnly(product.basePrice)}</span>
             {product.mrp && product.mrp > product.basePrice && (
               <span className="text-sm text-ink/50 line-through">{inr(product.mrp)}</span>
             )}

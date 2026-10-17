@@ -4,13 +4,13 @@ import { dealerApplyAction } from "@/app/actions/dealer";
 export default function DealerApplicationPage() {
   return (
     <div className="container py-12 max-w-2xl">
-      <h1 className="font-display text-3xl uppercase tracking-wide">Become a Dealer</h1>
+      <h1 className="font-display text-3xl">Become a Dealer</h1>
       <p className="text-ink/70 mt-2">
         Apply for an authorised dealer account. We&apos;ll review your application and
         provision login + price tier within 2 business days.
       </p>
 
-      <form action={dealerApplyAction} className="mt-8 space-y-6 rounded-lg border border-olive-100 bg-cream p-6">
+      <form action={dealerApplyAction} className="mt-8 space-y-6 rounded-lg border border-leather-100 bg-cream p-6">
         <div className="grid gap-3 md:grid-cols-2">
           <div><Label htmlFor="businessName">Business / Firm Name</Label><Input name="businessName" required /></div>
           <div><Label htmlFor="contactName">Contact Person</Label><Input name="contactName" required /></div>

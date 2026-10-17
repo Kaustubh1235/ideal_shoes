@@ -34,8 +34,8 @@ export default async function CheckoutPage() {
   return (
     <div className="container py-8 grid gap-8 md:grid-cols-3">
       <form action={placeOrderAction} className="md:col-span-2 space-y-6">
-        <section className="rounded-lg border border-olive-100 bg-cream p-6">
-          <h2 className="font-display uppercase text-lg">Contact</h2>
+        <section className="rounded-lg border border-leather-100 bg-cream p-6">
+          <h2 className="font-display text-lg">Contact</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <div>
               <Label htmlFor="email">Email</Label>
@@ -47,8 +47,8 @@ export default async function CheckoutPage() {
         <AddressBlock title="Shipping Address" prefix="shipping" />
         <AddressBlock title="Billing Address" prefix="billing" />
 
-        <section className="rounded-lg border border-olive-100 bg-cream p-6">
-          <h2 className="font-display uppercase text-lg">GST Details (optional)</h2>
+        <section className="rounded-lg border border-leather-100 bg-cream p-6">
+          <h2 className="font-display text-lg">GST Details (optional)</h2>
           <p className="text-xs text-ink/60 mt-1">Provide GSTIN if buying as a business — required for input tax credit.</p>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <div>
@@ -65,8 +65,8 @@ export default async function CheckoutPage() {
         <Button type="submit" size="lg" className="w-full">Place Order &amp; Pay {inr(subtotal)}</Button>
       </form>
 
-      <aside className="rounded-lg border border-olive-100 bg-cream p-6 h-fit sticky top-24">
-        <h2 className="font-display uppercase text-lg">Order Review</h2>
+      <aside className="rounded-lg border border-leather-100 bg-cream p-6 h-fit sticky top-24">
+        <h2 className="font-display text-lg">Order Review</h2>
         <ul className="mt-4 space-y-2 text-sm">
           {lines.map((l, i) => (
             <li key={i} className="flex justify-between gap-3">
@@ -89,8 +89,8 @@ export default async function CheckoutPage() {
 
 function AddressBlock({ title, prefix }: { title: string; prefix: string }) {
   return (
-    <section className="rounded-lg border border-olive-100 bg-cream p-6">
-      <h2 className="font-display uppercase text-lg">{title}</h2>
+    <section className="rounded-lg border border-leather-100 bg-cream p-6">
+      <h2 className="font-display text-lg">{title}</h2>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <div>
           <Label htmlFor={`${prefix}.fullName`}>Full Name</Label>
@@ -126,7 +126,7 @@ function AddressBlock({ title, prefix }: { title: string; prefix: string }) {
             id={`${prefix}.stateCode`}
             name={`${prefix}.stateCode`}
             required
-            className="flex h-10 w-full rounded-md border border-olive-200 bg-cream px-3 py-2 text-sm"
+            className="flex h-10 w-full rounded-md border border-leather-200 bg-cream px-3 py-2 text-sm"
             defaultValue=""
           >
             <option value="" disabled>Choose…</option>

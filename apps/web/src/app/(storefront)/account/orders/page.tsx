@@ -16,14 +16,14 @@ export default async function OrdersListPage() {
 
   return (
     <div className="container py-8">
-      <h1 className="font-display text-3xl uppercase tracking-wide">All Orders</h1>
+      <h1 className="font-display text-3xl">All Orders</h1>
       <div className="mt-6 space-y-2">
         {orders.length === 0 && <p className="text-ink/60 text-sm">No orders yet.</p>}
         {orders.map((o) => (
           <Link
             key={o.id}
             href={`/account/orders/${o.id}`}
-            className="flex flex-wrap justify-between items-center gap-2 rounded border border-olive-100 bg-cream p-4 hover:border-olive-300"
+            className="flex flex-wrap justify-between items-center gap-2 rounded border border-leather-100 bg-cream p-4 hover:border-leather-300"
           >
             <div>
               <p className="font-medium">{o.orderNo}</p>

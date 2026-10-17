@@ -6,9 +6,9 @@ import { Badge } from "@bharatboot/ui";
 export const dynamic = "force-dynamic";
 
 const CATEGORY_LABELS: Record<string, string> = {
-  army_boots: "Army Boots",
-  oxford_shoes: "Oxford Shoes",
-  jackets: "Jackets",
+  bags: "Bags",
+  shoes: "Shoes",
+  belts_wallets: "Belts & Wallets",
   accessories: "Accessories",
 };
 
@@ -40,8 +40,8 @@ export default async function ProductsListPage({
     <div className="container py-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl uppercase tracking-wide">
-            {category ? CATEGORY_LABELS[category] ?? "Products" : "All Products"}
+          <h1 className="font-display text-3xl">
+            {category ? CATEGORY_LABELS[category] ?? "Products" : "Everything we make"}
           </h1>
           <p className="text-sm text-ink/60 mt-1">
             {products.length} item{products.length !== 1 ? "s" : ""}
@@ -62,9 +62,9 @@ export default async function ProductsListPage({
           <Link
             key={p.id}
             href={`/products/${p.slug}`}
-            className="group block overflow-hidden rounded-md border border-olive-100 bg-cream"
+            className="group block overflow-hidden rounded-md border border-leather-100 bg-cream"
           >
-            <div className="relative aspect-square bg-olive-50">
+            <div className="relative aspect-square bg-leather-50">
               {p.images[0]?.url ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={p.images[0].url} alt={p.name} className="h-full w-full object-cover transition group-hover:scale-105" />
@@ -74,13 +74,13 @@ export default async function ProductsListPage({
                 </div>
               )}
               {p.arEnabled && (
-                <span className="absolute top-2 left-2 bg-olive-700 text-cream text-[10px] uppercase tracking-wider px-2 py-0.5 rounded">
+                <span className="absolute top-2 left-2 bg-leather-700 text-cream text-[10px] uppercase tracking-wider px-2 py-0.5 rounded">
                   3D / AR
                 </span>
               )}
             </div>
             <div className="p-3">
-              <h3 className="font-display text-base uppercase tracking-wide group-hover:text-olive-700 line-clamp-2">{p.name}</h3>
+              <h3 className="font-display text-base group-hover:text-leather-700 line-clamp-2">{p.name}</h3>
               <p className="mt-1 text-sm text-ink/70">{rupeesOnly(p.basePrice)}</p>
               {p.mrp && p.mrp > p.basePrice && (
                 <p className="text-xs text-ink/50 line-through">{rupeesOnly(p.mrp)}</p>
@@ -89,8 +89,8 @@ export default async function ProductsListPage({
           </Link>
         ))}
         {products.length === 0 && (
-          <div className="col-span-full rounded-lg border border-dashed border-olive-200 p-12 text-center text-ink/60">
-            No products found. Adjust filters or seed demo data.
+          <div className="col-span-full rounded-lg border border-dashed border-leather-200 p-12 text-center text-ink/60">
+            Nothing here yet. Try another category or seed demo data.
           </div>
         )}
       </div>

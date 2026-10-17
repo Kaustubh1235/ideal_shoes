@@ -21,10 +21,10 @@ export default async function ARPage({ params }: { params: { slug: string } }) {
         strategy="afterInteractive"
       />
       <div className="container py-8">
-        <h1 className="font-display text-3xl uppercase tracking-wide">{product.name}</h1>
+        <h1 className="font-display text-3xl">{product.name}</h1>
         <p className="text-sm text-ink/60 mt-1">3D / AR Viewer</p>
 
-        <div className="mt-6 rounded-lg border border-olive-100 bg-cream p-2 md:p-4">
+        <div className="mt-6 rounded-lg border border-leather-100 bg-cream p-2 md:p-4">
           {product.arModelUrl ? (
             // @ts-expect-error - custom element
             <model-viewer
@@ -42,16 +42,16 @@ export default async function ARPage({ params }: { params: { slug: string } }) {
             >
               <button
                 slot="ar-button"
-                className="absolute bottom-4 right-4 bg-olive-700 text-cream px-4 py-2 rounded font-medium uppercase text-sm tracking-wider"
+                className="absolute bottom-4 right-4 bg-leather-700 text-cream px-4 py-2 rounded font-medium uppercase text-sm tracking-wider"
               >
                 View in your space
               </button>
             {/* @ts-expect-error - custom element */}
             </model-viewer>
           ) : (
-            <div className="aspect-square w-full max-w-xl mx-auto grid place-items-center text-center text-ink/60 p-12 border border-dashed border-olive-200 rounded">
+            <div className="aspect-square w-full max-w-xl mx-auto grid place-items-center text-center text-ink/60 p-12 border border-dashed border-leather-200 rounded">
               <div>
-                <p className="font-display uppercase text-lg">3D model not yet uploaded</p>
+                <p className="font-display text-lg">3D model not yet uploaded</p>
                 <p className="mt-2 text-sm">
                   Upload a <code>.glb</code> file via <Link className="underline" href={`/admin/products/${product.id}`}>admin</Link> to enable AR.
                 </p>

@@ -15,7 +15,7 @@ export default async function PayPage({ params }: { params: { orderId: string } 
   if (order.status === "paid" || order.status === "processing" || order.status === "shipped" || order.status === "delivered") {
     return (
       <div className="container py-16 text-center">
-        <h1 className="font-display text-3xl uppercase">Already Paid</h1>
+        <h1 className="font-display text-3xl">Already Paid</h1>
         <p className="mt-2 text-ink/70">Order {order.orderNo} is already {order.status}.</p>
       </div>
     );
@@ -33,10 +33,10 @@ export default async function PayPage({ params }: { params: { orderId: string } 
 
   return (
     <div className="container py-12 max-w-xl">
-      <h1 className="font-display text-3xl uppercase">Complete Payment</h1>
+      <h1 className="font-display text-3xl">Complete Payment</h1>
       <p className="text-ink/70 mt-1">Order {order.orderNo}</p>
 
-      <div className="mt-6 rounded-lg border border-olive-100 bg-cream p-6">
+      <div className="mt-6 rounded-lg border border-leather-100 bg-cream p-6">
         <dl className="space-y-1 text-sm">
           <div className="flex justify-between"><dt>Subtotal</dt><dd>{inr(order.subtotal)}</dd></div>
           <div className="flex justify-between text-ink/70"><dt>GST</dt><dd>{inr(order.cgstTotal + order.sgstTotal + order.igstTotal)}</dd></div>

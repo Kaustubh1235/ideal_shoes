@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { Oswald, Source_Sans_3 } from "next/font/google";
+import { Fraunces, Source_Sans_3 } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 
-const display = Oswald({
+const display = Fraunces({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-display",
@@ -19,11 +19,11 @@ const body = Source_Sans_3({
 
 export const metadata: Metadata = {
   title: {
-    default: "BharatBoot — Built to Last. Made in India.",
-    template: "%s · BharatBoot",
+    default: "IDEALX — Handcrafted Leather from Agra",
+    template: "%s · IDEALX",
   },
   description:
-    "Defense-grade army boots, classic Oxford shoes, and combat-tested jackets. Manufactured in India.",
+    "Full-grain leather bags, shoes, belts and wallets, cut and stitched by hand in Agra and sold direct from the maker.",
   metadataBase: new URL(process.env.AUTH_URL ?? "http://localhost:3000"),
 };
 
@@ -37,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           closeButton
           toastOptions={{
             classNames: {
-              toast: "border border-olive-200 bg-cream text-ink",
+              toast: "border border-leather-200 bg-cream text-ink",
               title: "font-medium",
             },
           }}

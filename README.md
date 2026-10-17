@@ -1,6 +1,10 @@
-# BharatBoot
+# IDEALX — Ideal Shoes, Agra
 
-Unified business platform for an Indian defense & footwear manufacturer — D2C storefront, B2B wholesale portal, admin dashboard, GST-compliant invoicing, government tender tracker, AR product viewer.
+Online platform for IDEALX, the handcrafted full-grain leather brand of Ideal Shoes, Agra — D2C storefront, B2B wholesale portal, admin dashboard, GST-compliant invoicing, GeM/tender tracker, AR product viewer.
+
+Brand positioning: full-grain leather bags, shoes, belts and wallets, made by hand in Agra and sold direct from the maker. Bags launch first online (no sizing, lower returns); shoes follow once the BIS certification path for leather footwear is in hand.
+
+Stock on the shop floor is tracked separately in the shared Stock Book (QR labels, scan to count); its CSV export maps onto `product_variants` + `inventory` here for a later import.
 
 ## Stack
 
@@ -45,8 +49,8 @@ pnpm stack:up
 ```
 
 Storefront: http://localhost:3000  
-Admin: http://localhost:3000/admin (login: `admin@bharatboot.local` / `changeme` + TOTP shown in console)  
-Wholesale: http://localhost:3000/wholesale (login: `dealer1@bharatboot.local` / `changeme`)  
+Admin: http://localhost:3000/admin (login: `admin@bharatboot.local` / `ChangeMe123!` + TOTP shown in console)  
+Wholesale: http://localhost:3000/wholesale (login: `dealer1@bharatboot.local` / `Dealer123!`)  
 API docs: http://localhost:8000/docs  
 MinIO console: http://localhost:9001  
 MailHog: http://localhost:8025  
@@ -98,9 +102,9 @@ cd apps/api && pytest
 
 ```bash
 # On the host
-git clone <repo> bharatboot && cd bharatboot
+git clone <repo> idealx && cd idealx
 cp .env.example .env
-# Edit .env: AUTH_SECRET, RAZORPAY_*, SELLER_*, AUTH_URL=https://yourdomain.com, etc.
+# Edit .env: AUTH_SECRET, RAZORPAY_*, SELLER_* (GSTIN, Agra address, state code 09), AUTH_URL=https://yourdomain.com, etc.
 docker compose -f infra/docker/compose.prod.yml up -d
 docker compose -f infra/docker/compose.prod.yml exec api alembic upgrade head
 docker compose -f infra/docker/compose.prod.yml exec api python -m scripts.seed_admin
@@ -108,6 +112,10 @@ docker compose -f infra/docker/compose.prod.yml exec api python -m scripts.seed_
 
 TLS: nginx is configured to read `infra/nginx/certs/fullchain.pem` + `privkey.pem`. Use `certbot` to populate.
 
+## Workspace package names
+
+Internal packages are still scoped `@bharatboot/*` (the scaffold's original name). Renaming them is a mechanical find-and-replace across `package.json` files and imports; it changes nothing user-facing, so it is left for a quiet moment.
+
 ## License
 
-Proprietary. All rights reserved.
+Proprietary. Ideal Shoes, Agra. All rights reserved.

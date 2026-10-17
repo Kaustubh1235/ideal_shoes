@@ -37,10 +37,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-60 shrink-0 border-r border-olive-200 bg-olive-700 text-cream">
+      <aside className="w-60 shrink-0 border-r border-leather-200 bg-leather-700 text-cream">
         <div className="p-4 border-b border-cream/10">
           <Link href="/admin" className="font-display text-xl uppercase tracking-wider">
-            BharatBoot
+            IDEALX · Admin
           </Link>
           <p className="text-xs text-cream/60 mt-1">Admin Console</p>
         </div>
@@ -65,7 +65,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </div>
       </aside>
       <main className="flex-1 bg-cream min-w-0">
-        <header className="border-b border-olive-100 bg-cream sticky top-0 z-30">
+        <header className="border-b border-leather-100 bg-cream sticky top-0 z-30">
           <div className="px-6 py-3 flex items-center gap-4">
             <h1 className="font-display uppercase tracking-wide">Admin</h1>
             <span className="ml-auto text-sm text-ink/60">{session.user.email ?? session.user.name}</span>

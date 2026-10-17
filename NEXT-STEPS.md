@@ -29,13 +29,13 @@ When ready for production: KYC live → switch to `rzp_live_*` keys.
 
 1. Sign up at https://msg91.com → verify mobile + email.
 2. Create a transactional SMS template for OTP (must be DLT-approved per TRAI rules — takes 2-3 days):
-   - Sample: `Your BharatBoot OTP is ##OTP##. Valid for 10 minutes.`
+   - Sample: `Your IDEALX OTP is ##OTP##. Valid for 10 minutes.`
 3. Get **Auth Key** from dashboard → Account → API.
 4. Approve a 6-character **Sender ID** (alphanumeric).
 5. `.env`:
    ```
    MSG91_AUTH_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
-   MSG91_SENDER_ID=BHRTBT
+   MSG91_SENDER_ID=IDEALX
    MSG91_TEMPLATE_OTP=<template_id_from_msg91>
    OTP_DEV_MODE=false
    ```
@@ -54,12 +54,12 @@ Until then: `OTP_DEV_MODE=true` logs the OTP to the API container stdout.
 | AWS Lightsail $10 | ₹850/mo | 2 vCPU, 2GB |
 | DigitalOcean Basic | ₹500/mo | Mumbai region available |
 
-1. Register `bharatboot.com` (or alternative) via Cloudflare / GoDaddy / BigRock.
+1. Register `idealx.in` and `idealx.com` (or whatever the trademark search clears) via Cloudflare / GoDaddy / BigRock.
 2. Provision a Linux box (Ubuntu 22.04 LTS recommended).
 3. Point DNS A record to host IP.
 4. Install Docker: `curl -fsSL https://get.docker.com | sh && systemctl enable --now docker`.
-5. Clone repo, copy `.env.example` → `.env`, fill values (especially `AUTH_URL=https://bharatboot.com`).
-6. Get TLS cert: `docker run -it --rm -v ./infra/nginx/certs:/etc/letsencrypt certbot/certbot certonly --standalone -d bharatboot.com -d www.bharatboot.com`.
+5. Clone repo, copy `.env.example` → `.env`, fill values (especially `AUTH_URL=https://idealx.in`).
+6. Get TLS cert: `docker run -it --rm -v ./infra/nginx/certs:/etc/letsencrypt certbot/certbot certonly --standalone -d idealx.in -d www.idealx.in`.
 7. `docker compose -f infra/docker/compose.prod.yml up -d`.
 
 ---
@@ -69,11 +69,11 @@ Until then: `OTP_DEV_MODE=true` logs the OTP to the API container stdout.
 Fill in `.env`:
 
 ```
-SELLER_GSTIN=27AAAAA0000A1Z5
-SELLER_LEGAL_NAME=Your Company Pvt Ltd
-SELLER_TRADE_NAME=BharatBoot
-SELLER_STATE_CODE=27                         # 2-digit code, first 2 of GSTIN
-SELLER_ADDRESS_JSON={"line1":"Plot 42","line2":"MIDC","city":"Pune","state":"Maharashtra","pincode":"411019","country":"India"}
+SELLER_GSTIN=09AAAAA0000A1Z5                  # from the CA; starts with 09 for Uttar Pradesh
+SELLER_LEGAL_NAME=Ideal Shoes
+SELLER_TRADE_NAME=IDEALX
+SELLER_STATE_CODE=09                         # 2-digit code, first 2 of GSTIN
+SELLER_ADDRESS_JSON={"line1":"<shop address>","line2":"","city":"Agra","state":"Uttar Pradesh","pincode":"<pincode>","country":"India"}
 SELLER_EMAIL=accounts@yourdomain.com
 SELLER_PHONE=+919876543210
 SELLER_FINANCIAL_YEAR=2025-26                # change annually in April
@@ -89,14 +89,14 @@ After change: restart API. Every new invoice picks up the new identity.
 
 Minimum to look professional:
 
-- 10 SKUs (your top sellers).
+- 10 SKUs: start with the bags (messenger, laptop bag, tote) and belts, then the two best shoe styles.
 - 4 angles each: front, side, 3/4, sole/detail.
 - 2000×2000px square, white or transparent background.
 - ~200KB each (use https://squoosh.app to compress).
 
 Upload via admin: `/admin/products/<id>/images`. First image = card image. Storefront and B2B catalog show them immediately.
 
-**Lifestyle shots** (boot in muddy field, jacket on a worker) belong on the home page hero — upload to admin `/admin/cms/hero`.
+**Lifestyle shots** (a bag on the cutting bench with hides behind it, a karigar stitching) belong on the home page hero — upload to admin `/admin/cms/hero`.
 
 ---
 
@@ -105,7 +105,7 @@ Upload via admin: `/admin/products/<id>/images`. First image = card image. Store
 Per AR-enabled product:
 
 1. Generate `.glb` using one of:
-   - **Polycam** (free iPhone/Android app) — photograph the shoe from 30+ angles, app generates `.glb`.
+   - **Polycam** (free iPhone/Android app) — photograph the bag or shoe from 30+ angles, app generates `.glb`.
    - **Kiri Engine** (free, similar).
    - **Blender** (free, manual) — for higher fidelity, hire a 3D artist on Fiverr (₹2-5k per model).
 2. Optimize: aim for <2MB, <50k triangles. Use https://gltf.report to inspect/optimize.

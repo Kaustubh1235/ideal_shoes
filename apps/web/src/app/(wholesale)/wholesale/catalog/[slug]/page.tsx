@@ -32,7 +32,7 @@ export default async function WholesaleProductPage({ params }: { params: { slug:
   return (
     <div className="container py-8 grid gap-8 md:grid-cols-2">
       <div>
-        <div className="aspect-square rounded bg-olive-50 overflow-hidden">
+        <div className="aspect-square rounded bg-leather-50 overflow-hidden">
           {product.images[0] ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img src={product.images[0].url} alt={product.name} className="h-full w-full object-cover" />
@@ -45,7 +45,7 @@ export default async function WholesaleProductPage({ params }: { params: { slug:
         <h1 className="font-display text-2xl uppercase">{product.name}</h1>
         <p className="text-sm text-ink/60">{product.sku} · HSN {product.hsnCode}</p>
 
-        <div className="mt-6 rounded border border-olive-100 bg-cream overflow-hidden">
+        <div className="mt-6 rounded border border-leather-100 bg-cream overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
