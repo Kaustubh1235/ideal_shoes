@@ -14,6 +14,7 @@ import {
   Truck,
   Settings,
   LogOut,
+  QrCode,
 } from "lucide-react";
 
 const NAV = [
@@ -34,6 +35,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const session = await auth();
   if (!session?.user) redirect("/login?from=/admin");
   if (session.user.userType !== "staff") redirect("/");
+  const stockRoomUrl = process.env.INVENTORY_APP_URL;
 
   return (
     <div className="flex min-h-screen">
@@ -55,6 +57,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               {label}
             </Link>
           ))}
+          {stockRoomUrl && (
+            <a
+              href={stockRoomUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 flex items-center gap-3 rounded border border-cream/15 px-3 py-2 text-sm text-cream/80 hover:bg-cream/10 hover:text-cream"
+              title="Opens the separate inventory app in a new tab"
+            >
+              <QrCode className="size-4" />
+              Stock room
+            </a>
+          )}
         </nav>
         <div className="p-2 border-t border-cream/10">
           <form action={async () => { "use server"; await signOut({ redirectTo: "/login" }); }}>

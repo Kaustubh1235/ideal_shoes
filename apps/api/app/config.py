@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     seller_gstin: str = ""
     seller_legal_name: str = "Ideal Shoes"
     seller_trade_name: str = "IDEALX"
-    seller_state_code: str = "27"
+    seller_state_code: str = "09"
     seller_address_json: str = '{"line1":"","line2":"","city":"","state":"","pincode":"","country":"India"}'
     seller_email: str = ""
     seller_phone: str = ""
@@ -91,6 +91,11 @@ class Settings(BaseSettings):
     whatsapp_phone_number_id: str = ""
     whatsapp_access_token: str = ""
     whatsapp_verify_token: str = ""
+
+    # Inventory app (separate self-hosted stock system; the site's only link to it)
+    inventory_api_url: str = ""
+    inventory_api_key: str = ""
+    inventory_app_url: str = ""
 
     @field_validator("seller_address_json")
     @classmethod

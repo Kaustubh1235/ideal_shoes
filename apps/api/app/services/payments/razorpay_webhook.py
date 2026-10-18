@@ -4,7 +4,7 @@ Pipeline:
   1. Verify HMAC-SHA256 signature against RAZORPAY_WEBHOOK_SECRET.
   2. Persist every event in payment_events (with `event_id` as a unique key for dedupe).
   3. Project the event onto the Payment row (status, captured_at, refund, etc.).
-  4. On `payment.captured`: mark Order paid, fire invoice-generation Celery task.
+  4. On `payment.captured`: mark Order paid, fire invoice-generation and inventory stock-out Celery tasks.
 
 Idempotency: same `event_id` arriving twice short-circuits at step 2 (unique index).
 """
@@ -120,6 +120,21 @@ def handle_webhook_event(db: Session, payload: dict[str, Any], raw_body: bytes, 
                 celery_app.send_task("invoices.generate", args=[str(order.id)])
             except Exception as e:  # noqa: BLE001
                 log.warning("invoice_enqueue_failed", extra={"error": str(e)})
+
+            # Tell the inventory app the stock has left (async, idempotent per order item).
+            # No-op when INVENTORY_API_URL / INVENTORY_API_KEY are unset.
+            try:
+                from app.worker.celery_app import celery_app
+                celery_app.send_task("inventory.order_out", args=[str(order.id)])
+            except Exception as e:  # noqa: BLE001
+                log.warning("inventory_order_out_enqueue_failed", extra={"error": str(e)})
+
+            # WhatsApp order confirmation (approved template; no-op until Meta keys are set).
+            try:
+                from app.worker.celery_app import celery_app
+                celery_app.send_task("notify.whatsapp_order_confirmed", args=[str(order.id)])
+            except Exception as e:  # noqa: BLE001
+                log.warning("whatsapp_enqueue_failed", extra={"error": str(e)})
     elif event_type == "payment.failed":
         payment.status = "failed"
         payment.gateway_payment_id = gateway_payment_id
