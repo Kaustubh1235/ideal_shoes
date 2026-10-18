@@ -122,7 +122,9 @@ class InventoryClient:
         if r.status_code == 404:
             return None
         self._raise_for_status(r, f"/items/{sku}")
-        return StockItem.from_json(r.json())
+        data = r.json()
+        # The stock room wraps the item with its recent movements: {"item": {...}, "movements": [...]}.
+        return StockItem.from_json(data.get("item", data) if isinstance(data, dict) else data)
 
     # -- writes ----------------------------------------------------------------
 
