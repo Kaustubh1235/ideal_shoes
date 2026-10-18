@@ -21,6 +21,8 @@ const env = z
     S3_BUCKET: z.string().default("bharatboot"),
     ADMIN_IP_ALLOWLIST: z.string().default(""),
     ADMIN_TOTP_ISSUER: z.string().default("BharatBoot"),
+    NEXT_PUBLIC_HERO_IMAGE_URL: z.string().default(""),
+    INVENTORY_APP_URL: z.string().default(""),
   })
   .parse(process.env);
 

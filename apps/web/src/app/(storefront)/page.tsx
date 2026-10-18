@@ -1,20 +1,21 @@
 import Link from "next/link";
-import { ArrowRight, Scissors, Hand, Store } from "lucide-react";
+import { ArrowRight, Factory, Footprints, Store } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { rupeesOnly } from "@/lib/money";
 import { Button } from "@bharatboot/ui";
 
 const CATEGORIES = [
-  { slug: "bags", name: "Bags", blurb: "Messengers, laptop bags, totes and duffels." },
-  { slug: "shoes", name: "Shoes", blurb: "Chelsea boots, derbies, loafers and formals." },
-  { slug: "belts_wallets", name: "Belts & Wallets", blurb: "Cut from the same hides as the bags." },
+  { slug: "boots", name: "Service & Army Boots", blurb: "DMS and high-ankle boots built for daily service wear." },
+  { slug: "shoes", name: "Formal Shoes", blurb: "Plain-toe and cap-toe Oxfords from the same factory floor." },
+  { slug: "jackets", name: "Jackets", blurb: "Field and everyday jackets, cut and sewn in-house." },
+  { slug: "bags", name: "Leather Bags", blurb: "A small line of full-grain bags, made in limited runs." },
 ];
 
 const CRAFT = [
-  { step: "Hide", body: "We buy whole full-grain hides and grade each one by hand. Only the best cuts become IDEALX." },
-  { step: "Cut", body: "Patterns are clicked by hand so the grain runs the right way on every panel." },
-  { step: "Stitch", body: "Saddle-stitched stress points, edge-painted seams, solid brass fittings." },
-  { step: "Finish", body: "Burnished, conditioned, and checked twice before it goes into the dust bag." },
+  { step: "Last", body: "Every pair is built on a last shaped for Indian feet, so a size 8 fits like a size 8 after a twelve-hour shift." },
+  { step: "Upper", body: "Full-grain leather uppers are clicked and closed by hand, with the grain running the right way on every panel." },
+  { step: "Welt & sole", body: "Uppers are lasted and the sole fixed with a stitched or direct-moulded construction, depending on the boot's job." },
+  { step: "Finish", body: "Burnished, conditioned and checked pair by pair before boxing. The same check whether the box says service or formal." },
 ];
 
 export default async function HomePage() {
@@ -24,6 +25,7 @@ export default async function HomePage() {
     take: 8,
     include: { images: { where: { isPrimary: true }, take: 1 } },
   });
+  const heroImage = process.env.NEXT_PUBLIC_HERO_IMAGE_URL;
 
   return (
     <>
@@ -31,29 +33,42 @@ export default async function HomePage() {
       <section className="relative isolate overflow-hidden bg-leather-800 text-cream">
         <div className="container py-16 md:py-24 grid gap-10 md:grid-cols-[1.1fr_1fr] items-center">
           <div>
-            <p className="text-sand-300 text-xs font-medium uppercase tracking-[0.25em]">Handcrafted in Agra</p>
+            <p className="text-sand-300 text-xs font-medium uppercase tracking-[0.25em]">Made in our Agra factory</p>
             <h1 className="mt-4 font-display text-5xl md:text-6xl font-medium leading-[1.02]">
-              Leather that gets better<br className="hidden md:block" /> the longer you carry it.
+              The factory that makes boots<br className="hidden md:block" /> for service makes your formal shoes.
             </h1>
             <p className="mt-6 max-w-md text-cream/80 text-lg">
-              Full-grain leather bags, shoes and belts, cut and stitched by hand in Agra and sold direct
-              from the family that makes them. No middlemen, no mall markup.
+              Service boots, formal shoes and jackets, built in our own factory in Agra and sold direct from the
+              family that makes them. No middlemen, no mall markup.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg" variant="secondary">
-                <Link href="/products?category=bags">
-                  Shop bags <ArrowRight className="size-4" />
+                <Link href="/products?category=shoes">
+                  Shop formal shoes <ArrowRight className="size-4" />
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="border-cream/60 text-cream hover:bg-cream/10">
-                <Link href="/products?category=shoes">Shop shoes</Link>
+                <Link href="/products?category=boots">Shop boots</Link>
               </Button>
             </div>
           </div>
           <div className="relative">
-            <div className="aspect-[4/5] w-full max-w-md md:ml-auto rounded-sm bg-gradient-to-br from-leather-600 to-leather-900 border border-cream/10 grid place-items-center text-cream/40 text-xs uppercase tracking-wider text-center p-6">
-              Hero photograph<br />(a bag on the cutting bench, hides behind)<br />Upload via /admin/cms/hero
-            </div>
+            {heroImage ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={heroImage}
+                alt="Boots being finished in the IDEALX factory in Agra"
+                className="aspect-[4/5] w-full max-w-md md:ml-auto rounded-sm object-cover border border-cream/10"
+              />
+            ) : (
+              <div className="aspect-[4/5] w-full max-w-md md:ml-auto rounded-sm bg-gradient-to-br from-leather-600 to-leather-900 border border-cream/10 grid place-items-center text-cream/40 text-xs uppercase tracking-wider text-center p-6">
+                Hero photograph
+                <br />
+                (a boot on the last, the factory floor behind)
+                <br />
+                Set NEXT_PUBLIC_HERO_IMAGE_URL in .env
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -61,9 +76,9 @@ export default async function HomePage() {
       {/* Three reasons */}
       <section className="container py-12 grid gap-6 md:grid-cols-3">
         {[
-          { icon: Hand, title: "Full-grain, not 'genuine'", body: "The top layer of the hide, with its natural grain. It scuffs, softens and darkens into a patina instead of peeling." },
-          { icon: Scissors, title: "Made by hand in Agra", body: "India's oldest leather footwear cluster, whose leather footwear carries a GI tag. Our workshop and shop are both here." },
-          { icon: Store, title: "Direct from the maker", body: "You buy from the family that cuts and stitches it, at workshop prices. Exchange within 30 days if it isn't right." },
+          { icon: Footprints, title: "Built for service first", body: "Our boots are made for people who stand in them all day. The formal shoes come off the same floor, with the same leather and the same checks." },
+          { icon: Factory, title: "Our own factory in Agra", body: "India's oldest leather footwear cluster, whose leather footwear carries a GI tag. We cut, close, last and finish under one roof." },
+          { icon: Store, title: "Direct from the maker", body: "You buy from the family that makes it, at factory prices. Exchange within 30 days if the fit isn't right." },
         ].map(({ icon: Icon, title, body }) => (
           <div key={title} className="border-t-2 border-oxblood-500 pt-5">
             <Icon className="size-6 text-leather-600" />
@@ -74,7 +89,7 @@ export default async function HomePage() {
       </section>
 
       {/* Categories */}
-      <section className="container py-8 grid gap-4 md:grid-cols-3">
+      <section className="container py-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {CATEGORIES.map((c) => (
           <Link
             key={c.slug}
@@ -93,7 +108,7 @@ export default async function HomePage() {
       {/* Featured */}
       <section className="container py-12">
         <div className="flex items-end justify-between">
-          <h2 className="font-display text-3xl">New in the workshop</h2>
+          <h2 className="font-display text-3xl">New off the line</h2>
           <Link href="/products" className="text-sm text-oxblood-500 hover:underline flex items-center gap-1">
             View all <ArrowRight className="size-4" />
           </Link>
@@ -129,8 +144,8 @@ export default async function HomePage() {
       {/* Craft */}
       <section className="bg-leather-50 py-14">
         <div className="container">
-          <p className="text-xs font-medium uppercase tracking-[0.25em] text-oxblood-500">From hide to hand</p>
-          <h2 className="mt-2 font-display text-3xl max-w-xl">Four steps, all of them in our own workshop.</h2>
+          <p className="text-xs font-medium uppercase tracking-[0.25em] text-oxblood-500">How a pair is built</p>
+          <h2 className="mt-2 font-display text-3xl max-w-xl">Four stages, all of them on our own factory floor.</h2>
           <ol className="mt-8 grid gap-6 md:grid-cols-4">
             {CRAFT.map((c, i) => (
               <li key={c.step} className="border-l border-sand-300 pl-4">
@@ -143,31 +158,33 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Wholesale */}
+      {/* Wholesale / institutional */}
       <section className="container py-14 grid gap-8 md:grid-cols-2 items-center">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.25em] text-oxblood-500">For retailers and institutions</p>
-          <h2 className="mt-2 font-display text-3xl">Stock IDEALX in your store, or buy for your organisation.</h2>
+          <p className="text-xs font-medium uppercase tracking-[0.25em] text-oxblood-500">For retailers, institutions and GeM buyers</p>
+          <h2 className="mt-2 font-display text-3xl">Service boots to specification, in full size runs.</h2>
           <p className="mt-3 text-ink/70 max-w-md">
-            Tiered dealer pricing, GST-compliant invoicing, and supply through GeM for office bags, laptop bags and formal footwear.
+            We supply boots and formal footwear to dealers, security and industrial buyers, and government
+            departments through GeM and direct purchase orders, with GST-compliant invoicing from our own factory.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button asChild>
-              <Link href="/dealer-application">Apply for a dealer account</Link>
+              <Link href="/tenders">Institutional &amp; GeM supply</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/tenders">Institutional &amp; GeM supply</Link>
+              <Link href="/dealer-application">Apply for a dealer account</Link>
             </Button>
           </div>
         </div>
         <div className="rounded-sm border border-sand-200 bg-sand-50 p-6">
-          <h3 className="font-display text-xl">What dealers get</h3>
+          <h3 className="font-display text-xl">What dealers and institutions get</h3>
           <ul className="mt-3 space-y-2 text-sm text-ink/80">
+            <li>· Boots and shoes made to a fixed specification and size breakup</li>
             <li>· Tier-based wholesale pricing (A / B / C)</li>
             <li>· Net-30 credit, subject to approval</li>
             <li>· Bulk CSV order upload</li>
             <li>· GST tax invoices and e-invoicing where applicable</li>
-            <li>· Dispatch from the Agra workshop</li>
+            <li>· Dispatch from the Agra factory</li>
           </ul>
         </div>
       </section>

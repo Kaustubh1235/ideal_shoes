@@ -17,13 +17,13 @@ export default function NewProductPage() {
           <div>
             <Label>Category</Label>
             <select name="categorySlug" className="flex h-10 w-full rounded-md border border-leather-200 bg-cream px-3 py-2 text-sm">
-              <option value="bags">Bags</option>
-              <option value="shoes">Shoes</option>
-              <option value="belts_wallets">Belts &amp; Wallets</option>
-              <option value="accessories">Accessories</option>
+              <option value="boots">Service &amp; Army Boots</option>
+              <option value="shoes">Formal Shoes</option>
+              <option value="jackets">Jackets</option>
+              <option value="bags">Leather Bags</option>
             </select>
           </div>
-          <div><Label>HSN Code</Label><Input name="hsnCode" pattern="[0-9]{4,8}" required defaultValue="4202" /></div>
+          <div><Label>HSN Code</Label><Input name="hsnCode" pattern="[0-9]{4,8}" required defaultValue="6403" /></div>
           <div><Label>Base Price (₹)</Label><Input name="basePrice" type="number" min={1} required /></div>
         </div>
         <div className="grid gap-3 md:grid-cols-3">

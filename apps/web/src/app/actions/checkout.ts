@@ -25,7 +25,7 @@ const CheckoutInput = z.object({
   shipping: AddrSchema,
 });
 
-const SELLER_STATE_CODE = process.env.SELLER_STATE_CODE ?? "27";
+const SELLER_STATE_CODE = process.env.SELLER_STATE_CODE ?? "09";
 
 export async function placeOrderAction(formData: FormData) {
   const parsed = CheckoutInput.parse({

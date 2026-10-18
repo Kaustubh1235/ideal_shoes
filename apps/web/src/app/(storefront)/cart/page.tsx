@@ -18,7 +18,7 @@ export default async function CartPage() {
         <EmptyState
           icon={<ShoppingCart className="size-12" />}
           title="Your cart is empty"
-          description="Add a bag, a pair of shoes or a belt to get started."
+          description="Add a pair of boots, formal shoes or a jacket to get started."
           action={<Button asChild><Link href="/products">Browse Products</Link></Button>}
         />
       </div>

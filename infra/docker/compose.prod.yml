@@ -120,7 +120,7 @@ services:
     depends_on:
       api:
         condition: service_healthy
-    command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
+    command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info", "--concurrency=4", "-Q", "celery,invoices,tenders,gstr,notify,inventory"]
     networks:
       - internal
 
