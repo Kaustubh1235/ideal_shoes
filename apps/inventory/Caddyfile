@@ -1,0 +1,17 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# DOMAIN=stock.idealx.in  -> public certificate from Let's Encrypt (the DNS A record must point here).
+# DOMAIN=localhost        -> Caddy's own local CA; fine for a shop PC on the LAN, install the CA on each phone once,
+#                            or use Tailscale and put its MagicDNS name here (Tailscale can also issue the cert).
+{$DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	reverse_proxy app:8787 {
+		header_up X-Real-IP {remote_host}
+	}
+}

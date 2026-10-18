@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stock Room</title>
+<meta name="description" content="Stock Room: scan, count and track every box in the shop and the factory.">
+<meta name="theme-color" content="#7a1f2b">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<!-- GATE: setup / login -->
+<div id="gate" class="gate" hidden>
+  <div class="card">
+    <div id="gate-setup" hidden>
+      <h1>Set up the Stock Room</h1>
+      <p class="muted small">You are the owner. Create your name and a PIN. You can add staff afterwards under Admin.</p>
+      <div class="field"><label for="setupShop">Shop name</label><input id="setupShop" value="Ideal Shoes"></div>
+      <div class="field"><label for="setupName">Your name</label><input id="setupName" placeholder="Papa"></div>
+      <div class="field"><label for="setupPin">PIN (4–8 digits)</label><input id="setupPin" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password"></div>
+      <div class="field"><label for="setupPin2">PIN again</label><input id="setupPin2" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password"></div>
+      <div id="setupMsg" class="notice bad" hidden></div>
+      <button type="button" class="btn primary" id="setupGo">Create and open</button>
+    </div>
+    <div id="gate-login" hidden>
+      <h1 id="loginShop">Ideal Shoes</h1>
+      <p class="muted small">Who is this? · आप कौन हैं?</p>
+      <div class="people" id="people"></div>
+    </div>
+    <div id="gate-pin" hidden>
+      <div class="btn-row" style="justify-content:space-between">
+        <h1 id="pinWho">Name</h1>
+        <button type="button" class="btn quiet" id="pinBack">← Back</button>
+      </div>
+      <p class="muted small">Enter your PIN · अपना PIN डालें</p>
+      <div class="pindots" id="pindots"></div>
+      <div id="pinMsg" class="notice bad" hidden></div>
+      <div class="pinpad" id="pinpad"></div>
+    </div>
+    <div id="gate-wait" hidden><p class="muted">Connecting…</p></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="app" hidden>
+  <header class="topbar">
+    <div class="brand"><h1 id="shopName">Ideal Shoes</h1><span class="hi">Stock Room · माल रजिस्टर</span></div>
+    <div class="status">
+      <span id="queueBadge" class="badge-q" hidden title="Changes waiting to sync">0</span>
+      <span class="dot" id="netDot"></span><span id="netText">…</span>
+      <span class="who"><button type="button" id="logoutBtn" title="Sign out"><span id="meName">—</span> · out</button></span>
+    </div>
+  </header>
+  <div class="shell">
+    <nav class="tabs" aria-label="Sections">
+      <ul>
+        <li><button type="button" data-view="scan" id="tab-scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/></svg>Scan</button></li>
+        <li><button type="button" data-view="stock" id="tab-stock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-5 9 5v10l-9 5-9-5zM3 9l9 5 9-5M12 14v10"/></svg>Stock</button></li>
+        <li><button type="button" data-view="add" id="tab-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Add</button></li>
+        <li><button type="button" data-view="labels" id="tab-labels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM18 18h3v3h-3zM14 21h1M21 14h-1"/></svg>Labels</button></li>
+        <li><button type="button" data-view="dash" id="tab-dash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Insights</button></li>
+        <li id="tab-admin-li" hidden><button type="button" data-view="admin" id="tab-admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Admin</button></li>
+      </ul>
+    </nav>
+    <main>
+      <div id="offlineNotice" class="notice" hidden>You're offline. Scans and changes are saved on this phone and will sync when the network is back.</div>
+
+      <!-- SCAN -->
+      <section class="view" id="view-scan">
+        <div class="view-head"><h2>Scan a box</h2><span class="muted small" id="scanCount"></span></div>
+        <div class="card stack">
+          <div class="scanner" id="scanner">
+            <div class="idle" id="scanIdle">
+              <button type="button" class="btn primary big" id="scanStart">Start camera<small>कैमरा चालू करें</small></button>
+              <span class="small">Point it at the QR label. It reads automatically.</span>
+            </div>
+            <video id="scanVideo" playsinline muted hidden></video>
+            <div class="reticle" id="scanReticle" hidden></div>
+            <div class="hint" id="scanHint" hidden>Hold the label inside the box</div>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn" id="scanStop" hidden>Stop camera</button>
+            <label class="btn" for="scanFile">Photo of label instead</label>
+            <input type="file" id="scanFile" accept="image/*" capture="environment" hidden>
+          </div>
+          <div class="field">
+            <label for="codeInput">Or type the code printed on the label</label>
+            <div class="searchbar">
+              <input type="text" id="codeInput" class="mono" placeholder="e.g. IDEA-DMSBOOT-BLA-9" autocomplete="off" autocapitalize="characters">
+              <button type="button" class="btn" id="codeGo">Open</button>
+            </div>
+          </div>
+          <div id="scanMsg" class="notice" hidden></div>
+        </div>
+        <div class="card">
+          <div class="label">Recent · हाल की entries</div>
+          <ul class="movelist" id="scanRecent"></ul>
+        </div>
+      </section>
+
+      <!-- STOCK -->
+      <section class="view" id="view-stock" hidden>
+        <div class="view-head"><h2>Stock</h2><span class="muted small" id="stockSummary"></span></div>
+        <div class="searchbar">
+          <input type="search" id="q" placeholder="Search brand, article, colour, SKU, rack…" autocomplete="off">
+          <select id="fBrand"><option value="">All brands</option></select>
+          <select id="fCat"><option value="">All types</option></select>
+          <select id="fSort"><option value="brand">Sort: brand</option><option value="qtyAsc">Sort: lowest qty</option><option value="ageDesc">Sort: oldest</option><option value="valueDesc">Sort: highest value</option></select>
+        </div>
+        <div class="table-wrap" id="stockTable">
+          <table><thead><tr><th>SKU</th><th>Item</th><th>Size</th><th class="r">Qty</th><th class="r">Age</th><th class="r">Value</th><th>Rack</th></tr></thead><tbody id="stockRows"></tbody></table>
+        </div>
+        <div class="empty" id="stockEmpty" hidden>
+          <h3>No items yet</h3>
+          <p>Every box becomes one row here: brand, article, colour, size and how many pairs are on the rack. Start with the register, one article at a time.</p>
+          <button type="button" class="btn primary" data-view="add">Add the first article</button>
+        </div>
+      </section>
+
+      <!-- ADD -->
+      <section class="view" id="view-add" hidden>
+        <div class="view-head"><h2>Add stock</h2><span class="muted small">One article, all its sizes · एक article, सारे size</span></div>
+        <form class="card stack" id="addForm">
+          <div class="form-grid">
+            <div class="field"><label for="aBrand">Brand</label><input id="aBrand" list="brandList" required placeholder="IDEALX, OPI, Mr Brown…"><datalist id="brandList"></datalist></div>
+            <div class="field"><label for="aArticle">Article no. / name</label><input id="aArticle" required placeholder="3874 or DMS Boot"></div>
+            <div class="field"><label for="aColour">Colour</label><input id="aColour" list="colourList" required placeholder="Black, Brown, Tan"><datalist id="colourList"><option value="Black"><option value="Dark Brown"><option value="Brown"><option value="Tan"><option value="Cherry"><option value="Olive"><option value="Blue"><option value="Grey"></datalist></div>
+            <div class="field"><label for="aCat">Type</label><select id="aCat"></select></div>
+            <div class="field"><label for="aCost">Cost price ₹ (each)</label><input id="aCost" type="number" min="0" step="1" inputmode="numeric" placeholder="650"></div>
+            <div class="field"><label for="aMrp">MRP ₹</label><input id="aMrp" type="number" min="0" step="1" inputmode="numeric" placeholder="1499"></div>
+            <div class="field"><label for="aLoc">Rack / godown</label><input id="aLoc" list="locList" placeholder="Godown A, Shelf 3"><datalist id="locList"></datalist></div>
+            <div class="field"><label for="aSkuPrefix">SKU prefix (auto)</label><input id="aSkuPrefix" class="mono" readonly tabindex="-1"></div>
+          </div>
+          <div id="sizeBlock">
+            <div class="label" style="margin-bottom:8px">Units per size · हर size में कितने</div>
+            <div class="sizerun" id="sizerun"></div>
+            <div class="btn-row" style="margin-top:8px">
+              <button type="button" class="btn" id="sizesClear">Clear</button>
+              <span class="muted small">Size run comes from Admin → Settings</span>
+            </div>
+          </div>
+          <div id="qtyBlock" hidden><div class="field" style="max-width:200px"><label for="aQty">Quantity</label><input id="aQty" type="number" min="0" step="1" inputmode="numeric" value="1"></div></div>
+          <div class="btn-row">
+            <button type="submit" class="btn primary" id="addSubmit">Add to stock</button>
+            <span class="muted small" id="addPreview"></span>
+          </div>
+        </form>
+      </section>
+
+      <!-- LABELS -->
+      <section class="view" id="view-labels" hidden>
+        <div class="view-head"><h2>QR labels</h2><span class="muted small">A4 · 36 labels per sheet · 46 × 30 mm</span></div>
+        <div class="card stack">
+          <div class="searchbar">
+            <select id="lBrand"><option value="">All brands</option></select>
+            <input type="search" id="lq" placeholder="Filter by article or colour" autocomplete="off">
+            <select id="lCopies"><option value="qty">Copies = units in stock</option><option value="1">1 label per SKU</option><option value="2">2 labels per SKU</option></select>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn" id="lAll">Select all shown</button>
+            <button type="button" class="btn" id="lNone">Clear</button>
+            <button type="button" class="btn primary" id="lPrint">Print labels</button>
+            <span class="muted small" id="lCount"></span>
+          </div>
+          <div id="lMsg" class="notice info" hidden></div>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th></th><th>SKU</th><th>Item</th><th>Size</th><th class="r">Qty</th></tr></thead><tbody id="lRows"></tbody></table></div>
+        <div class="card"><div class="label" style="margin-bottom:10px">Preview (first 12)</div><div class="labels-preview" id="lPreview"></div></div>
+      </section>
+
+      <!-- INSIGHTS / DASHBOARD -->
+      <section class="view" id="view-dash" hidden>
+        <div class="view-head"><h2>Insights</h2><div class="btn-row"><select id="dashDays"><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="180">Last 180 days</option></select><span class="muted small" id="dashAsOf"></span></div></div>
+        <div class="tiles" id="dashTiles"></div>
+        <div class="grid2">
+          <div class="card"><div class="label" style="margin-bottom:8px">Sold vs received per day</div><div id="chTrend"></div><div class="legend"><span><i style="background:var(--accent)"></i>Sold</span><span><i style="background:var(--good)"></i>Received</span></div></div>
+          <div class="card"><div class="label" style="margin-bottom:8px">Where the money sits · ageing</div><div id="chAge"></div></div>
+        </div>
+        <div class="grid2">
+          <div class="card"><div class="label" style="margin-bottom:8px">Top sellers, last 30 days</div><div class="table-wrap flat"><table><thead><tr><th>Item</th><th class="r">Sold</th><th class="r">Left</th></tr></thead><tbody id="dashMovers"></tbody></table></div></div>
+          <div class="card"><div class="label" style="margin-bottom:8px">Broken size runs · selling articles missing sizes</div><div class="table-wrap flat"><table><thead><tr><th>Article</th><th>Missing</th><th class="r">Sold</th></tr></thead><tbody id="dashGaps"></tbody></table></div></div>
+        </div>
+        <div class="grid2">
+          <div class="card"><div class="label" style="margin-bottom:8px">By brand</div><div class="table-wrap flat"><table><thead><tr><th>Brand</th><th class="r">SKUs</th><th class="r">Units</th><th class="r">Value</th><th class="r">Dead</th></tr></thead><tbody id="dashBrands"></tbody></table></div></div>
+          <div class="card"><div class="label" style="margin-bottom:8px">Dead stock · 180+ days, nothing sold</div><div class="table-wrap flat"><table><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Days</th><th class="r">Value</th></tr></thead><tbody id="dashDead"></tbody></table></div></div>
+        </div>
+        <div class="card ask">
+          <div class="label">Ask about the stock · AI</div>
+          <div id="askUnset" class="notice" hidden>Not set up yet. Admin → Settings → Insights: choose a provider and paste an API key.</div>
+          <div class="chips" id="askChips"></div>
+          <textarea id="askQ" placeholder="e.g. Which articles should we reorder before the wedding season? What should go on the clearance rack?"></textarea>
+          <div class="btn-row"><button type="button" class="btn primary" id="askGo">Ask</button><span class="muted small" id="askStatus"></span></div>
+          <div id="askAnswer" class="answer" hidden></div>
+          <details><summary>Earlier questions</summary><ul class="movelist" id="askHistory" style="margin-top:8px"></ul></details>
+          <details><summary>What the AI sees (data digest)</summary><pre id="digestPre" class="answer small" style="overflow:auto;max-height:300px"></pre></details>
+        </div>
+        <div class="card stack">
+          <div class="label">Export</div>
+          <div class="btn-row"><a class="btn" href="/api/v1/export/items.csv">Stock list (CSV)</a><a class="btn" href="/api/v1/export/movements.csv">Movements (CSV)</a></div>
+          <p class="muted small" style="margin:0">Opens in Excel or Google Sheets. The stock list also imports straight into the website's product variants.</p>
+        </div>
+      </section>
+
+      <!-- ADMIN -->
+      <section class="view" id="view-admin" hidden>
+        <div class="view-head"><h2>Admin</h2></div>
+        <div class="card stack">
+          <div class="label">People · who can use this</div>
+          <div class="table-wrap flat"><table><thead><tr><th>Name</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody id="userRows"></tbody></table></div>
+          <form class="form-grid" id="userForm">
+            <div class="field"><label for="uName">Name</label><input id="uName" required placeholder="Raju"></div>
+            <div class="field"><label for="uPin">PIN (4–8 digits)</label><input id="uPin" required inputmode="numeric" pattern="[0-9]{4,8}" autocomplete="new-password"></div>
+            <div class="field"><label for="uRole">Role</label><select id="uRole"><option value="staff">Staff: scan, sell, count, add</option><option value="admin">Admin: everything</option></select></div>
+            <div class="span3"><button type="submit" class="btn primary">Add person</button></div>
+          </form>
+        </div>
+        <div class="card stack">
+          <div class="label">Settings</div>
+          <form class="form-grid" id="settingsForm">
+            <div class="field"><label for="sShop">Shop name</label><input id="sShop"></div>
+            <div class="field span2"><label for="sUrl">This app's address (printed inside each QR so a phone camera opens the item)</label><input id="sUrl" class="mono" placeholder="https://stock.idealx.in"></div>
+            <div class="field span3"><label for="sRuns">Size runs, one line per type: <code>type: size, size, …</code></label><textarea id="sRuns" class="mono"></textarea></div>
+            <div class="span3"><button type="submit" class="btn primary">Save settings</button></div>
+          </form>
+        </div>
+        <div class="card stack">
+          <div class="label">Insights · AI provider</div>
+          <p class="muted small" style="margin:0">The key is stored encrypted on this server and never sent to the browser. The AI only ever sees the stock digest, never customer data.</p>
+          <form class="form-grid" id="llmForm">
+            <div class="field"><label for="llmProvider">Provider</label><select id="llmProvider"><option value="none">Off</option><option value="anthropic">Anthropic (Claude)</option><option value="openai">OpenAI-compatible</option></select></div>
+            <div class="field"><label for="llmModel">Model</label><input id="llmModel" placeholder="claude-sonnet-4-5"></div>
+            <div class="field"><label for="llmBase">Base URL</label><input id="llmBase" class="mono" placeholder="https://api.anthropic.com"></div>
+            <div class="field span2"><label for="llmKey">API key <span id="llmKeyState" class="muted"></span></label><input id="llmKey" type="password" autocomplete="off" placeholder="paste to set or replace"></div>
+            <div class="field"><label for="llmMax">Max answer tokens</label><input id="llmMax" type="number" min="100" max="4000" step="50" value="800"></div>
+            <div class="span3 btn-row"><button type="submit" class="btn primary">Save AI settings</button><button type="button" class="btn danger" id="llmClear">Remove key</button></div>
+          </form>
+        </div>
+        <div class="card stack">
+          <div class="label">API keys · for the website and AI agents</div>
+          <p class="muted small" style="margin:0">A key is shown once when created. <em>Read</em> keys can fetch stock and the digest; <em>Read + write</em> keys can also record movements (the website uses one to deduct web orders). Spec: <a href="/api/v1/public/openapi.json" target="_blank" rel="noopener">openapi.json</a>.</p>
+          <div class="table-wrap flat"><table><thead><tr><th>Name</th><th>Prefix</th><th>Scopes</th><th>Last used</th><th></th></tr></thead><tbody id="keyRows"></tbody></table></div>
+          <form class="form-grid" id="keyForm">
+            <div class="field"><label for="kName">Name</label><input id="kName" required placeholder="Website"></div>
+            <div class="field"><label for="kScope">Access</label><select id="kScope"><option value="read">Read only</option><option value="write">Read + write</option></select></div>
+            <div><label class="label">&nbsp;</label><button type="submit" class="btn primary" style="width:100%">Create key</button></div>
+          </form>
+          <div id="keyShow" hidden class="stack"><div class="notice good">Copy this key now. It will not be shown again.</div><div class="keybox" id="keyValue"></div><button type="button" class="btn" id="keyCopy">Copy</button></div>
+        </div>
+        <div class="card stack">
+          <div class="label">Import from the register / Stock Book CSV</div>
+          <p class="muted small" style="margin:0">Columns: brand, article, colour, size, cat, cost, mrp, qty, loc. Existing SKUs are topped up, new ones created.</p>
+          <div class="btn-row"><label class="btn" for="csvFile">Choose CSV file</label><input type="file" id="csvFile" accept=".csv,text/csv" hidden><span class="muted small" id="csvMsg"></span></div>
+        </div>
+        <div class="card stack">
+          <div class="label">Backup &amp; activity</div>
+          <div class="btn-row"><a class="btn" href="/api/v1/admin/backup">Download database backup</a><span class="muted small">Backups also run every night on the server.</span></div>
+          <div class="table-wrap flat"><table><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Detail</th></tr></thead><tbody id="auditRows"></tbody></table></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- ITEM SHEET -->
+<div id="sheetBackdrop" class="sheet-backdrop" hidden></div>
+<div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="shName" hidden>
+  <div class="head">
+    <div><div class="sku" id="shSku">—</div><div class="name" id="shName">—</div><div class="muted small" id="shMeta"></div></div>
+    <button type="button" class="x" id="shClose" aria-label="Close">×</button>
+  </div>
+  <div class="qty-big"><div><div class="label">In stock · स्टॉक</div><div class="q" id="shQty">0</div></div><div class="muted small" id="shLoc"></div></div>
+  <div class="actions3">
+    <button type="button" class="btn big" id="shOut">Sold −1<small>बिक्री</small></button>
+    <button type="button" class="btn big" id="shIn">In +1<small>आमद</small></button>
+    <button type="button" class="btn big" id="shCount">Count<small>गिनती</small></button>
+  </div>
+  <div id="shCountBox" class="card stack" hidden>
+    <div class="field"><label for="shCountVal">Units you counted on the rack</label><input id="shCountVal" type="number" min="0" step="1" inputmode="numeric"></div>
+    <div class="btn-row"><button type="button" class="btn primary" id="shCountSave">Save count</button><button type="button" class="btn" id="shCountCancel">Cancel</button></div>
+  </div>
+  <div id="shMoreBox" class="card stack" hidden>
+    <div class="form-grid">
+      <div class="field"><label for="shDelta">Change by</label><input id="shDelta" type="number" step="1" inputmode="numeric" placeholder="+6 or −2"></div>
+      <div class="field span2"><label for="shNote">Note</label><input id="shNote" placeholder="Returned by customer, sent to Delhi party…"></div>
+    </div>
+    <div class="btn-row"><button type="button" class="btn primary" id="shDeltaSave">Apply</button></div>
+  </div>
+  <div id="shEditBox" class="card stack" hidden>
+    <div class="form-grid">
+      <div class="field"><label for="eCost">Cost ₹</label><input id="eCost" type="number" min="0" step="1" inputmode="numeric"></div>
+      <div class="field"><label for="eMrp">MRP ₹</label><input id="eMrp" type="number" min="0" step="1" inputmode="numeric"></div>
+      <div class="field"><label for="eLoc">Rack / godown</label><input id="eLoc" list="locList"></div>
+    </div>
+    <div class="btn-row"><button type="button" class="btn primary" id="eSave">Save details</button></div>
+    <div class="btn-row" id="delRow"><button type="button" class="btn danger" id="eDelete">Delete this SKU</button></div>
+    <div class="btn-row" id="delConfirm" hidden><span class="small">Delete for good?</span><button type="button" class="btn danger" id="eDeleteYes">Yes, delete</button><button type="button" class="btn" id="eDeleteNo">Keep it</button></div>
+  </div>
+  <dl class="kv">
+    <dt>Cost / MRP</dt><dd id="shPrice">—</dd>
+    <dt>Last in</dt><dd id="shLastIn">—</dd>
+    <dt>Last sold</dt><dd id="shLastOut">—</dd>
+    <dt>Last counted</dt><dd id="shLastCount">—</dd>
+  </dl>
+  <div class="btn-row">
+    <button type="button" class="btn" id="shMore">Other change</button>
+    <button type="button" class="btn" id="shEdit">Edit details</button>
+    <button type="button" class="btn" id="shNext" hidden>Scan next →</button>
+  </div>
+  <div class="label">History</div>
+  <ul class="movelist" id="shMoves"></ul>
+</div>
+
+<div id="print-sheet" aria-hidden="true"></div>
+<div id="toast" class="toast" hidden></div>
+
+<script src="/vendor/qrcode.js"></script>
+<script src="/vendor/jsQR.js"></script>
+<script src="/charts.js"></script>
+<script src="/scanner.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

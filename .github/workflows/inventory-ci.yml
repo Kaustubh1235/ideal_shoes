@@ -1,0 +1,32 @@
+name: inventory-ci
+
+on:
+  push:
+    paths: ["apps/inventory/**", ".github/workflows/inventory-ci.yml"]
+  pull_request:
+    paths: ["apps/inventory/**"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/inventory
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Unit and API tests
+        run: bun test tests
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: End-to-end
+        run: python3 e2e/run_e2e.py
+      - name: Docker build
+        run: docker build -t stock-room:ci .

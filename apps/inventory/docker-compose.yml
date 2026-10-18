@@ -1,0 +1,47 @@
+# Stock Room: the app plus Caddy, which gets and renews the HTTPS certificate on its own.
+#
+#   cp .env.example .env     # set DOMAIN (and ACME_EMAIL)
+#   docker compose up -d
+#   open https://<DOMAIN>    # first visit creates the owner account
+#
+# The app itself only listens inside the Docker network; nothing but Caddy can reach it.
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      APP_SECRET: ${APP_SECRET:-}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+    volumes:
+      - stockroom-data:/data
+      - ./backups:/backups
+    expose:
+      - "8787"
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:8787/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  stockroom-data:
+  caddy-data:
+  caddy-config:

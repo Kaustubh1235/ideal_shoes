@@ -1,0 +1,7 @@
+data/*
+!data/.gitkeep
+backups/*
+!backups/.gitkeep
+.env
+node_modules
+e2e/*.png
