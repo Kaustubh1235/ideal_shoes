@@ -1,15 +1,9 @@
 import Link from "next/link";
-import { ShoppingBag, User, Search, Menu } from "lucide-react";
+import { ShoppingBag, User, Search } from "lucide-react";
 import { auth } from "@/auth";
 import { getOrCreateCartId, cartCount } from "@/lib/cart";
-
-const NAV = [
-  { href: "/products?category=bags", label: "Bags" },
-  { href: "/products?category=shoes", label: "Shoes" },
-  { href: "/products?category=belts_wallets", label: "Belts & Wallets" },
-  { href: "/about", label: "Our Craft" },
-  { href: "/wholesale", label: "Wholesale" },
-];
+import { MobileMenu } from "@/components/storefront/mobile-menu";
+import { NAV } from "@/lib/nav";
 
 export default async function StorefrontLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -22,7 +16,7 @@ export default async function StorefrontLayout({ children }: { children: React.R
       <header className="sticky top-0 z-40 border-b border-leather-100 bg-cream/95 backdrop-blur">
         <div className="bg-leather-700 text-cream text-xs tracking-wide">
           <div className="container flex items-center justify-between py-1.5">
-            <span>Handcrafted in Agra · Full-grain leather · Free shipping over ₹1,999</span>
+            <span>Made in our Agra factory · Full-grain leather · Free shipping over ₹1,999</span>
             {phone ? (
               <span className="hidden sm:inline text-cream/80">WhatsApp {phone}</span>
             ) : (
@@ -57,20 +51,9 @@ export default async function StorefrontLayout({ children }: { children: React.R
                 </span>
               )}
             </Link>
-            <button aria-label="Menu" className="md:hidden rounded p-2 hover:bg-sand-100">
-              <Menu className="size-5" />
-            </button>
+            <MobileMenu nav={NAV} signedIn={Boolean(session?.user)} cartCount={count} />
           </div>
         </div>
-        <nav className="md:hidden border-t border-leather-100 bg-cream">
-          <div className="container flex gap-5 overflow-x-auto py-2 text-xs font-medium uppercase tracking-wider">
-            {NAV.map((n) => (
-              <Link key={n.href} href={n.href} className="whitespace-nowrap text-ink/80">
-                {n.label}
-              </Link>
-            ))}
-          </div>
-        </nav>
       </header>
 
       <main className="flex-1">{children}</main>
@@ -80,22 +63,24 @@ export default async function StorefrontLayout({ children }: { children: React.R
           <div className="md:col-span-1">
             <p className="font-display text-2xl font-semibold tracking-[0.18em]">IDEALX</p>
             <p className="mt-3 text-sm text-cream/70 max-w-xs">
-              Full-grain leather bags, shoes and belts, made by hand in Agra and sold direct from our own workshop and shop.
+              Service boots, formal shoes and jackets from our own factory in Agra, sold direct. The factory that
+              makes boots for service makes your formal shoes.
             </p>
           </div>
           <div>
             <h4 className="text-xs uppercase tracking-[0.2em] text-sand-300">Shop</h4>
             <ul className="mt-3 space-y-1.5 text-sm text-cream/80">
-              <li><Link href="/products?category=bags">Bags</Link></li>
-              <li><Link href="/products?category=shoes">Shoes</Link></li>
-              <li><Link href="/products?category=belts_wallets">Belts &amp; Wallets</Link></li>
+              <li><Link href="/products?category=boots">Service &amp; army boots</Link></li>
+              <li><Link href="/products?category=shoes">Formal shoes</Link></li>
+              <li><Link href="/products?category=jackets">Jackets</Link></li>
+              <li><Link href="/products?category=bags">Leather bags</Link></li>
               <li><Link href="/products">Everything</Link></li>
             </ul>
           </div>
           <div>
             <h4 className="text-xs uppercase tracking-[0.2em] text-sand-300">IDEALX</h4>
             <ul className="mt-3 space-y-1.5 text-sm text-cream/80">
-              <li><Link href="/about">Our craft</Link></li>
+              <li><Link href="/about">Our factory</Link></li>
               <li><Link href="/wholesale">Wholesale &amp; dealers</Link></li>
               <li><Link href="/tenders">Institutional &amp; GeM supply</Link></li>
               <li><Link href="/contact">Visit the shop in Agra</Link></li>
