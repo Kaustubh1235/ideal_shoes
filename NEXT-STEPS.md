@@ -89,14 +89,16 @@ After change: restart API. Every new invoice picks up the new identity.
 
 Minimum to look professional:
 
-- 10 SKUs: start with the bags (messenger, laptop bag, tote) and belts, then the two best shoe styles.
+- 10 SKUs: start with the two service boots and the two Oxfords in black and dark brown, then the field jacket, then the messenger bag.
 - 4 angles each: front, side, 3/4, sole/detail.
 - 2000×2000px square, white or transparent background.
 - ~200KB each (use https://squoosh.app to compress).
 
 Upload via admin: `/admin/products/<id>/images`. First image = card image. Storefront and B2B catalog show them immediately.
 
-**Lifestyle shots** (a bag on the cutting bench with hides behind it, a karigar stitching) belong on the home page hero — upload to admin `/admin/cms/hero`.
+Home-page hero: set `NEXT_PUBLIC_HERO_IMAGE_URL` in `.env` to the public URL of one lifestyle photo (2000px wide, ~300KB) and restart the web container.
+
+**Lifestyle shots** (a boot on the last with the factory floor behind it, a worker lasting an upper) belong on the home page hero (see the `NEXT_PUBLIC_HERO_IMAGE_URL` note above).
 
 ---
 
@@ -105,7 +107,7 @@ Upload via admin: `/admin/products/<id>/images`. First image = card image. Store
 Per AR-enabled product:
 
 1. Generate `.glb` using one of:
-   - **Polycam** (free iPhone/Android app) — photograph the bag or shoe from 30+ angles, app generates `.glb`.
+   - **Polycam** (free iPhone/Android app) — photograph the boot or shoe from 30+ angles, app generates `.glb`.
    - **Kiri Engine** (free, similar).
    - **Blender** (free, manual) — for higher fidelity, hire a 3D artist on Fiverr (₹2-5k per model).
 2. Optimize: aim for <2MB, <50k triangles. Use https://gltf.report to inspect/optimize.

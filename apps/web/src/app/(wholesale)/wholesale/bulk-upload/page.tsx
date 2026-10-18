@@ -33,9 +33,9 @@ export default function BulkUploadPage() {
         <summary className="cursor-pointer font-medium">Example CSV</summary>
         <pre className="mt-2 rounded bg-leather-50 p-3 text-xs">
 sku,size,color,quantity{"\n"}
-IDX-SHOE-CHELSEA-9-DARKBROWN,9,Dark Brown,12{"\n"}
-IDX-SHOE-CHELSEA-10-DARKBROWN,10,Dark Brown,12{"\n"}
-IDX-BAG-MSGR-OS-TAN,OS,Tan,6
+IDX-BOOT-DMS-9-BLACK,9,Black,24{"\n"}
+IDX-BOOT-DMS-10-BLACK,10,Black,24{"\n"}
+IDX-OXF-PLAIN-8-BLACK,8,Black,12
         </pre>
       </details>
     </div>

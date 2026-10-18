@@ -19,11 +19,11 @@ const body = Source_Sans_3({
 
 export const metadata: Metadata = {
   title: {
-    default: "IDEALX — Handcrafted Leather from Agra",
+    default: "IDEALX — Boots and Formal Shoes from Our Agra Factory",
     template: "%s · IDEALX",
   },
   description:
-    "Full-grain leather bags, shoes, belts and wallets, cut and stitched by hand in Agra and sold direct from the maker.",
+    "Service and army boots, formal shoes and jackets made in our own factory in Agra and sold direct. The factory that makes boots for service makes your formal shoes.",
   metadataBase: new URL(process.env.AUTH_URL ?? "http://localhost:3000"),
 };
 

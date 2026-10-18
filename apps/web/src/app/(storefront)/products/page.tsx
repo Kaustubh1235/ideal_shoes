@@ -2,15 +2,9 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { rupeesOnly } from "@/lib/money";
 import { Badge } from "@bharatboot/ui";
+import { CATEGORY_LABELS } from "@/lib/nav";
 
 export const dynamic = "force-dynamic";
-
-const CATEGORY_LABELS: Record<string, string> = {
-  bags: "Bags",
-  shoes: "Shoes",
-  belts_wallets: "Belts & Wallets",
-  accessories: "Accessories",
-};
 
 export default async function ProductsListPage({
   searchParams,

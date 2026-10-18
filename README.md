@@ -2,9 +2,9 @@
 
 Online platform for IDEALX, the handcrafted full-grain leather brand of Ideal Shoes, Agra — D2C storefront, B2B wholesale portal, admin dashboard, GST-compliant invoicing, GeM/tender tracker, AR product viewer.
 
-Brand positioning: full-grain leather bags, shoes, belts and wallets, made by hand in Agra and sold direct from the maker. Bags launch first online (no sizing, lower returns); shoes follow once the BIS certification path for leather footwear is in hand.
+Brand positioning: Ideal Shoes makes service and army boots, formal (Oxford) shoes and jackets in its own factory in Agra; leather bags are a small outsourced line. IDEALX sells that range direct ("the factory that makes boots for service makes your formal shoes") and supplies institutions and government buyers through GeM and direct purchase orders. BIS certification for leather footwear under the 2024 Quality Control Order (deadline 31 July 2027) is the gating compliance item for boots.
 
-Stock on the shop floor is tracked separately in the shared Stock Book (QR labels, scan to count); its CSV export maps onto `product_variants` + `inventory` here for a later import.
+Stock is tracked in a separate, self-hosted inventory app (QR labels, scan to count). This site's only link to it is the inventory API: a Celery task pulls stock levels every 15 minutes and paid web orders post stock-out movements back. See `docs/GO-LIVE.md`.
 
 ## Stack
 
