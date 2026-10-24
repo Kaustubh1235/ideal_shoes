@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import pathlib
 import shutil
 import socket
@@ -75,6 +76,7 @@ def main() -> int:
             expect(page.locator("#app")).to_be_visible()
             expect(page.locator("#meName")).to_have_text("Papa")
             expect(page.locator("#tab-admin")).to_be_visible()
+            expect(page.locator("#appVer")).to_have_text(re.compile(r"^v\S+$"))  # which build this phone runs
 
             # ---- add an article with a size run --------------------------------
             page.click("#tab-add")

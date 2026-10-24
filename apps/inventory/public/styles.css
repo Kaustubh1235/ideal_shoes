@@ -36,13 +36,15 @@ h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; li
 .small { font-size: 0.875rem; }
 .label { font-family: var(--font-display); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .hi { color: var(--muted); font-size: 0.9rem; }
+.ver { color: var(--muted); font-size: 0.7rem; font-family: var(--font-mono); margin: 0; }
+.gate .ver { text-align: center; }
 
 /* ---------- shell ---------- */
 .app { min-height: 100%; display: grid; grid-template-rows: auto 1fr; }
 .topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; background: var(--bg); border-bottom: 1px solid var(--line);
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 10px;
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.brand { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; min-width: 0; }
 .brand h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.02em; }
 .status { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--muted); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); display: inline-block; }

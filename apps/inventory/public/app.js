@@ -85,6 +85,7 @@
     try {
       const st = await api("GET", "/api/v1/auth/state");
       $("gate-wait").hidden = true;
+      $("gateVer").textContent = st.version ? "v" + st.version : "";
       if (st.me) { S.me = st.me; await boot(); return; }
       if (st.setupNeeded) { $("gate-setup").hidden = false; $("setupName").focus(); return; }
       $("loginShop").textContent = st.shop || "Ideal Shoes";
@@ -129,7 +130,7 @@
     S.me = b.me; S.settings = b.settings;
     S.items = new Map(b.items.map((i) => [i.sku, i])); S.moves = b.movements;
     $("gate").hidden = true; $("app").hidden = false;
-    $("shopName").textContent = S.settings.shop; $("meName").textContent = S.me.name;
+    $("shopName").textContent = S.settings.shop; $("meName").textContent = S.me.name; $("appVer").textContent = b.version ? "v" + b.version : "";
     document.title = `${S.settings.shop} · Stock Room`;
     $("tab-admin-li").hidden = S.me.role !== "admin";
     fillCats();
