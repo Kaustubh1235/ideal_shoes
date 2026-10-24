@@ -63,7 +63,35 @@ Layout: `src/` (Bun + `bun:sqlite`, no framework), `public/` (plain HTML/CSS/JS,
 
 ## Backups and restore
 
-Nightly backups land in `./backups/` on the host (and Admin → Download database backup gives one on demand). To restore: stop the stack, copy the chosen `.db` over the `stockroom.db` in the `stockroom-data` volume, start the stack.
+The app writes a backup at start and every 24 hours after, into `./backups/` on the host, and keeps the newest 14. Admin → Download database backup gives one on demand. Each backup is a complete single-file SQLite database.
+
+A backup on the same disk does not survive the disk, so copy one off the machine every night with [rclone](https://rclone.org) (Google Drive setup is in [DEPLOY.md](DEPLOY.md#backups-off-the-machine)):
+
+```bash
+sh scripts/backup-offsite.sh      # fresh snapshot -> rclone remote gdrive:StockRoom, prunes copies older than 90 days
+```
+
+```cron
+# crontab -e on the server (adjust the path): every night at 02:30
+30 2 * * * cd /opt/ideal_shoes/apps/inventory && sh scripts/backup-offsite.sh >> backups/offsite.log 2>&1
+```
+
+`RCLONE_REMOTE` (default `gdrive:StockRoom`) and `KEEP_DAYS` (default 90) change the target and how long copies stay.
+
+**Restore drill** (do it once after setup, then every few months). It starts a throwaway copy of the app on a backup, checks `/healthz`, and compares the item count with the live app. The live app is not touched:
+
+```bash
+sh scripts/restore-drill.sh                     # drills a fresh snapshot
+sh scripts/restore-drill.sh backups/<file>.db   # drills a specific backup
+```
+
+**Restore for real**: put the `.db` file in `./backups/` (download it from Drive if the machine was lost), then
+
+```bash
+sh scripts/restore.sh backups/<file>.db
+```
+
+It snapshots the current database first (the script prints where), stops the app for a few seconds, swaps the file, and waits until `/healthz` is OK. Restoring onto a new server works the same way; staff sign in again, and the Ask AI key must be entered again under Admin → Settings, because it is encrypted with a secret that lives on the old server's data volume (set `APP_SECRET` in `.env` on both servers to avoid that).
 
 ## Limits that are fine for a shop and worth knowing
 
