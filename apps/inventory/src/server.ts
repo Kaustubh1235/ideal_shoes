@@ -32,6 +32,7 @@ const app = createApp({
   dbPath: join(dataDir, "stockroom.db"),
   secret: loadSecret(),
   publicDir: join(root, "public"),
+  backupDir,
   version,
   metricsToken: process.env.METRICS_TOKEN,
 });

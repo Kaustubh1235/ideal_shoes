@@ -259,3 +259,23 @@ describe("rate limits", () => {
     for (let i = 0; i < 10; i++) expect((await req(a, "GET", "/api/v1/auth/state", "10.0.0.5")).status).toBe(200);
   });
 });
+
+describe("backups", () => {
+  test("on-demand backup goes to the backup folder and is a real database", async () => {
+    const { mkdtempSync, readdirSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { Database } = await import("bun:sqlite");
+    const dir = mkdtempSync(join(tmpdir(), "stockroom-backup-"));
+    const a = createApp({ dbPath: ":memory:", secret: "test-secret-test-secret-test-secret-xx", publicDir: PUBLIC, backupDir: dir, version: "test", log: () => {} });
+    const h = { "x-requested-with": "StockRoom", "content-type": "application/json" };
+    const setup = await a.fetch(new Request("https://stock.test/api/v1/auth/setup", { method: "POST", headers: h, body: JSON.stringify({ name: "Papa", pin: "2468" }) }));
+    const c = setup.headers.get("set-cookie")!.split(";")[0];
+    await a.fetch(new Request("https://stock.test/api/v1/items", { method: "POST", headers: { ...h, cookie: c }, body: JSON.stringify({ rows: [{ brand: "IDEALX", article: "Oxford", colour: "Black", size: "8", cat: "shoe", qty: 4 }] }) }));
+    const r = await a.fetch(new Request("https://stock.test/api/v1/admin/backup", { headers: { cookie: c } }));
+    expect(r.status).toBe(200);
+    const files = readdirSync(dir).filter((f) => f.endsWith(".db"));
+    expect(files).toHaveLength(1);
+    const restored = new Database(join(dir, files[0]), { readonly: true });
+    expect(restored.query<{ n: number }, []>("SELECT SUM(qty) AS n FROM items").get()!.n).toBe(4);
+  });
+});

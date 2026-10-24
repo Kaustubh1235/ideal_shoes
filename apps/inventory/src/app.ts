@@ -36,6 +36,8 @@ export interface AppOptions {
   dbPath: string;
   secret: string;
   publicDir: string;
+  /** Where on-demand backups go; the same folder as the nightly ones so they are kept and rotated together. */
+  backupDir?: string;
   version?: string;
   metricsToken?: string;
   log?: (line: Record<string, unknown>) => void;
@@ -489,7 +491,7 @@ export function createApp(opts: AppOptions): App {
         return json({ rows: rows.length, added, merged: results.length - added });
       }
       if (r[1] === "backup" && m === "GET") {
-        const dir = join(opts.publicDir, "..", "backups");
+        const dir = opts.backupDir ?? join(opts.publicDir, "..", "backups");
         const file = await backup(dir);
         audit(db, { userId: session.userId, actor: session.name, action: "download_backup", ip: ip(req) });
         return new Response(Bun.file(file), { headers: { "content-type": "application/vnd.sqlite3", "content-disposition": `attachment; filename="${file.split("/").pop()}"` } });
