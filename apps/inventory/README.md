@@ -35,6 +35,17 @@ Point the domain's DNS A record at the machine, open `https://stock.idealx.in`, 
 
 **Shop-LAN only, no public domain?** Two good options: install [Tailscale](https://tailscale.com) on the server and the phones and set `DOMAIN` to the server's Tailscale name; or keep `DOMAIN=localhost` and install Caddy's local CA certificate on each phone once (`docker compose exec caddy cat /data/caddy/pki/authorities/local/root.crt`). Camera scanning needs HTTPS either way.
 
+## Phones: installing and the camera
+
+- **Install**: Android, open the address in Chrome → menu → *Install app* (or *Add to Home screen*). iPhone, open it in **Safari** → Share → *Add to Home Screen*.
+- **Camera scanning needs HTTPS** (browsers only allow the camera on secure pages). A public domain through Caddy, Tailscale, or Caddy's local CA installed on the phone all work; plain `http://<ip>` does not. Without HTTPS, *Photo of label* and typing the code still work.
+- **iPhone: the phone's own Camera app opens Safari, not the installed app.** Safari and the home-screen app keep separate sign-ins and separate offline queues. Staff should scan with the app's *Scan* button; the Camera-app route is a fallback (it opens the item in Safari after a sign-in there).
+- **iPhone: the camera permission may be asked again** after the app has been closed for a while. Tap Allow; nothing is lost.
+- **Offline changes live on that phone** until they sync (the number next to *Live/Offline*). Do not clear the browser's data or remove the app while that number shows, or those changes are lost.
+- **Counter scanner**: a USB or Bluetooth barcode/QR scanner that types like a keyboard works on the desktop or a tablet without setup. Scan with no text box selected and the item opens.
+
+What is tested automatically (`e2e/run_e2e.py`): Chrome's installability check and the manifest/icons, and live scanning from a camera stream showing a printed label's QR. What is **not** tested automatically: the installed (standalone) app on a real Android phone or iPhone. Check that once on each kind of phone the shop uses: install, sign in, *Start camera*, scan a label.
+
 ## Everyday use
 
 1. **Count a room**: open the app on the phone, Add each article with its sizes from the register (or import the Stock Book CSV under Admin). Print labels. Stick one on every box.

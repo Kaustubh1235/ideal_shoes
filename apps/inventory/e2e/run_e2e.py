@@ -8,6 +8,7 @@ Run:  python3 e2e/run_e2e.py            (needs bun on PATH and Python Playwright
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -77,6 +78,23 @@ def main() -> int:
             expect(page.locator("#meName")).to_have_text("Papa")
             expect(page.locator("#tab-admin")).to_be_visible()
             expect(page.locator("#appVer")).to_have_text(re.compile(r"^v\S+$"))  # which build this phone runs
+
+            # ---- installable as an app ------------------------------------------------
+            # Chrome's own check first. Recent Chrome lets almost any page install, so also check the
+            # classic criteria Android and iOS still care about against the manifest Chrome parsed.
+            cdp = ctx.new_cdp_session(page)
+            assert page.evaluate("navigator.serviceWorker.ready.then((r) => Boolean(r.active))"), "service worker not active"
+            inst = cdp.send("Page.getInstallabilityErrors")["installabilityErrors"]
+            assert inst == [], f"not installable: {inst}"
+            man = cdp.send("Page.getAppManifest")
+            assert not man.get("errors"), f"manifest errors: {man.get('errors')}"
+            parsed = json.loads(man["data"])
+            assert parsed.get("name") and parsed.get("short_name") and parsed.get("start_url") == "/", parsed
+            assert parsed["display"] == "standalone", parsed
+            assert {"192x192", "512x512"} <= {i["sizes"] for i in parsed["icons"]}, parsed["icons"]
+            for icon in parsed["icons"] + [{"src": "/icons/icon-192.png"}]:  # the last one is the apple-touch-icon
+                with urllib.request.urlopen(base + icon["src"]) as r:
+                    assert r.headers["content-type"].startswith("image/"), icon
 
             # ---- add an article with a size run --------------------------------
             page.click("#tab-add")
@@ -238,6 +256,36 @@ def main() -> int:
             expect(dpage.locator("#chTrend svg")).to_be_visible()
             dpage.screenshot(path=str(ROOT / "e2e" / "last-desktop-insights.png"), full_page=True)
             page.screenshot(path=str(ROOT / "e2e" / "last-phone.png"), full_page=False)
+
+            # ---- live camera scanning: a fake webcam pointed at a label's QR ----------
+            # Draw the QR the Labels tab prints (<appUrl>/#<SKU>, same vendored generator) into a JPEG
+            # frame and give it to Chromium as the camera. The app must decode it from live video.
+            frame = dpage.evaluate("""(text) => {
+              const qr = window.qrcode(0, "M"); qr.addData(text); qr.make();
+              const n = qr.getModuleCount(), cell = 8, c = document.createElement("canvas");
+              c.width = 640; c.height = 480;
+              const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, 640, 480); g.fillStyle = "#000";
+              const x0 = (640 - n * cell) / 2, y0 = (480 - n * cell) / 2;
+              for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (qr.isDark(r, k)) g.fillRect(x0 + k * cell, y0 + r * cell, cell, cell);
+              return c.toDataURL("image/jpeg", 0.92).split(",")[1];
+            }""", f"{base}/#IDEA-DMSBOOT-BLA-9")
+            mjpeg = pathlib.Path(data) / "label.mjpeg"
+            mjpeg.write_bytes(base64.b64decode(frame) * 30)
+            cam = p.chromium.launch(args=["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", f"--use-file-for-fake-video-capture={mjpeg}"])
+            cctx = cam.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, permissions=["camera"])
+            cpage = cctx.new_page()
+            cpage.on("pageerror", lambda e: errors.append(str(e)))
+            cpage.goto(base)
+            cpage.click("#people button[data-name='Papa']")
+            for d in "2468":
+                cpage.click(f"#pinpad button[data-k='{d}']")
+            expect(cpage.locator("#app")).to_be_visible(timeout=10000)
+            cpage.click("#scanStart")
+            expect(cpage.locator("#scanVideo")).to_be_visible()
+            expect(cpage.locator("#sheet")).to_be_visible(timeout=15000)
+            expect(cpage.locator("#shSku")).to_have_text("IDEA-DMSBOOT-BLA-9")
+            expect(cpage.locator("#scanMsg")).to_be_hidden()
+            cam.close()
 
             # Expected noise: the deliberate offline sale and the deliberate wrong PIN.
             expected = ("favicon", "sw.js", "ServiceWorker", "ERR_INTERNET_DISCONNECTED", "401 (Unauthorized)")
