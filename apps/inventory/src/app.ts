@@ -39,6 +39,8 @@ export interface AppOptions {
   version?: string;
   metricsToken?: string;
   log?: (line: Record<string, unknown>) => void;
+  /** Per-IP limits. Defaults: 20 login attempts / 10 min, 600 public API requests / min. */
+  rateLimits?: { login?: { max: number; windowMs: number }; publicApi?: { max: number; windowMs: number } };
 }
 
 export interface App {
@@ -72,8 +74,29 @@ class HttpError extends Error {
   constructor(
     public status: number,
     message: string,
+    public headers: Record<string, string> = {},
   ) {
     super(message);
+  }
+}
+
+/** Fixed-window counter per key, in memory. Enough for one server; resets on restart. */
+class RateLimiter {
+  private hits = new Map<string, { count: number; resetAt: number }>();
+  constructor(
+    private max: number,
+    private windowMs: number,
+  ) {}
+  /** Returns seconds to wait if the key is over the limit, else 0. */
+  hit(key: string, at = Date.now()): number {
+    if (this.hits.size > 10000) for (const [k, v] of this.hits) if (v.resetAt <= at) this.hits.delete(k);
+    let w = this.hits.get(key);
+    if (!w || w.resetAt <= at) {
+      w = { count: 0, resetAt: at + this.windowMs };
+      this.hits.set(key, w);
+    }
+    w.count++;
+    return w.count > this.max ? Math.ceil((w.resetAt - at) / 1000) : 0;
   }
 }
 
@@ -129,7 +152,16 @@ export function createApp(opts: AppOptions): App {
   const version = opts.version ?? "dev";
   const log = opts.log ?? ((l) => console.log(JSON.stringify(l)));
 
-  const ip = (req: Request) => req.headers.get("x-forwarded-for")?.split(",")[0].trim() || req.headers.get("x-real-ip") || null;
+  // Caddy overwrites X-Real-IP with the connecting address; the first X-Forwarded-For entry can be set by the client.
+  const ip = (req: Request) => req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for")?.split(",")[0].trim() || null;
+  const loginLimit = new RateLimiter(opts.rateLimits?.login?.max ?? 20, opts.rateLimits?.login?.windowMs ?? 10 * 60 * 1000);
+  const publicLimit = new RateLimiter(opts.rateLimits?.publicApi?.max ?? 600, opts.rateLimits?.publicApi?.windowMs ?? 60 * 1000);
+  function limit(rl: RateLimiter, req: Request, name: string, message: string) {
+    const wait = rl.hit(ip(req) ?? "unknown");
+    if (!wait) return;
+    M.inc("stockroom_rate_limited_total", { limit: name });
+    throw new HttpError(429, message, { "retry-after": String(wait) });
+  }
 
   function requireSession(req: Request): Session {
     const s = sessionFromRequest(db, opts.secret, req);
@@ -233,6 +265,7 @@ export function createApp(opts: AppOptions): App {
         return json({ me: { userId: user.id, name: user.name, role: user.role } }, 200, { "set-cookie": cookie });
       }
       if (r[1] === "login" && m === "POST") {
+        limit(loginLimit, req, "login", "Too many tries from this device. Wait a few minutes and try again.");
         const b = await body<{ userId?: string; pin?: string }>(req);
         if (!b.userId || !validPin(b.pin)) throw new HttpError(400, "Pick a name and enter your PIN");
         const res = await attemptLogin(db, String(b.userId), b.pin);
@@ -252,6 +285,7 @@ export function createApp(opts: AppOptions): App {
 
     // ---- public API (API key) -------------------------------------------------
     if (r[0] === "public") {
+      limit(publicLimit, req, "public", "Rate limit exceeded");
       if (r[1] === "openapi.json" && m === "GET") return json(openApiSpec(url.origin));
       if (r[1] === "stock" && m === "GET") {
         requireApiKey(req, "read");
@@ -495,7 +529,8 @@ export function createApp(opts: AppOptions): App {
     try {
       res = await route(req, url);
     } catch (e) {
-      if (e instanceof HttpError || e instanceof StockError) res = json({ error: e.message }, e.status);
+      if (e instanceof HttpError) res = json({ error: e.message }, e.status, e.headers);
+      else if (e instanceof StockError) res = json({ error: e.message }, e.status);
       else {
         console.error(e);
         res = json({ error: "Something went wrong on the server" }, 500);

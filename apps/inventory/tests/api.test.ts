@@ -230,3 +230,32 @@ describe("admin extras", () => {
     expect(t.status).toBe(404);
   });
 });
+
+describe("rate limits", () => {
+  // A separate app with small limits so the shared suite above is not affected.
+  const limited = () => createApp({ dbPath: ":memory:", secret: "test-secret-test-secret-test-secret-xx", publicDir: PUBLIC, version: "test", log: () => {}, rateLimits: { login: { max: 3, windowMs: 60_000 }, publicApi: { max: 5, windowMs: 60_000 } } });
+  const req = (a: App, method: string, path: string, ip: string, body?: unknown) =>
+    a.fetch(new Request(`https://stock.test${path}`, { method, headers: { "x-real-ip": ip, "content-type": "application/json", "x-requested-with": "StockRoom" }, body: body === undefined ? undefined : JSON.stringify(body) }));
+
+  test("login attempts are limited per IP, with Retry-After", async () => {
+    const a = limited();
+    for (let i = 0; i < 3; i++) expect((await req(a, "POST", "/api/v1/auth/login", "10.0.0.1", { userId: "x", pin: "0000" })).status).toBe(401);
+    const blocked = await req(a, "POST", "/api/v1/auth/login", "10.0.0.1", { userId: "x", pin: "0000" });
+    expect(blocked.status).toBe(429);
+    expect(Number(blocked.headers.get("retry-after"))).toBeGreaterThan(0);
+    // another phone on another address is unaffected
+    expect((await req(a, "POST", "/api/v1/auth/login", "10.0.0.2", { userId: "x", pin: "0000" })).status).toBe(401);
+  });
+  test("public API is limited per IP; a spoofed X-Forwarded-For does not reset it", async () => {
+    const a = limited();
+    for (let i = 0; i < 5; i++) expect((await req(a, "GET", "/api/v1/public/stock", "10.0.0.3")).status).toBe(401);
+    expect((await req(a, "GET", "/api/v1/public/stock", "10.0.0.3")).status).toBe(429);
+    const spoof = await a.fetch(new Request("https://stock.test/api/v1/public/stock", { headers: { "x-real-ip": "10.0.0.3", "x-forwarded-for": "1.2.3.4" } }));
+    expect(spoof.status).toBe(429);
+    expect((await req(a, "GET", "/api/v1/public/stock", "10.0.0.4")).status).toBe(401);
+  });
+  test("signed-in app traffic is not counted against the public limit", async () => {
+    const a = limited();
+    for (let i = 0; i < 10; i++) expect((await req(a, "GET", "/api/v1/auth/state", "10.0.0.5")).status).toBe(200);
+  });
+});
