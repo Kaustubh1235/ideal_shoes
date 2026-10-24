@@ -1,6 +1,5 @@
-{
-	email {$ACME_EMAIL}
-}
+# No ACME email on purpose: Let's Encrypt no longer sends expiry mail, Caddy renews on its own,
+# and an empty or placeholder address stopped Caddy from starting.
 
 # DOMAIN=stock.idealx.in  -> public certificate from Let's Encrypt (the DNS A record must point here).
 # DOMAIN=localhost        -> Caddy's own local CA; fine for a shop PC on the LAN, install the CA on each phone once,

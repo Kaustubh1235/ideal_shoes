@@ -27,7 +27,7 @@ You need one Linux machine that is always on: a ₹400–800/month VPS, or a sma
 
 ```bash
 git clone <this repo> && cd ideal_shoes/apps/inventory
-cp .env.example .env        # set DOMAIN (e.g. stock.idealx.in) and ACME_EMAIL
+cp .env.example .env        # set DOMAIN (e.g. stock.idealx.in)
 docker compose up -d
 ```
 
