@@ -28,10 +28,10 @@ You need one Linux machine that is always on: a ₹400–800/month VPS, or a sma
 ```bash
 git clone <this repo> && cd ideal_shoes/apps/inventory
 cp .env.example .env        # set DOMAIN (e.g. stock.idealx.in)
-docker compose up -d
+sh scripts/update.sh        # builds and starts; the same command updates later
 ```
 
-Point the domain's DNS A record at the machine, open `https://stock.idealx.in`, and the first screen asks for the owner's name and PIN. Then Admin → People to add staff, Admin → Settings to confirm the app address (it is printed inside every QR), and Add to enter the first article.
+Point the domain's DNS A record at the machine, open `https://stock.idealx.in`, and the first screen asks for the owner's name and PIN. Then Admin → People to add staff, Admin → Settings to confirm the app address (it is printed inside every QR), and Add to enter the first article. **[DEPLOY.md](DEPLOY.md) is the full step-by-step guide** (server, DNS, staff, first labels, linking the website, backups, updates, certificate problems).
 
 **Shop-LAN only, no public domain?** Two good options: install [Tailscale](https://tailscale.com) on the server and the phones and set `DOMAIN` to the server's Tailscale name; or set `DOMAIN` to the PC's LAN address (e.g. `192.168.1.50`; give it a fixed address in the router, because it is printed inside every QR label) and install Caddy's local CA certificate on each phone once (`docker compose exec caddy cat /data/caddy/pki/authorities/local/root.crt`; on iPhone also turn it on under Settings → General → About → Certificate Trust Settings). `DOMAIN=localhost` only works on the server itself: on a phone, "localhost" is the phone. Camera scanning needs HTTPS either way.
 
@@ -76,7 +76,7 @@ Layout: `src/` (Bun + `bun:sqlite`, no framework), `public/` (plain HTML/CSS/JS,
 
 The app writes a backup at start and every 24 hours after, into `./backups/` on the host, and keeps the newest 14. Admin → Download database backup gives one on demand. Each backup is a complete single-file SQLite database.
 
-A backup on the same disk does not survive the disk, so copy one off the machine every night with [rclone](https://rclone.org) (Google Drive setup is in [DEPLOY.md](DEPLOY.md#backups-off-the-machine)):
+A backup on the same disk does not survive the disk, so copy one off the machine every night with [rclone](https://rclone.org) (Google Drive setup is in [DEPLOY.md](DEPLOY.md#10-backups-off-the-machine)):
 
 ```bash
 sh scripts/backup-offsite.sh      # fresh snapshot -> rclone remote gdrive:StockRoom, prunes copies older than 90 days

@@ -3,7 +3,7 @@
 # Run from anywhere on the server:
 #   sh scripts/backup-offsite.sh
 # Settings (optional): RCLONE_REMOTE=gdrive:StockRoom   KEEP_DAYS=90
-# Setting up the "gdrive" remote once is described in DEPLOY.md ("Backups off the machine").
+# Setting up the "gdrive" remote once is described in DEPLOY.md (step 10, "Backups off the machine").
 set -eu
 cd "$(dirname "$0")/.."
 . scripts/lib.sh
