@@ -16,10 +16,22 @@ x-logging: &logging
     max-file: "5"
 
 services:
+  # Docker creates ./backups as root on a fresh server, and the app runs as user "bun" (uid 1000),
+  # so nightly backups would silently fail. This runs once before the app and hands the folder over.
+  init-backups:
+    image: busybox:1.36
+    command: ["chown", "1000:1000", "/backups"]
+    volumes:
+      - ./backups:/backups
+    logging: *logging
+
   app:
     build: .
     restart: unless-stopped
     logging: *logging
+    depends_on:
+      init-backups:
+        condition: service_completed_successfully
     environment:
       APP_SECRET: ${APP_SECRET:-}
       METRICS_TOKEN: ${METRICS_TOKEN:-}
