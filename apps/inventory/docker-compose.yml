@@ -5,10 +5,21 @@
 #   open https://<DOMAIN>    # first visit creates the owner account
 #
 # The app itself only listens inside the Docker network; nothing but Caddy can reach it.
+# Stock and backups survive `docker compose down` / `up`: stock is in the stockroom-data volume,
+# backups are in ./backups next to this file. Only `docker compose down -v` deletes the volume.
+
+# Keep container logs from filling the disk: at most 5 files of 10 MB per service.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   app:
     build: .
     restart: unless-stopped
+    logging: *logging
     environment:
       APP_SECRET: ${APP_SECRET:-}
       METRICS_TOKEN: ${METRICS_TOKEN:-}
@@ -27,6 +38,7 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    logging: *logging
     depends_on:
       - app
     environment:
