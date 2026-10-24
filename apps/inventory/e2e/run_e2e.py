@@ -120,6 +120,22 @@ def main() -> int:
             page.click("#codeGo")
             expect(page.locator("#scanMsg")).to_contain_text("No item with code NOPE-1")
 
+            # ---- counter barcode scanner (keyboard wedge), from any tab ----------
+            page.click("#tab-stock")
+            page.evaluate("document.activeElement && document.activeElement.blur()")
+            page.keyboard.type("IDEA-DMSBOOT-BLA-10", delay=5)
+            page.keyboard.press("Enter")
+            expect(page.locator("#sheet")).to_be_visible()
+            expect(page.locator("#shSku")).to_have_text("IDEA-DMSBOOT-BLA-10")
+            page.click("#shClose")
+            # a person typing at normal speed with nothing focused does not trigger it
+            page.evaluate("document.activeElement && document.activeElement.blur()")
+            page.keyboard.type("IDEA-DMSBOOT-BLA-10", delay=150)
+            page.keyboard.press("Enter")
+            page.wait_for_timeout(300)
+            expect(page.locator("#sheet")).to_be_hidden()
+            page.click("#tab-scan")
+
             # ---- offline: a sale is queued and syncs on reconnect ----------------
             offline_from = len(errors)
             ctx.set_offline(True)

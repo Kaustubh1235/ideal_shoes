@@ -246,11 +246,29 @@
   function openCode(text) {
     const sku = normalizeSku(text); if (!sku) return;
     if (item(sku)) { $("scanMsg").hidden = true; openSheet(sku); return; }
+    if (S.view !== "scan") { toast(`No item with code ${sku}`, 3500); return; }
     const msg = $("scanMsg"); msg.hidden = false; msg.className = "notice"; msg.textContent = `No item with code ${sku}. Add it under Add, then print its label.`;
     $("codeInput").value = sku; if (Scanner.active()) Scanner.resume();
   }
   $("codeGo").addEventListener("click", () => openCode($("codeInput").value));
   $("codeInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); openCode($("codeInput").value); } });
+
+  // ---------- counter barcode scanner ----------
+  // A USB "keyboard wedge" scanner types the code a few ms per key and ends with Enter.
+  // When no field has focus, collect those fast keys and open the item. People type far slower, so they never trigger it.
+  let wedge = "", wedgeAt = 0;
+  document.addEventListener("keydown", (e) => {
+    if (!S.me || $("app").hidden || e.ctrlKey || e.metaKey || e.altKey) return;
+    const a = document.activeElement;
+    if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;
+    if (e.timeStamp - wedgeAt > 60) wedge = "";
+    if (e.key === "Enter") {
+      if (wedge.length >= 3) { e.preventDefault(); const c = wedge; wedge = ""; openCode(c); }
+      wedge = ""; return;
+    }
+    if (e.key.length !== 1) return; // Shift and friends
+    wedge += e.key; wedgeAt = e.timeStamp;
+  });
 
   // ---------- sheet ----------
   function openSheet(sku) {
