@@ -33,7 +33,7 @@ docker compose up -d
 
 Point the domain's DNS A record at the machine, open `https://stock.idealx.in`, and the first screen asks for the owner's name and PIN. Then Admin → People to add staff, Admin → Settings to confirm the app address (it is printed inside every QR), and Add to enter the first article.
 
-**Shop-LAN only, no public domain?** Two good options: install [Tailscale](https://tailscale.com) on the server and the phones and set `DOMAIN` to the server's Tailscale name; or keep `DOMAIN=localhost` and install Caddy's local CA certificate on each phone once (`docker compose exec caddy cat /data/caddy/pki/authorities/local/root.crt`). Camera scanning needs HTTPS either way.
+**Shop-LAN only, no public domain?** Two good options: install [Tailscale](https://tailscale.com) on the server and the phones and set `DOMAIN` to the server's Tailscale name; or set `DOMAIN` to the PC's LAN address (e.g. `192.168.1.50`; give it a fixed address in the router, because it is printed inside every QR label) and install Caddy's local CA certificate on each phone once (`docker compose exec caddy cat /data/caddy/pki/authorities/local/root.crt`; on iPhone also turn it on under Settings → General → About → Certificate Trust Settings). `DOMAIN=localhost` only works on the server itself: on a phone, "localhost" is the phone. Camera scanning needs HTTPS either way.
 
 ## Phones: installing and the camera
 
