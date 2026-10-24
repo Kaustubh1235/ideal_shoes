@@ -121,6 +121,7 @@ def main() -> int:
             expect(page.locator("#scanMsg")).to_contain_text("No item with code NOPE-1")
 
             # ---- offline: a sale is queued and syncs on reconnect ----------------
+            offline_from = len(errors)
             ctx.set_offline(True)
             page.fill("#codeInput", "IDEA-DMSBOOT-BLA-8")
             page.click("#codeGo")
@@ -132,6 +133,8 @@ def main() -> int:
             ctx.set_offline(False)
             page.evaluate("window.dispatchEvent(new Event('online'))")
             expect(page.locator("#queueBadge")).to_be_hidden(timeout=10000)
+            # While offline the service worker answers API reads with its own 503 fallback; that is the expected path.
+            errors[offline_from:] = [e for e in errors[offline_from:] if "status of 503" not in e]
             with urllib.request.urlopen(f"{base}/api/v1/public/openapi.json") as r:
                 assert json.load(r)["paths"]["/movements"], "openapi"
 
