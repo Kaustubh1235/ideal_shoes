@@ -5,8 +5,24 @@ import { prisma } from "@/lib/prisma";
 import { rupeesOnly, inr } from "@/lib/money";
 import { Button } from "@bharatboot/ui";
 import { AddToCart } from "@/components/storefront/add-to-cart";
+import { seller } from "@/lib/seller";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: { slug: string } }) {
+  const p = await prisma.product.findUnique({
+    where: { slug: params.slug },
+    include: { images: { orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }], take: 1 } },
+  });
+  if (!p || p.status !== "active") return { title: "Not found", robots: { index: false } };
+  const description = p.shortDescription ?? `${p.name}, made in the IDEALX factory in Agra. ${rupeesOnly(p.basePrice)} incl. GST.`;
+  return {
+    title: p.name,
+    description,
+    alternates: { canonical: `/products/${p.slug}` },
+    openGraph: { title: p.name, description, type: "website", images: p.images[0] ? [{ url: p.images[0].url, alt: p.name }] : undefined },
+  };
+}
 
 export default async function ProductDetailPage({ params }: { params: { slug: string } }) {
   const product = await prisma.product.findUnique({
@@ -17,7 +33,21 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
       category: true,
     },
   });
-  if (!product) notFound();
+  if (!product || product.status !== "active") notFound();
+
+  // Legal Metrology (Packaged Commodities) Rules, 2011, rule 6(10): declarations an online
+  // listing must show. Product meta overrides; otherwise the seller's own details apply.
+  const meta = (product.metaJson ?? {}) as Record<string, any>;
+  const s = seller();
+  const paired = ["boots", "shoes"].includes(product.category?.slug ?? "");
+  const declarations: [string, string][] = [
+    ["MRP", `${inr(product.mrp ?? product.basePrice)} (incl. of all taxes)`],
+    ["Generic name", meta.genericName ?? product.category?.name ?? product.name],
+    ["Net quantity", meta.netQuantity ?? (paired ? "1 pair" : "1 N (one piece)")],
+    ["Country of origin", meta.countryOfOrigin ?? "India"],
+    ["Manufactured by", meta.manufacturer ?? `${s.legalName}, ${s.address}`],
+    ["Customer care", [s.phone, s.email].filter(Boolean).join(" · ") || "See the Contact page"],
+  ];
 
   return (
     <div className="container py-8">
@@ -101,21 +131,31 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
           <dl className="mt-8 grid grid-cols-2 gap-y-2 text-sm">
             <dt className="text-ink/60">HSN Code</dt>
             <dd>{product.hsnCode}</dd>
-            <dt className="text-ink/60">Country of Origin</dt>
-            <dd>{(product.metaJson as any)?.countryOfOrigin ?? "India"}</dd>
-            {(product.metaJson as any)?.material && (
+            {meta.material && (
               <>
                 <dt className="text-ink/60">Material</dt>
-                <dd>{(product.metaJson as any).material}</dd>
+                <dd>{meta.material}</dd>
               </>
             )}
-            {(product.metaJson as any)?.warrantyMonths && (
+            {meta.warrantyMonths && (
               <>
                 <dt className="text-ink/60">Warranty</dt>
-                <dd>{(product.metaJson as any).warrantyMonths} months</dd>
+                <dd>{meta.warrantyMonths} months</dd>
               </>
             )}
           </dl>
+
+          <section aria-labelledby="declarations" className="mt-8 rounded-md border border-leather-100 p-4">
+            <h2 id="declarations" className="text-xs uppercase tracking-[0.2em] text-ink/60">Product declarations</h2>
+            <dl className="mt-3 grid grid-cols-[auto,1fr] gap-x-6 gap-y-1.5 text-sm">
+              {declarations.map(([k, v]) => (
+                <div key={k} className="contents">
+                  <dt className="text-ink/60">{k}</dt>
+                  <dd>{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
         </div>
       </div>
     </div>

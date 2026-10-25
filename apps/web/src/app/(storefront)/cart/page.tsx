@@ -7,6 +7,8 @@ import { Button, EmptyState } from "@bharatboot/ui";
 import { ShoppingCart } from "lucide-react";
 import { CartItemRow } from "@/components/storefront/cart-item-row";
 
+export const metadata = { title: "Cart", robots: { index: false } };
+
 export const dynamic = "force-dynamic";
 
 export default async function CartPage() {
@@ -75,7 +77,7 @@ export default async function CartPage() {
           <dl className="mt-4 space-y-2 text-sm">
             <div className="flex justify-between"><dt>Subtotal</dt><dd>{inr(subtotal)}</dd></div>
             <div className="flex justify-between text-ink/70"><dt>Includes GST</dt><dd>{inr(taxPreview)}</dd></div>
-            <div className="flex justify-between text-ink/70"><dt>Shipping</dt><dd>{subtotal >= 200000 ? "Free" : "Calculated at checkout"}</dd></div>
+            <div className="flex justify-between text-ink/70"><dt>Shipping</dt><dd>Free</dd></div>
           </dl>
           <div className="mt-4 pt-4 border-t flex justify-between font-medium">
             <span>Total</span>

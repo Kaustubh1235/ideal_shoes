@@ -16,7 +16,7 @@ export default async function StorefrontLayout({ children }: { children: React.R
       <header className="sticky top-0 z-40 border-b border-leather-100 bg-cream/95 backdrop-blur">
         <div className="bg-leather-700 text-cream text-xs tracking-wide">
           <div className="container flex items-center justify-between py-1.5">
-            <span>Made in our Agra factory · Full-grain leather · Free shipping over ₹1,999</span>
+            <span>Made in our Agra factory · Full-grain leather · Free shipping across India</span>
             {phone ? (
               <span className="hidden sm:inline text-cream/80">WhatsApp {phone}</span>
             ) : (
@@ -93,6 +93,7 @@ export default async function StorefrontLayout({ children }: { children: React.R
               <li><Link href="/returns">Exchanges &amp; returns</Link></li>
               <li><Link href="/shipping">Shipping</Link></li>
               <li><Link href="/terms">Terms</Link></li>
+              <li><Link href="/privacy">Privacy</Link></li>
             </ul>
           </div>
         </div>
