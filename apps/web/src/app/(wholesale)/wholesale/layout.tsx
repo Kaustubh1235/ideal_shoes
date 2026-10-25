@@ -4,6 +4,8 @@ import { auth, signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@bharatboot/ui";
 
+export const metadata = { title: { default: "Dealer portal", template: "%s · IDEALX dealers" }, robots: { index: false, follow: false } };
+
 export default async function WholesaleLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user) redirect("/login?from=/wholesale");

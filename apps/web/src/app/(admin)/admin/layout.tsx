@@ -17,6 +17,8 @@ import {
   QrCode,
 } from "lucide-react";
 
+export const metadata = { title: { default: "Admin", template: "%s · IDEALX admin" }, robots: { index: false, follow: false } };
+
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/products", label: "Products", icon: Package },

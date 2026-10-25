@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { inr } from "@/lib/money";
 import { Badge } from "@bharatboot/ui";
 
+export const metadata = { title: "Your orders", robots: { index: false } };
+
 export const dynamic = "force-dynamic";
 
 export default async function OrdersListPage() {

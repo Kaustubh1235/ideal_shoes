@@ -1,6 +1,8 @@
 import { Button, Input, Label, Textarea } from "@bharatboot/ui";
 import { dealerApplyAction } from "@/app/actions/dealer";
 
+export const metadata = { title: "Become a dealer", description: "Stock IDEALX boots and formal shoes: apply for a dealer account with your GSTIN for wholesale prices and GST invoices." };
+
 export default function DealerApplicationPage() {
   return (
     <div className="container py-12 max-w-2xl">

@@ -1,5 +1,7 @@
 import { LoginForm } from "@/components/auth/login-form";
 
+export const metadata = { title: "Sign in", robots: { index: false } };
+
 export const dynamic = "force-dynamic";
 
 export default function LoginPage({ searchParams }: { searchParams: { from?: string; error?: string } }) {

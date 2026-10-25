@@ -7,6 +7,8 @@ import { Button, Input, Label } from "@bharatboot/ui";
 import { placeOrderAction } from "@/app/actions/checkout";
 import { GST_STATE_CODES } from "@bharatboot/gst";
 
+export const metadata = { title: "Checkout", robots: { index: false } };
+
 export const dynamic = "force-dynamic";
 
 export default async function CheckoutPage() {

@@ -28,6 +28,8 @@ export const metadata: Metadata = {
   description:
     "Service and army boots, formal shoes and jackets made in our own factory in Agra and sold direct. The factory that makes boots for service makes your formal shoes.",
   metadataBase: new URL(process.env.AUTH_URL ?? "http://localhost:3000"),
+  openGraph: { siteName: "IDEALX", locale: "en_IN", type: "website" },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

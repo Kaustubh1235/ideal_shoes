@@ -6,6 +6,18 @@ import { CATEGORY_LABELS } from "@/lib/nav";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata({ searchParams }: { searchParams: { category?: string; q?: string } }) {
+  const label = searchParams.category ? (CATEGORY_LABELS as Record<string, string>)[searchParams.category] : undefined;
+  return {
+    title: label ?? "All products",
+    description: label
+      ? `${label} made in our own factory in Agra and sold direct, prices incl. GST, free shipping across India.`
+      : "Service boots, formal shoes, jackets and leather bags from the IDEALX factory in Agra.",
+    alternates: { canonical: searchParams.category ? `/products?category=${searchParams.category}` : "/products" },
+    robots: searchParams.q ? { index: false } : undefined,
+  };
+}
+
 export default async function ProductsListPage({
   searchParams,
 }: {

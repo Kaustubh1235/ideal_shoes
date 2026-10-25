@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { rupeesOnly } from "@/lib/money";
 import { Button } from "@bharatboot/ui";
 
+export const metadata = { alternates: { canonical: "/" } };
+
 const CATEGORIES = [
   { slug: "boots", name: "Service & Army Boots", blurb: "DMS and high-ankle boots built for daily service wear." },
   { slug: "shoes", name: "Formal Shoes", blurb: "Plain-toe and cap-toe Oxfords from the same factory floor." },

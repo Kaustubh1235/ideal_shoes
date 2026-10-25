@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Button } from "@bharatboot/ui";
 
+export const metadata = { title: "Application received", robots: { index: false } };
+
 export default function ThanksPage() {
   return (
     <div className="container py-24 text-center max-w-md">

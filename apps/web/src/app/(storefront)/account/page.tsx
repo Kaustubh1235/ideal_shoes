@@ -5,6 +5,8 @@ import { Card, CardHeader, CardTitle, CardContent, Button } from "@bharatboot/ui
 import { inr } from "@/lib/money";
 import { Package, MapPin, LogOut } from "lucide-react";
 
+export const metadata = { title: "Your account", robots: { index: false } };
+
 export const dynamic = "force-dynamic";
 
 export default async function AccountPage() {

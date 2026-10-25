@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Button } from "@bharatboot/ui";
 
+export const metadata = { title: "View in 3D", robots: { index: false } };
+
 export const dynamic = "force-dynamic";
 
 export default async function ARPage({ params }: { params: { slug: string } }) {

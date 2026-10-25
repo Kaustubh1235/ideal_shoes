@@ -5,12 +5,14 @@ import { auth } from "@/auth";
 import { inr } from "@/lib/money";
 import { PayButton } from "@/components/storefront/pay-button";
 
+export const metadata = { title: "Payment", robots: { index: false } };
+
 export const dynamic = "force-dynamic";
 
 export default async function PayPage({ params, searchParams }: { params: { orderId: string }; searchParams: { paid?: string } }) {
   const order = await prisma.order.findUnique({
     where: { id: params.orderId },
-    include: { items: true },
+    include: { items: true, invoices: { take: 1, select: { id: true } } },
   });
   if (!order) notFound();
   // Guest orders are reachable only through their unguessable id; a signed-in buyer's only by them.
@@ -20,7 +22,12 @@ export default async function PayPage({ params, searchParams }: { params: { orde
     return (
       <div className="container py-16 text-center">
         <h1 className="font-display text-3xl">Thank you</h1>
-        <p className="mt-2 text-ink/70">Order {order.orderNo} is paid and is now {order.status}. Your GST invoice will be ready shortly.</p>
+        <p className="mt-2 text-ink/70">Order {order.orderNo} is paid and is now {order.status}.</p>
+        {order.invoices[0] ? (
+          <p className="mt-4"><a className="underline" href={`/files/orders/${order.id}/invoice`}>Download GST invoice</a></p>
+        ) : (
+          <><meta httpEquiv="refresh" content="10" /><p className="mt-2 text-ink/60 text-sm">Your GST invoice is being prepared; this page updates by itself.</p></>
+        )}
       </div>
     );
   }
