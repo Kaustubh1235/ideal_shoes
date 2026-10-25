@@ -15,9 +15,9 @@ drill=stockroom-restore-drill
 docker rm -f "$drill" >/dev/null 2>&1 || true
 trap 'docker rm -f "$drill" >/dev/null 2>&1 || true' EXIT
 # Its own data folder and secret, backups off, no ports: it cannot affect the live app.
-docker compose run -d --no-deps --name "$drill" -e DATA_DIR=/tmp/drill -e BACKUPS=off \
+$DC run -d --no-deps --name "$drill" -e DATA_DIR=/tmp/drill -e BACKUPS=off \
   -e APP_SECRET="drill-$(date +%s)-not-a-real-secret-0000000000" \
-  --entrypoint sh app -c "mkdir -p /tmp/drill && cp '/$file' /tmp/drill/stockroom.db && exec bun src/server.ts" >/dev/null
+  --entrypoint sh "$SVC" -c "mkdir -p /tmp/drill && cp '/$file' /tmp/drill/stockroom.db && exec bun src/server.ts" >/dev/null
 
 i=0
 until health=$(docker exec "$drill" bun -e "fetch('http://127.0.0.1:8787/healthz').then(r=>r.text()).then(t=>{console.log(t);process.exit(JSON.parse(t).ok?0:1)}).catch(()=>process.exit(1))" 2>/dev/null); do

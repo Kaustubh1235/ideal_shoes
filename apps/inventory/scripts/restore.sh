@@ -13,17 +13,17 @@ case "$file" in backups/*.db) ;; *) echo "Usage: sh scripts/restore.sh backups/<
 # Keep the current database: a clean single-file snapshot while the app runs; if the app is down,
 # the raw files (restore those by hand: all three belong together).
 if [ -n "$(app_container)" ]; then keep=$(snapshot); raw=""; else keep="backups/before-restore-$(date -u +%Y-%m-%d-%H-%M-%S).db"; raw=1; fi
-docker compose stop app
-docker compose run --rm --no-deps --entrypoint sh app -c "
+$DC stop "$SVC"
+$DC run --rm --no-deps --entrypoint sh "$SVC" -c "
   set -e
   if [ -n '$raw' ]; then for s in '' -wal -shm; do [ ! -f /data/stockroom.db\$s ] || cp /data/stockroom.db\$s '/$keep'\$s; done; fi
   cp '/$file' /data/stockroom.db.new
   rm -f /data/stockroom.db-wal /data/stockroom.db-shm
   mv /data/stockroom.db.new /data/stockroom.db"
-docker compose up -d app
+$DC up -d "$SVC"
 i=0
 until c=$(app_container) && [ -n "$c" ] && docker exec "$c" bun -e "fetch('http://127.0.0.1:8787/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; do
-  i=$((i + 1)); [ $i -lt 30 ] || { echo "The app did not come back healthy. Logs: docker compose logs app"; exit 1; }
+  i=$((i + 1)); [ $i -lt 30 ] || { echo "The app did not come back healthy. Logs: $DC logs $SVC"; exit 1; }
   sleep 1
 done
 echo "Restored $file ($(counts "$c" /data/stockroom.db)). The previous database is in $keep"
