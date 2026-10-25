@@ -19,7 +19,8 @@ told the stock has left, and the customer gets a WhatsApp confirmation (when §2
 2. Dashboard → **Settings → API Keys → Generate Test Keys**. Keep both values.
 3. Dashboard → **Settings → Webhooks → Add Webhook**:
    - URL: `https://<your-domain>/api/v1/payments/razorpay/webhook`
-     (nginx forwards this to the API; for local testing expose the API with `ngrok http 8000` and use
+     (Caddy forwards this one path to the API, which is otherwise not reachable from outside;
+     for local testing expose the API with `ngrok http 8000` and use
      `https://<ngrok-id>.ngrok.app/payments/razorpay/webhook`).
    - Events to tick: `payment.authorized`, `payment.captured`, `payment.failed`, `order.paid`,
      `refund.created`, `refund.processed`.
@@ -30,7 +31,7 @@ told the stock has left, and the customer gets a WhatsApp confirmation (when §2
    RAZORPAY_KEY_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
    RAZORPAY_WEBHOOK_SECRET=xxxxxxxxxxxxxxxxxxxxx
    ```
-5. Restart: `docker compose -f infra/docker/compose.yml up -d --force-recreate web api worker`.
+5. Restart: `sh scripts/prod.sh up -d` (it recreates the services whose settings changed).
 6. Place a test order on the storefront and pay with Razorpay's test card `4111 1111 1111 1111`, any
    future expiry, any CVV. Check: Admin → Orders shows the order as **paid**; the invoice PDF appears on
    the order; the API log shows `inventory.order_out` (or `inventory.order_out.skipped` until §3 is done).
@@ -98,30 +99,28 @@ integration; nothing else on the site reads or writes the inventory app.
 
 1. In the inventory app (as the owner): **Admin → API keys → New key**, name it `Website`, scopes
    **read** and **write**. Copy the key; it is shown once.
-2. `.env` on the site:
-   ```
-   INVENTORY_API_URL=https://stock.idealx.in        # the inventory app's HTTPS address, no trailing slash
-   INVENTORY_API_KEY=<the key from step 1>
-   INVENTORY_APP_URL=https://stock.idealx.in        # used only for the "Stock room" link in /admin
-   ```
-3. Make the SKUs line up. The inventory app's SKU for a pair must equal either the variant **SKU** or
-   the variant **barcode** on this site (Admin → Products → variant). Easiest: paste the inventory
-   app's SKU into the variant's barcode field. Matching ignores case and spaces.
-4. Restart `api`, `worker` and `web`.
+2. `.env` on the site: set `INVENTORY_API_KEY=<the key from step 1>`. In the combined stack
+   (docs/DEPLOY.md) leave `INVENTORY_API_URL=http://inventory:8787`: the site reaches Stock Room
+   inside the Docker network, and `INVENTORY_APP_URL` (the **Stock room** link in /admin) is set
+   from `STOCK_DOMAIN`. If Stock Room runs on another machine instead, set
+   `INVENTORY_API_URL=https://stock.idealx.in` (no trailing slash).
+3. Make the SKUs line up. For each variant sold online, type the Stock Room code from the box
+   label (e.g. `IDEA-DMSBOOT-BLA-9`) into **Admin → Products → (product) → Stock Room code** and
+   press Save. Matching is on the variant SKU or this code, ignoring case and spaces.
+4. Apply: `sh scripts/prod.sh up -d`.
 5. Verify:
    - Trigger a sync now instead of waiting 15 minutes:
      ```
-     docker compose -f infra/docker/compose.yml exec worker \
-       celery -A app.worker.celery_app call inventory.sync_stock
+     sh scripts/prod.sh exec worker celery -A app.worker.celery_app call inventory.sync_stock
      ```
-     then `docker compose logs worker | grep inventory.sync` shows
+     then `sh scripts/prod.sh logs worker | grep inventory.sync` shows
      `inventory.sync.done` with `matched`, `changed` and `unmatched` counts. `unmatched_sample` lists
      inventory SKUs that have no variant here (fix step 3 for the ones that should sell online).
    - Admin → Inventory shows the synced **On Hand** numbers.
    - Pay a test order (§1 step 6), then open the inventory app: the item shows a movement
      "Web order IDX-…" and its quantity is lower by the ordered amount.
-6. If the inventory app is down, nothing breaks on the site: the sync task logs an error and retries on
-   the next tick; the order stock-out task retries with backoff up to five times. Orders still get paid
+6. If the inventory app is down, nothing breaks on the site: the sync task logs
+   `inventory.sync.unreachable` and tries again on the next tick; the order stock-out task retries with backoff up to five times. Orders still get paid
    and invoiced.
 
 The site never changes prices, items or anything else in the inventory app, and the inventory app never
@@ -138,14 +137,29 @@ that is also when `order_shipped` / `order_delivered` WhatsApp templates get wir
 
 ---
 
-## 5. Checklist
+## 5. Monitoring and logs
+
+- **Uptime**: add three HTTP checks in a free monitor (UptimeRobot, Better Stack, every 5 minutes):
+  `https://idealx.in/api/healthz` (the shop can reach its database; 503 if not),
+  `https://idealx.in/api/v1/healthz` (the API) and `https://stock.idealx.in/healthz` (Stock Room).
+  Inside the server, Docker restarts any service whose health check fails.
+- **Logs**: `sh scripts/prod.sh logs -f <service>` for `web`, `api`, `worker`, `beat`, `caddy`,
+  `inventory`. Caddy's access log is JSON, one line per request. Each service keeps at most
+  5 × 10 MB.
+- **What to grep for**: `razorpay_webhook` (payments), `inventory.sync` / `inventory.order_out`
+  (stock link), `whatsapp.` and `email.` (messages: `not_configured.skipping` means the keys are
+  not set yet), `api.unhandled` (any server error).
+
+---
+
+## 6. Checklist
 
 - [ ] Razorpay test keys and webhook secret in `.env`; test card order shows **paid** in Admin
 - [ ] Razorpay live keys after KYC; one ₹1 live order and refund seen in the dashboard
 - [ ] Meta Business verified; WhatsApp number added; four templates approved
 - [ ] `WHATSAPP_PHONE_NUMBER_ID` + permanent `WHATSAPP_ACCESS_TOKEN` in `.env`; test order message received
-- [ ] Inventory app API key created (read + write); `INVENTORY_API_URL` / `INVENTORY_API_KEY` / `INVENTORY_APP_URL` set
-- [ ] Variant SKUs or barcodes match the inventory app's SKUs; `inventory.sync.done` shows `unmatched: 0` for everything sold online
+- [ ] Stock Room API key created (read + write) and set as `INVENTORY_API_KEY`
+- [ ] Every variant sold online has its Stock Room code; `inventory.sync.done` shows `unmatched: 0` for everything sold online
 - [ ] Admin sidebar shows **Stock room** and it opens the inventory app
 - [ ] `NEXT_PUBLIC_HERO_IMAGE_URL` set to the factory photo (see `NEXT-STEPS.md` §5)
 - [ ] `SELLER_GSTIN`, `SELLER_ADDRESS_JSON` (Agra), `SELLER_STATE_CODE=09`, `SELLER_EMAIL`, `SELLER_PHONE` filled

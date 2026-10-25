@@ -4,7 +4,9 @@ Online platform for IDEALX, the handcrafted full-grain leather brand of Ideal Sh
 
 Brand positioning: Ideal Shoes makes service and army boots, formal (Oxford) shoes and jackets in its own factory in Agra; leather bags are a small outsourced line. IDEALX sells that range direct ("the factory that makes boots for service makes your formal shoes") and supplies institutions and government buyers through GeM and direct purchase orders. BIS certification for leather footwear under the 2024 Quality Control Order (deadline 31 July 2027) is the gating compliance item for boots.
 
-Stock is tracked in a separate, self-hosted inventory app (QR labels, scan to count). This site's only link to it is the inventory API: a Celery task pulls stock levels every 15 minutes and paid web orders post stock-out movements back. See `docs/GO-LIVE.md`.
+Stock is tracked in Stock Room (`apps/inventory`): phone QR scanning, label printing, Excel import/export, insights. It runs in the same stack at `stock.<domain>`, with its own login. This site's only link to it is its API: a Celery task pulls stock levels every 15 minutes and paid web orders post stock-out movements back. See `docs/GO-LIVE.md`.
+
+**Going live:** [docs/DEPLOY.md](docs/DEPLOY.md) takes a fresh Ubuntu server to both sites on HTTPS (`sh scripts/prod.sh init`, `sh scripts/prod.sh up -d --build`).
 
 ## Stack
 
@@ -15,12 +17,12 @@ Stock is tracked in a separate, self-hosted inventory app (QR labels, scan to co
 | Worker | Celery + Redis (beat schedule for tender polling, GSTR export, etc.) |
 | Database | PostgreSQL 16 |
 | Cache / Queue | Redis 7 |
-| Object storage | S3 (MinIO in dev) |
+| Object storage | S3 API (SeaweedFS in the stack: public bucket for photos, private for invoices) |
 | Auth | Auth.js v5 — shared JWT verified by FastAPI |
 | Payments | Razorpay Standard Checkout |
 | Invoice PDF | WeasyPrint |
 | AR | `<model-viewer>` web component (ARCore / Quick Look) |
-| Deploy | Docker Compose, host-agnostic |
+| Deploy | Docker Compose behind Caddy (automatic HTTPS), one server for the shop and Stock Room |
 
 ## Quick start
 
@@ -28,7 +30,7 @@ Stock is tracked in a separate, self-hosted inventory app (QR labels, scan to co
 # 1. Copy env
 cp .env.example .env
 
-# 2. Bring up infra-only (postgres, redis, minio, mailhog)
+# 2. Bring up infra-only (postgres, redis, storage, mailhog)
 pnpm db:up
 
 # 3. Install deps
@@ -38,8 +40,8 @@ cd apps/api && pip install -e . && cd ../..
 # 4. Run migrations
 pnpm db:migrate
 
-# 5. Mirror Postgres schema into Prisma
-pnpm prisma:pull
+# 5. Generate the Prisma client (run `pnpm prisma:pull` after a migration changes the schema)
+pnpm prisma:generate
 
 # 6. Seed demo data
 pnpm db:seed
@@ -52,7 +54,7 @@ Storefront: http://localhost:3000
 Admin: http://localhost:3000/admin (login: `admin@bharatboot.local` / `ChangeMe123!` + TOTP shown in console)  
 Wholesale: http://localhost:3000/wholesale (login: `dealer1@bharatboot.local` / `Dealer123!`)  
 API docs: http://localhost:8000/docs  
-MinIO console: http://localhost:9001  
+Object storage (S3 API): http://localhost:9000  
 MailHog: http://localhost:8025  
 
 ## What's coded vs. what you need to do
@@ -72,8 +74,11 @@ packages/ui/        # shadcn/ui primitives
 packages/types/     # Zod + OpenAPI-generated TS client for FastAPI
 packages/gst/       # GSTIN validation, HSN helpers
 packages/config/    # shared tsconfig, eslint, tailwind presets
-infra/docker/       # Dockerfiles + compose.yml + compose.prod.yml
-infra/nginx/        # Reverse proxy for prod
+infra/docker/       # Dockerfiles + compose.yml (dev) + compose.prod.yml (shop + Stock Room)
+infra/caddy/        # Reverse proxy and HTTPS for prod
+infra/seaweedfs/    # Object store start script
+apps/inventory/     # Stock Room (Bun + SQLite PWA)
+e2e/                # stack_e2e.py: whole-stack browser test
 scripts/            # seed.ts, prisma-pull.sh, openapi-codegen.sh
 ```
 
@@ -101,16 +106,21 @@ cd apps/api && pytest
 ## Production deploy (any Linux VPS)
 
 ```bash
-# On the host
-git clone <repo> idealx && cd idealx
-cp .env.example .env
-# Edit .env: AUTH_SECRET, RAZORPAY_*, SELLER_* (GSTIN, Agra address, state code 09), AUTH_URL=https://yourdomain.com, etc.
-docker compose -f infra/docker/compose.prod.yml up -d
-docker compose -f infra/docker/compose.prod.yml exec api alembic upgrade head
-docker compose -f infra/docker/compose.prod.yml exec api python -m scripts.seed_admin
+git clone <repo> /opt/ideal_shoes && cd /opt/ideal_shoes
+sh scripts/prod.sh init                 # .env with generated secrets; then set SITE_DOMAIN, STOCK_DOMAIN, SELLER_*
+sh scripts/prod.sh up -d --build        # migrations and storage buckets run before the API starts
+sh scripts/prod.sh exec api python scripts/seed_admin.py you@yourdomain.in
 ```
 
-TLS: nginx is configured to read `infra/nginx/certs/fullchain.pem` + `privkey.pem`. Use `certbot` to populate.
+Caddy (`infra/caddy/Caddyfile`) gets and renews certificates for the shop, `www` and Stock Room
+by itself. Full walkthrough, backups and updates: [docs/DEPLOY.md](docs/DEPLOY.md).
+
+### Whole-stack test
+
+`e2e/stack_e2e.py` drives the running stack through Caddy in Chromium: admin login with TOTP,
+product photo upload, stock sync from Stock Room, a guest purchase on a 390 px phone, the signed
+Razorpay webhook, the private invoice PDF, the stock-out recorded in Stock Room, the confirmation
+email, and a dealer bulk order at tier prices. See the docstring for how to start it.
 
 ## Workspace package names
 

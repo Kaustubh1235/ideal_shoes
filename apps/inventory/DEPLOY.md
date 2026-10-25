@@ -1,6 +1,11 @@
 # Putting Stock Room online
 
-This guide takes you from nothing to staff scanning boxes on their phones. Follow it top to bottom the first time. Copy the grey command boxes exactly; anything in `<angle brackets>` is yours to fill in.
+**Running the shop too?** Follow [docs/DEPLOY.md](../../docs/DEPLOY.md) instead: it puts the shop
+(idealx.in) and Stock Room (stock.idealx.in) on one server. Come back here for steps 6–8 (owner,
+staff, labels) and 10 (rclone). The script commands below (`backup-offsite.sh`, `restore.sh`,
+`restore-drill.sh`) work in both setups.
+
+This guide sets up Stock Room on its own and takes you from nothing to staff scanning boxes on their phones. Follow it top to bottom the first time. Copy the grey command boxes exactly; anything in `<angle brackets>` is yours to fill in.
 
 You will need about an hour, a credit/debit card for the server, and access to the domain's DNS settings (wherever `idealx.in` was bought).
 

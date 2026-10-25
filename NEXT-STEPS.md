@@ -47,20 +47,9 @@ Until then: `OTP_DEV_MODE=true` logs the OTP to the API container stdout.
 
 ## 3. Domain + production host
 
-| Provider | Approx cost | Notes |
-|---|---|---|
-| Hetzner CPX11 | ₹400/mo | 2 vCPU, 2GB, 40GB SSD, ample for v1 |
-| Contabo VPS S | ₹500/mo | 4 vCPU, 8GB, 200GB |
-| AWS Lightsail $10 | ₹850/mo | 2 vCPU, 2GB |
-| DigitalOcean Basic | ₹500/mo | Mumbai region available |
-
-1. Register `idealx.in` and `idealx.com` (or whatever the trademark search clears) via Cloudflare / GoDaddy / BigRock.
-2. Provision a Linux box (Ubuntu 22.04 LTS recommended).
-3. Point DNS A record to host IP.
-4. Install Docker: `curl -fsSL https://get.docker.com | sh && systemctl enable --now docker`.
-5. Clone repo, copy `.env.example` → `.env`, fill values (especially `AUTH_URL=https://idealx.in`).
-6. Get TLS cert: `docker run -it --rm -v ./infra/nginx/certs:/etc/letsencrypt certbot/certbot certonly --standalone -d idealx.in -d www.idealx.in`.
-7. `docker compose -f infra/docker/compose.prod.yml up -d`.
+Follow **[docs/DEPLOY.md](docs/DEPLOY.md)**: a 2 CPU / 4 GB Ubuntu server, three DNS A records
+(`@`, `www`, `stock`), `sh scripts/prod.sh init`, `sh scripts/prod.sh up -d --build`. HTTPS
+certificates are issued and renewed by Caddy automatically; there is no certbot step.
 
 ---
 
@@ -192,7 +181,7 @@ Forward RFQs from your existing mailbox to this address for automatic ingestion.
 - [ ] MSG91 keys + DLT-approved template
 - [ ] Domain registered + DNS pointed
 - [ ] Production VPS provisioned, Docker installed
-- [ ] TLS certs in `infra/nginx/certs/`
+- [ ] DNS A records for `@`, `www` and `stock` point at the server (Caddy then issues TLS by itself)
 - [ ] `SELLER_*` GST identity filled
 - [ ] 10 SKUs photographed and uploaded
 - [ ] At least 3 `.glb` models uploaded (optional but high-impact)
