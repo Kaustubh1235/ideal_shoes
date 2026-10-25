@@ -201,7 +201,7 @@
         </div>
         <div class="card stack">
           <div class="label">Export</div>
-          <div class="btn-row"><a class="btn" href="/api/v1/export/items.csv">Stock list (CSV)</a><a class="btn" href="/api/v1/export/movements.csv">Movements (CSV)</a></div>
+          <div class="btn-row"><a class="btn primary" href="/api/v1/export/stock.xlsx">Excel (stock, by article, movements)</a><a class="btn" href="/api/v1/export/items.csv">Stock list (CSV)</a><a class="btn" href="/api/v1/export/movements.csv">Movements (CSV)</a></div>
           <p class="muted small" style="margin:0">Opens in Excel or Google Sheets. The stock list also imports straight into the website's product variants.</p>
         </div>
       </section>
@@ -252,9 +252,9 @@
           <div id="keyShow" hidden class="stack"><div class="notice good">Copy this key now. It will not be shown again.</div><div class="keybox" id="keyValue"></div><button type="button" class="btn" id="keyCopy">Copy</button></div>
         </div>
         <div class="card stack">
-          <div class="label">Import from the register / Stock Book CSV</div>
+          <div class="label">Import from Excel or CSV</div>
           <p class="muted small" style="margin:0">Columns: brand, article, colour, size, cat, cost, mrp, qty, loc. Existing SKUs are topped up, new ones created.</p>
-          <div class="btn-row"><label class="btn" for="csvFile">Choose CSV file</label><input type="file" id="csvFile" accept=".csv,text/csv" hidden><span class="muted small" id="csvMsg"></span></div>
+          <div class="btn-row"><label class="btn" for="csvFile">Choose Excel or CSV file</label><input type="file" id="csvFile" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden><a class="btn" href="/api/v1/export/template.xlsx">Blank Excel template</a><span class="muted small" id="csvMsg"></span></div>
         </div>
         <div class="card stack">
           <div class="label">Backup &amp; activity</div>

@@ -4,7 +4,7 @@ The stock system for Ideal Shoes / IDEALX: every box gets a QR label, every sale
 
 - **Phones**: open the address once, tap "Add to Home Screen", and it behaves like an app: PIN login, camera scanning, works offline and syncs later.
 - **Desktop**: the same address in a browser shows the full dashboard, label printing, admin.
-- **One file database** (SQLite) with nightly backups; export everything as CSV at any time.
+- **One file database** (SQLite) with nightly backups; export everything to Excel (stock, totals by article, movements) or CSV at any time, and import the register from an Excel or CSV sheet.
 
 ## What it does
 
@@ -48,7 +48,7 @@ What is tested automatically (`e2e/run_e2e.py`): Chrome's installability check a
 
 ## Everyday use
 
-1. **Count a room**: open the app on the phone, Add each article with its sizes from the register (or import the Stock Book CSV under Admin). Print labels. Stick one on every box.
+1. **Count a room**: open the app on the phone, Add each article with its sizes from the register (or import the register as an Excel or CSV sheet under Admin; **Blank Excel template** shows the columns). Print labels. Stick one on every box.
 2. **Sale**: scan the box → Sold −1. Delivery: scan → In +1 (or "Other change" with the carton quantity).
 3. **Monthly**: scan each box → Count → type what's on the rack. The app records the correction.
 4. **Sunday review**: Insights tab. Dead stock is the clearance list; broken size runs are the reorder list.

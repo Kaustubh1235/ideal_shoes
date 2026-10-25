@@ -208,8 +208,7 @@ export function deleteItem(db: Database, sku: string, actor: Actor): void {
 
 /** Parse the Stock Book / generic CSV export into NewItemInput rows. */
 export function parseCsv(text: string): NewItemInput[] {
-  const lines = text.replace(/^﻿/, "").split(/\r?\n/).filter((l) => l.trim().length);
-  if (lines.length < 2) return [];
+  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter((l) => l.trim().length);
   const parseLine = (line: string): string[] => {
     const out: string[] = [];
     let cur = "";
@@ -231,16 +230,22 @@ export function parseCsv(text: string): NewItemInput[] {
     out.push(cur);
     return out;
   };
-  const header = parseLine(lines[0]).map((h) => h.trim().toLowerCase());
+  return parseTable(lines.map(parseLine));
+}
+
+/** Rows from a CSV or an Excel sheet: the first non-empty row is the header. */
+export function parseTable(table: string[][]): NewItemInput[] {
+  const lines = table.filter((r) => r.some((c) => String(c ?? "").trim().length));
+  if (lines.length < 2) return [];
+  const header = lines[0].map((h) => String(h ?? "").trim().toLowerCase());
   const col = (names: string[]) => names.map((n) => header.indexOf(n)).find((i) => i >= 0) ?? -1;
   const iBrand = col(["brand"]), iArticle = col(["article", "article no", "name"]), iColour = col(["colour", "color"]);
   const iSize = col(["size"]), iCat = col(["cat", "category", "type"]), iCost = col(["cost", "cost price"]);
   const iMrp = col(["mrp", "price"]), iQty = col(["qty", "quantity", "pairs"]), iLoc = col(["loc", "rack", "location"]);
-  if (iBrand < 0 || iArticle < 0 || iQty < 0) throw new StockError(400, "CSV needs at least brand, article and qty columns");
+  if (iBrand < 0 || iArticle < 0 || iQty < 0) throw new StockError(400, "The file needs at least brand, article and qty columns");
   const rows: NewItemInput[] = [];
-  for (const line of lines.slice(1)) {
-    const c = parseLine(line);
-    const get = (i: number) => (i >= 0 ? c[i] ?? "" : "");
+  for (const c of lines.slice(1)) {
+    const get = (i: number) => (i >= 0 ? String(c[i] ?? "").trim() : "");
     const qty = int(get(iQty), NaN);
     if (!Number.isFinite(qty)) continue;
     const rawCat = get(iCat).toLowerCase();

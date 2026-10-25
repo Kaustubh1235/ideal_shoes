@@ -485,7 +485,7 @@
   $("csvFile").addEventListener("change", async (e) => {
     const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
     $("csvMsg").textContent = "Importing…";
-    try { const text = await f.text(); const r = await api("POST", "/api/v1/admin/import/csv", text, "text/csv"); $("csvMsg").textContent = `${r.rows} rows: ${r.added} new, ${r.merged} topped up.`; await refresh(); loadAdmin(); }
+    try { const xl = /\.xlsx$/i.test(f.name); const r = xl ? await api("POST", "/api/v1/admin/import/xlsx", await f.arrayBuffer(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") : await api("POST", "/api/v1/admin/import/csv", await f.text(), "text/csv"); $("csvMsg").textContent = `${r.rows} rows: ${r.added} new, ${r.merged} topped up.`; await refresh(); loadAdmin(); }
     catch (err) { $("csvMsg").textContent = err.message; }
   });
   function renderAudit(rows) {

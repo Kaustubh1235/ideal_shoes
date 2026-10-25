@@ -1,7 +1,7 @@
 """End-to-end test for the Stock Room.
 
 Starts the Bun server on a scratch database, drives Chromium through the real UI
-(setup → add article → open by code → sell → count → labels → insights → admin),
+(setup → add article → open by code → sell → count → labels → insights → admin → Excel),
 checks the offline queue, and exits non-zero on any failure.
 
 Run:  python3 e2e/run_e2e.py            (needs bun on PATH and Python Playwright with Chromium)
@@ -20,6 +20,7 @@ import sys
 import tempfile
 import time
 import urllib.request
+import zipfile
 
 from playwright.sync_api import sync_playwright, expect
 
@@ -252,6 +253,21 @@ def main() -> int:
             dpage.click("#tab-stock")
             expect(dpage.locator("#stockRows tr")).to_have_count(3)
             dpage.screenshot(path=str(ROOT / "e2e" / "last-desktop.png"))
+            # ---- Excel: download the workbook, then import the shop's own sheet ----
+            dpage.click("#tab-dash")
+            with dpage.expect_download() as dl:
+                dpage.click("a[href='/api/v1/export/stock.xlsx']")
+            xlsx_path = pathlib.Path(dl.value.path())
+            assert dl.value.suggested_filename.endswith(".xlsx"), dl.value.suggested_filename
+            with zipfile.ZipFile(xlsx_path) as z:
+                assert z.testzip() is None
+                sheet = z.read("xl/worksheets/sheet1.xml").decode()
+                assert "IDEA-DMSBOOT-BLA-10" in sheet and "sheet3.xml" in " ".join(z.namelist()), z.namelist()
+            dpage.click("#tab-admin")
+            dpage.set_input_files("#csvFile", str(ROOT / "tests" / "fixtures" / "register-openpyxl.xlsx"))
+            expect(dpage.locator("#csvMsg")).to_have_text("3 rows: 3 new, 0 topped up.")
+            dpage.click("#tab-stock")
+            expect(dpage.locator("#stockRows tr")).to_have_count(6)
             dpage.click("#tab-dash")
             expect(dpage.locator("#chTrend svg")).to_be_visible()
             dpage.screenshot(path=str(ROOT / "e2e" / "last-desktop-insights.png"), full_page=True)

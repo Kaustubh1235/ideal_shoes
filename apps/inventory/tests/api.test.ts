@@ -1,6 +1,8 @@
 import { describe, test, expect, beforeAll } from "bun:test";
 import { join } from "node:path";
 import { createApp, type App } from "../src/app";
+import { readXlsx } from "../src/xlsx";
+import { parseTable } from "../src/stock";
 
 const PUBLIC = join(import.meta.dir, "..", "public");
 let app: App;
@@ -202,6 +204,34 @@ describe("admin extras", () => {
     expect(res.status).toBe(200);
     expect(data.added).toBe(1);
     expect(data.merged).toBe(1);
+  });
+  test("Excel import tops up and creates; a bad file is refused", async () => {
+    const file = await Bun.file(join(import.meta.dir, "fixtures", "register-openpyxl.xlsx")).arrayBuffer();
+    const post = (b: BodyInit) => app.fetch(new Request("https://stock.test/api/v1/admin/import/xlsx", { method: "POST", headers: { cookie, "x-requested-with": "StockRoom", "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }, body: b }));
+    const res = await post(file);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ rows: 3, added: 3, merged: 0 });
+    const again: any = await (await post(file)).json();
+    expect(again.merged).toBe(3);
+    const item = await call("GET", "/api/v1/items/IDEA-OXFORD-BLA-8");
+    expect(item.data.item.qty).toBe(8);
+    const bad = await post("not a workbook");
+    expect(bad.status).toBe(400);
+  });
+  test("Excel export has stock, by-article and movements sheets", async () => {
+    const res = await app.fetch(new Request("https://stock.test/api/v1/export/stock.xlsx", { headers: { cookie } }));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition")).toMatch(/stock-\d{4}-\d{2}-\d{2}\.xlsx/);
+    const buf = new Uint8Array(await res.arrayBuffer());
+    const rows = readXlsx(buf);
+    const items = (await call("GET", "/api/v1/items")).data.items;
+    expect(rows.length).toBe(items.length + 1);
+    expect(rows[0].slice(0, 9)).toEqual(["sku", "brand", "article", "colour", "size", "cat", "cost", "mrp", "qty"]);
+    const xml = new TextDecoder().decode(buf);
+    expect(parseTable(rows).length).toBe(items.length);
+    expect(xml).toContain("worksheets/sheet3.xml");
+    const tpl = await app.fetch(new Request("https://stock.test/api/v1/export/template.xlsx", { headers: { cookie } }));
+    expect(parseTable(readXlsx(new Uint8Array(await tpl.arrayBuffer())))).toHaveLength(1);
   });
   test("settings round-trip; LLM key is never returned", async () => {
     const r = await call("PUT", "/api/v1/admin/settings", { shop: "Ideal Shoes Agra", llm: { provider: "anthropic", apiKey: "sk-ant-test", model: "claude-sonnet-4-5" } });

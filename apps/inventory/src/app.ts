@@ -27,7 +27,8 @@ import {
   type Scope,
   type ApiKeyRow,
 } from "./auth";
-import { addStock, applyMovement, updateItemDetails, deleteItem, parseCsv, StockError, normalizeSku, CATEGORIES } from "./stock";
+import { addStock, applyMovement, updateItemDetails, deleteItem, parseCsv, parseTable, StockError, normalizeSku, CATEGORIES } from "./stock";
+import { writeXlsx, readXlsx, XLSX_TYPE } from "./xlsx";
 import * as R from "./reports";
 import { askLlm, getLlmConfig, setLlmConfig } from "./insights";
 import * as M from "./metrics";
@@ -404,6 +405,45 @@ export function createApp(opts: AppOptions): App {
         const rows = db.query<MovementRow, []>("SELECT * FROM movements ORDER BY at DESC LIMIT 50000").all().map(publicMovement);
         return text(csv(rows, ["at", "sku", "type", "delta", "before", "after", "note", "by", "source", "ref", "id"]), 200, "text/csv; charset=utf-8", { "content-disposition": `attachment; filename="movements-${stamp}.csv"` });
       }
+      if (r[1] === "stock.xlsx") {
+        const items = allItems(db);
+        const stock = items.map((it) => ({ ...publicItem(it), valueAtCost: R.valueAtCost(it), valueAtMrp: it.qty * it.mrp, ageDays: R.ageDays(it), dead: R.isDead(it) ? "yes" : "" }));
+        const groups = new Map<string, { brand: string; article: string; colour: string; cat: string; sizes: string[]; units: number; valueAtCost: number; valueAtMrp: number }>();
+        for (const it of items) {
+          const k = `${it.brand}\u0000${it.article}\u0000${it.colour}`;
+          const g = groups.get(k) ?? { brand: it.brand, article: it.article, colour: it.colour, cat: it.cat, sizes: [], units: 0, valueAtCost: 0, valueAtMrp: 0 };
+          if (it.qty > 0) g.sizes.push(`${it.size}×${it.qty}`);
+          g.units += it.qty;
+          g.valueAtCost += R.valueAtCost(it);
+          g.valueAtMrp += it.qty * it.mrp;
+          groups.set(k, g);
+        }
+        const bySize = (a: string, b: string) => a.localeCompare(b, "en", { numeric: true });
+        const articles = [...groups.values()].map((g) => ({ ...g, sizes: g.sizes.sort(bySize).join("  ") })).sort((a, b) => b.units - a.units);
+        const names = new Map(db.query<{ id: string; name: string }, []>("SELECT id, name FROM users").all().map((u) => [u.id, u.name]));
+        const moves = db.query<MovementRow, []>("SELECT * FROM movements ORDER BY at DESC LIMIT 50000").all().map(publicMovement).map((mv) => ({ ...mv, by: (mv.by && names.get(mv.by)) ?? mv.by }));
+        const file = writeXlsx([
+          { name: "Stock", rows: stock, cols: [
+            { key: "sku", label: "sku", width: 26 }, { key: "brand", label: "brand", width: 12 }, { key: "article", label: "article", width: 18 }, { key: "colour", label: "colour", width: 10 },
+            { key: "size", label: "size" }, { key: "cat", label: "cat" }, { key: "cost", label: "cost" }, { key: "mrp", label: "mrp" }, { key: "qty", label: "qty" }, { key: "loc", label: "loc" },
+            { key: "valueAtCost", label: "value at cost", width: 14 }, { key: "valueAtMrp", label: "value at MRP", width: 14 }, { key: "ageDays", label: "age days" }, { key: "dead", label: "dead" },
+            { key: "lastIn", label: "last in", width: 22 }, { key: "lastOut", label: "last out", width: 22 }, { key: "lastCount", label: "last count", width: 22 },
+          ] },
+          { name: "By article", rows: articles, cols: [
+            { key: "brand", label: "brand", width: 12 }, { key: "article", label: "article", width: 18 }, { key: "colour", label: "colour", width: 10 }, { key: "cat", label: "cat" },
+            { key: "sizes", label: "sizes in stock (size×pairs)", width: 40 }, { key: "units", label: "units" }, { key: "valueAtCost", label: "value at cost", width: 14 }, { key: "valueAtMrp", label: "value at MRP", width: 14 },
+          ] },
+          { name: "Movements", rows: moves, cols: [
+            { key: "at", label: "at", width: 22 }, { key: "sku", label: "sku", width: 26 }, { key: "type", label: "type" }, { key: "delta", label: "delta" }, { key: "before", label: "before" }, { key: "after", label: "after" },
+            { key: "note", label: "note", width: 30 }, { key: "by", label: "by", width: 12 }, { key: "source", label: "source" }, { key: "ref", label: "ref", width: 16 },
+          ] },
+        ]);
+        return new Response(file, { status: 200, headers: { "content-type": XLSX_TYPE, "content-disposition": `attachment; filename="stock-${stamp}.xlsx"` } });
+      }
+      if (r[1] === "template.xlsx") {
+        const file = writeXlsx([{ name: "Stock", rows: [{ brand: "IDEALX", article: "DMS Boot", colour: "Black", size: "9", cat: "boot", cost: 900, mrp: 1999, qty: 6, loc: "R1" }], cols: ["brand", "article", "colour", "size", "cat", "cost", "mrp", "qty", "loc"].map((k) => ({ key: k, label: k, width: k === "article" ? 18 : 10 })) }]);
+        return new Response(file, { status: 200, headers: { "content-type": XLSX_TYPE, "content-disposition": `attachment; filename="stock-import-template.xlsx"` } });
+      }
     }
 
     // ---- admin ------------------------------------------------------------------
@@ -482,12 +522,20 @@ export function createApp(opts: AppOptions): App {
         const limit = Math.min(1000, Math.max(1, Number(url.searchParams.get("limit") ?? 200) | 0));
         return json({ audit: db.query("SELECT * FROM audit ORDER BY id DESC LIMIT ?").all(limit) });
       }
-      if (r[1] === "import" && r[2] === "csv" && m === "POST") {
-        const rows = parseCsv(await req.text());
-        if (!rows.length) throw new HttpError(400, "No rows found in the CSV");
+      if (r[1] === "import" && (r[2] === "csv" || r[2] === "xlsx") && m === "POST") {
+        let rows;
+        if (r[2] === "xlsx") {
+          try {
+            rows = parseTable(readXlsx(new Uint8Array(await req.arrayBuffer())));
+          } catch (e) {
+            if (e instanceof StockError) throw e;
+            throw new HttpError(400, "Could not read this Excel file. Save it as .xlsx and try again.");
+          }
+        } else rows = parseCsv(await req.text());
+        if (!rows.length) throw new HttpError(400, "No rows found in the file");
         const results = addStock(db, rows, { userId: session.userId, source: "import" });
         const added = results.filter((x) => x.movement.type === "new").length;
-        audit(db, { userId: session.userId, actor: session.name, action: "import_csv", detail: { rows: rows.length, added, merged: results.length - added }, ip: ip(req) });
+        audit(db, { userId: session.userId, actor: session.name, action: `import_${r[2]}`, detail: { rows: rows.length, added, merged: results.length - added }, ip: ip(req) });
         return json({ rows: rows.length, added, merged: results.length - added });
       }
       if (r[1] === "backup" && m === "GET") {
