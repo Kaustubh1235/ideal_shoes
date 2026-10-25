@@ -20,5 +20,7 @@ class PresignIn(BaseModel):
 
 @router.post("/presign")
 def presign(payload: PresignIn, user: AuthUser = Depends(require_staff)) -> dict:
-    key = f"{payload.purpose}/{uuid.uuid4().hex}.{payload.extension}"
+    # Images and AR models are shown on the storefront, so they go under the public prefix.
+    prefix = "public/" if payload.purpose in ("product_image", "ar_model") else ""
+    key = f"{prefix}{payload.purpose}/{uuid.uuid4().hex}.{payload.extension}"
     return s3_client.presigned_put(key, payload.content_type)

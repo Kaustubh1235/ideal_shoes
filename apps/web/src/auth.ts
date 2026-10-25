@@ -160,3 +160,20 @@ export async function getInternalToken(): Promise<string | null> {
     .setExpirationTime("15m")
     .sign(secret);
 }
+
+/**
+ * Token for calls the web server makes on its own behalf, e.g. creating the Razorpay order for a
+ * guest checkout. The API treats it like staff for order access, so only server code that has
+ * already checked the visitor may use it.
+ */
+export async function getServiceToken(): Promise<string> {
+  const { SignJWT } = await import("jose");
+  const secret = new TextEncoder().encode(env.AUTH_SECRET);
+  return await new SignJWT({ sub: "web", userType: "service", role: null })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setIssuer(env.JWT_ISSUER)
+    .setAudience(env.JWT_AUDIENCE)
+    .setExpirationTime("2m")
+    .sign(secret);
+}

@@ -52,6 +52,7 @@ Thumbs.db
 data/
 uploads/
 storage/
+!apps/api/app/services/storage/
 backups/
 *.sqlite
 *.sqlite3

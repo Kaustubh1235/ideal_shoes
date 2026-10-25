@@ -1,22 +1,37 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { apiFetch } from "@/lib/api";
+import { auth } from "@/auth";
 import { inr } from "@/lib/money";
 import { PayButton } from "@/components/storefront/pay-button";
 
 export const dynamic = "force-dynamic";
 
-export default async function PayPage({ params }: { params: { orderId: string } }) {
+export default async function PayPage({ params, searchParams }: { params: { orderId: string }; searchParams: { paid?: string } }) {
   const order = await prisma.order.findUnique({
     where: { id: params.orderId },
     include: { items: true },
   });
   if (!order) notFound();
+  // Guest orders are reachable only through their unguessable id; a signed-in buyer's only by them.
+  const session = await auth();
+  if (order.userId && order.userId !== session?.user?.id && session?.user?.userType !== "staff") notFound();
   if (order.status === "paid" || order.status === "processing" || order.status === "shipped" || order.status === "delivered") {
     return (
       <div className="container py-16 text-center">
-        <h1 className="font-display text-3xl">Already Paid</h1>
-        <p className="mt-2 text-ink/70">Order {order.orderNo} is already {order.status}.</p>
+        <h1 className="font-display text-3xl">Thank you</h1>
+        <p className="mt-2 text-ink/70">Order {order.orderNo} is paid and is now {order.status}. Your GST invoice will be ready shortly.</p>
+      </div>
+    );
+  }
+
+  if (searchParams.paid) {
+    // Razorpay confirms the payment to us by webhook, usually within seconds of the redirect.
+    return (
+      <div className="container py-16 text-center">
+        <meta httpEquiv="refresh" content="5" />
+        <h1 className="font-display text-3xl">Payment received</h1>
+        <p className="mt-2 text-ink/70">We are confirming order {order.orderNo} with the bank. This page updates by itself.</p>
       </div>
     );
   }
@@ -26,7 +41,7 @@ export default async function PayPage({ params }: { params: { orderId: string } 
     rzp = await apiFetch<any>("/payments/razorpay/order", {
       method: "POST",
       body: JSON.stringify({ order_id: order.id }),
-    });
+    }, { asService: true });
   } catch (e) {
     rzp = { error: (e as Error).message };
   }

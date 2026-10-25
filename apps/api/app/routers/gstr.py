@@ -3,13 +3,17 @@ from __future__ import annotations
 
 import re
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.auth import AuthUser, require_staff
 from app.db.models import GstrExportRun
 from app.db.session import get_db
+from app.services.storage.s3 import s3_client
 
 router = APIRouter()
 
@@ -33,8 +37,8 @@ def request_gstr1_export(
     except Exception:
         # No worker available -- run inline (dev mode)
         from app.services.gstr.exporter import export_gstr1
-        url = export_gstr1(db, payload.month)
-        return {"job_id": None, "status": "done", "url": url}
+        export_gstr1(db, payload.month)
+        return {"job_id": None, "status": "done"}
 
 
 @router.get("/r1/runs")
@@ -52,7 +56,7 @@ def list_runs(db: Session = Depends(get_db), _user: AuthUser = Depends(require_s
                 "report_type": r.report_type,
                 "period_month": r.period_month,
                 "status": r.status,
-                "file_url": r.file_url,
+                "has_file": bool(r.file_url),
                 "row_count": r.row_count,
                 "error": r.error,
                 "started_at": r.started_at.isoformat(),
@@ -61,3 +65,11 @@ def list_runs(db: Session = Depends(get_db), _user: AuthUser = Depends(require_s
             for r in rows
         ],
     }
+
+
+@router.get("/r1/runs/{run_id}/file")
+def run_file(run_id: UUID, db: Session = Depends(get_db), _user: AuthUser = Depends(require_staff)) -> RedirectResponse:
+    r = db.query(GstrExportRun).filter(GstrExportRun.id == run_id).first()
+    if r is None or not r.file_url:
+        raise HTTPException(status_code=404, detail="not_found")
+    return RedirectResponse(s3_client.presigned_get(r.file_url, filename=f"GSTR1_{r.period_month}.csv"), status_code=302)

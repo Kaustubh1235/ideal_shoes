@@ -73,3 +73,10 @@ def require_dealer(user: Annotated[AuthUser, Depends(get_current_user)]) -> Auth
     if user.user_type != "dealer":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="dealer_only")
     return user
+
+
+def can_access_order(user: AuthUser, order_user_id) -> bool:
+    """Staff and the web server's service token see every order; a customer or dealer only their own."""
+    if user.user_type in ("staff", "service"):
+        return True
+    return order_user_id is not None and str(order_user_id) == user.user_id

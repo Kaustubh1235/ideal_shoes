@@ -58,7 +58,7 @@ export default async function OrderDetailPage({ params }: { params: { orderId: s
 
       {order.invoices[0]?.pdfUrl && (
         <Button asChild className="mt-6">
-          <a href={order.invoices[0].pdfUrl} target="_blank" rel="noreferrer">Download Tax Invoice ({order.invoices[0].invoiceNo})</a>
+          <a href={`/files/invoices/${order.invoices[0].id}/pdf`} target="_blank" rel="noreferrer">Download Tax Invoice ({order.invoices[0].invoiceNo})</a>
         </Button>
       )}
 

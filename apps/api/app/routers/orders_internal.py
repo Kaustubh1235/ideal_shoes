@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.auth import AuthUser, get_current_user
+from app.auth import AuthUser, can_access_order, get_current_user
 from app.db.models import Order, OrderItem, StockMovement
 from app.db.enums import StockMovementReason
 from app.db.session import get_db
@@ -27,7 +27,7 @@ class ReserveStockIn(BaseModel):
 def reserve_stock(order_id: UUID, db: Session = Depends(get_db), user: AuthUser = Depends(get_current_user)) -> dict:
     """Write reserve movements when an order moves out of draft."""
     order: Order | None = db.query(Order).filter(Order.id == order_id).first()
-    if order is None:
+    if order is None or not can_access_order(user, order.user_id):
         raise HTTPException(status_code=404, detail="not_found")
     if order.status.value != "draft":
         raise HTTPException(status_code=400, detail="order_not_draft")
@@ -41,7 +41,7 @@ def reserve_stock(order_id: UUID, db: Session = Depends(get_db), user: AuthUser 
             reason=StockMovementReason.reserve,
             ref_type="order",
             ref_id=order.id,
-            created_by=UUID(user.user_id) if user.user_id else None,
+            created_by=UUID(user.user_id) if user.user_type != "service" else None,
         )
         db.add(mv)
     order.status = "pending_payment"

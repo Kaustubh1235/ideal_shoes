@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.auth import AuthUser, get_current_user
+from app.auth import AuthUser, can_access_order, get_current_user
+from app.db.models import Order
 from app.db.session import get_db
 from app.services.payments.razorpay_client import create_razorpay_order
 from app.services.payments.razorpay_webhook import handle_webhook_event, verify_client_callback
@@ -23,7 +24,13 @@ class CreateOrderIn(BaseModel):
 
 @router.post("/razorpay/order")
 def create_order(payload: CreateOrderIn, db: Session = Depends(get_db), user: AuthUser = Depends(get_current_user)) -> dict:
-    return create_razorpay_order(db, payload.order_id)
+    order = db.query(Order).filter(Order.id == payload.order_id).first()
+    if order is None or not can_access_order(user, order.user_id):
+        raise HTTPException(status_code=404, detail="not_found")
+    try:
+        return create_razorpay_order(db, payload.order_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 class VerifyCallbackIn(BaseModel):
@@ -55,4 +62,7 @@ async def webhook(
         raise HTTPException(status_code=400, detail="invalid_json")
     if not x_razorpay_signature:
         raise HTTPException(status_code=400, detail="missing_signature")
-    return handle_webhook_event(db, payload, raw, x_razorpay_signature)
+    result = handle_webhook_event(db, payload, raw, x_razorpay_signature)
+    if result.get("reason") == "invalid_signature":
+        raise HTTPException(status_code=400, detail="invalid_signature")
+    return result

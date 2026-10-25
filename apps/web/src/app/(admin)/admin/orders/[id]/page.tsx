@@ -44,13 +44,13 @@ export default async function AdminOrderDetail({ params }: { params: { id: strin
             <Button type="submit">Mark as {next}</Button>
           </form>
         )}
-        {order.invoices.length === 0 ? (
+        {!order.invoices[0] ? (
           <form action={generateInvoiceAction.bind(null, order.id)}>
             <Button type="submit" variant="outline">Generate Invoice</Button>
           </form>
         ) : (
           <Button asChild variant="outline">
-            <a href={order.invoices[0].pdfUrl ?? "#"} target="_blank" rel="noreferrer">Open Invoice {order.invoices[0].invoiceNo}</a>
+            <a href={`/files/invoices/${order.invoices[0].id}/pdf`} target="_blank" rel="noreferrer">Open Invoice {order.invoices[0].invoiceNo}</a>
           </Button>
         )}
       </div>
