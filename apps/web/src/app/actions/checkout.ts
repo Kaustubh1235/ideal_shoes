@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateCartId, getCart, clearCart } from "@/lib/cart";
-import { splitInclusive } from "@bharatboot/gst";
+import { dealerTier, priceLines } from "@/lib/pricing";
 
 const AddrSchema = z.object({
   fullName: z.string().min(2),
@@ -64,7 +64,6 @@ export async function placeOrderAction(formData: FormData) {
     include: { product: true },
   });
   const byId = new Map(variants.map((v) => [v.id, v]));
-
   const session = await auth();
 
   const placeOfSupply = parsed.shipping.stateCode;
@@ -78,14 +77,19 @@ export async function placeOrderAction(formData: FormData) {
 
   const lines: any[] = [];
 
-  for (const it of items) {
-    const v = byId.get(it.variantId);
-    if (!v || !v.isActive || v.product.status !== "active") continue;
-    const unit = v.priceOverride ?? v.product.basePrice; // paise, incl. GST as shown on the storefront
-    const lineGross = unit * it.quantity;
-    subtotal += lineGross;
+  const tier = await dealerTier(session?.user?.id);
+  const priced = items
+    .map((it) => ({ it, v: byId.get(it.variantId) }))
+    .filter((x): x is { it: (typeof items)[number]; v: NonNullable<typeof x.v> } => !!x.v && x.v.isActive && x.v.product.status === "active");
+  if (priced.length === 0) throw new Error("Cart is empty");
+  const prices = await priceLines(priced.map(({ it, v }) => ({ variant: v, quantity: it.quantity })), tier);
 
-    const { gstRate, taxableValue: lineTaxable, tax: totalTax } = splitInclusive(unit, it.quantity, v.product.hsnCode);
+  for (const [i, { it, v }] of priced.entries()) {
+    const p = prices[i]!;
+    const unit = p.unit;
+    const lineGross = p.gross;
+    const { gstRate, taxable: lineTaxable, tax: totalTax } = p;
+    subtotal += lineTaxable; // pre-tax, so subtotal + GST + round-off = grand total
     taxable_value += lineTaxable;
     let cgst = 0, sgst = 0, igst = 0;
     if (isInterState) {
@@ -155,7 +159,7 @@ export async function placeOrderAction(formData: FormData) {
       data: {
         orderNo,
         userId: session?.user?.id ?? null,
-        channel: "d2c",
+        channel: tier ? "wholesale" : "d2c",
         status: "pending_payment",
         billingAddressId: billing.id,
         shippingAddressId: shipping.id,

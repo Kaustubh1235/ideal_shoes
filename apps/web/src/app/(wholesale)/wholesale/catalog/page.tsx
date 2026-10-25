@@ -39,6 +39,7 @@ export default async function WholesaleCatalogPage() {
           const minVariantPrice = Math.min(
             ...p.variants.map((v) => tierByVariant.get(v.id) ?? v.priceOverride ?? p.basePrice),
           );
+          const exGst = p.variants.some((v) => tierByVariant.get(v.id) === minVariantPrice);
           return (
             <Link key={p.id} href={`/wholesale/catalog/${p.slug}`} className="rounded-lg border border-leather-100 bg-cream overflow-hidden hover:border-leather-300">
               <div className="aspect-[4/3] bg-leather-50">
@@ -52,7 +53,7 @@ export default async function WholesaleCatalogPage() {
               <div className="p-3">
                 <p className="font-display uppercase tracking-wide">{p.name}</p>
                 <p className="text-xs text-ink/60 mt-0.5">{p.sku} · {p.variants.length} variants</p>
-                <p className="mt-2 font-medium">From {rupeesOnly(minVariantPrice)}</p>
+                <p className="mt-2 font-medium">From {rupeesOnly(minVariantPrice)} <span className="text-xs font-normal text-ink/60">{exGst ? "+ GST" : "incl. GST"}</span></p>
               </div>
             </Link>
           );

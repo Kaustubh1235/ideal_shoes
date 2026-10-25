@@ -6,6 +6,7 @@ import { inr } from "@/lib/money";
 import { Button, Input, Label } from "@bharatboot/ui";
 import { placeOrderAction } from "@/app/actions/checkout";
 import { GST_STATE_CODES } from "@bharatboot/gst";
+import { dealerTier, priceLines } from "@/lib/pricing";
 
 export const metadata = { title: "Checkout", robots: { index: false } };
 
@@ -23,14 +24,12 @@ export default async function CheckoutPage() {
   });
   const byId = new Map(variants.map((v) => [v.id, v]));
 
-  const lines = items
-    .map((i) => {
-      const v = byId.get(i.variantId);
-      if (!v) return null;
-      const price = v.priceOverride ?? v.product.basePrice;
-      return { name: v.product.name, size: v.size, qty: i.quantity, lineTotal: price * i.quantity };
-    })
-    .filter((x): x is NonNullable<typeof x> => x !== null);
+  const known = items.flatMap((i) => {
+    const v = byId.get(i.variantId);
+    return v ? [{ i, v }] : [];
+  });
+  const prices = await priceLines(known.map(({ i, v }) => ({ variant: v, quantity: i.quantity })), await dealerTier(session?.user?.id));
+  const lines = known.map(({ i, v }, n) => ({ name: v.product.name, size: v.size, qty: i.quantity, lineTotal: prices[n]!.gross }));
   const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
 
   return (

@@ -51,19 +51,20 @@ export default async function WholesaleProductPage({ params }: { params: { slug:
               <TableRow>
                 <TableHead>Size</TableHead>
                 <TableHead>Color</TableHead>
-                <TableHead className="text-right">Tier Price</TableHead>
+                <TableHead className="text-right">Your price</TableHead>
                 <TableHead className="text-right">MRP</TableHead>
                 <TableHead>Qty</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {product.variants.map((v) => {
-                const tierPrice = priceMap.get(v.id) ?? v.priceOverride ?? product.basePrice;
+                const tier = priceMap.get(v.id);
+                const tierPrice = tier ?? v.priceOverride ?? product.basePrice;
                 return (
                   <TableRow key={v.id}>
                     <TableCell>UK {v.size}</TableCell>
                     <TableCell>{v.color}</TableCell>
-                    <TableCell className="text-right font-medium">{inr(tierPrice)}</TableCell>
+                    <TableCell className="text-right font-medium">{inr(tierPrice)} <span className="block text-[10px] font-normal text-ink/50">{tier !== undefined ? "+ GST" : "incl. GST"}</span></TableCell>
                     <TableCell className="text-right text-ink/50 line-through">{inr(product.mrp ?? product.basePrice)}</TableCell>
                     <TableCell><WholesaleAddToCart variantId={v.id} /></TableCell>
                   </TableRow>

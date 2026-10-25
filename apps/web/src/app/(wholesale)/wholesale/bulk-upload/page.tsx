@@ -6,7 +6,8 @@ export default function BulkUploadPage() {
     <div className="container py-8 max-w-2xl">
       <h1 className="font-display text-3xl uppercase">Bulk CSV Upload</h1>
       <p className="text-sm text-ink/60 mt-2">
-        Upload a CSV with columns: <code>sku, size, color, quantity</code>. Matching variants are added to your cart.
+        Upload a CSV with columns <code>sku, size, color, quantity</code>. The <code>sku</code> can be a variant SKU (as below), or
+        the product SKU together with size and colour. Matching items are added to your cart at your dealer price.
       </p>
 
       <Card className="mt-6">

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateCartId, getCart } from "@/lib/cart";
 import { inr } from "@/lib/money";
-import { splitInclusive } from "@bharatboot/gst";
+import { auth } from "@/auth";
+import { dealerTier, priceLines } from "@/lib/pricing";
 import { Button, EmptyState } from "@bharatboot/ui";
 import { ShoppingCart } from "lucide-react";
 import { CartItemRow } from "@/components/storefront/cart-item-row";
@@ -36,30 +37,30 @@ export default async function CartPage() {
   });
   const byId = new Map(variants.map((v) => [v.id, v]));
 
-  const lines = items
-    .map((i) => {
-      const v = byId.get(i.variantId);
-      if (!v) return null;
-      const price = v.priceOverride ?? v.product.basePrice;
-      return {
-        variantId: v.id,
-        productName: v.product.name,
-        productSlug: v.product.slug,
-        imageUrl: v.product.images[0]?.url ?? null,
-        size: v.size,
-        color: v.color,
-        unitPrice: price,
-        quantity: i.quantity,
-        lineTotal: price * i.quantity,
-        hsnCode: v.product.hsnCode,
-      };
-    })
-    .filter((x): x is NonNullable<typeof x> => x !== null);
+  const known = items.flatMap((i) => {
+    const v = byId.get(i.variantId);
+    return v ? [{ i, v }] : [];
+  });
+  const session = await auth();
+  const tier = await dealerTier(session?.user?.id);
+  const prices = await priceLines(known.map(({ i, v }) => ({ variant: v, quantity: i.quantity })), tier);
+  const lines = known.map(({ i, v }, n) => ({
+    variantId: v.id,
+    productName: v.product.name,
+    productSlug: v.product.slug,
+    imageUrl: v.product.images[0]?.url ?? null,
+    size: v.size,
+    color: v.color,
+    unitPrice: prices[n]!.unit,
+    quantity: i.quantity,
+    lineTotal: prices[n]!.dealerPrice ? prices[n]!.taxable : prices[n]!.gross,
+  }));
 
   const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
-  // Shown prices include GST; this is the GST part of them.
-  const taxPreview = lines.reduce((s, l) => s + splitInclusive(l.unitPrice, l.quantity, l.hsnCode).tax, 0);
-  const total = subtotal;
+  const taxPreview = prices.reduce((s, p) => s + p.tax, 0);
+  const dealer = prices.some((p) => p.dealerPrice);
+  // Shoppers' prices include GST; dealer prices are ex-GST, so GST is added for them.
+  const total = dealer ? prices.reduce((s, p) => s + p.gross, 0) : subtotal;
 
   return (
     <div className="container py-8">
@@ -76,7 +77,7 @@ export default async function CartPage() {
           <h2 className="font-display text-lg">Order Summary</h2>
           <dl className="mt-4 space-y-2 text-sm">
             <div className="flex justify-between"><dt>Subtotal</dt><dd>{inr(subtotal)}</dd></div>
-            <div className="flex justify-between text-ink/70"><dt>Includes GST</dt><dd>{inr(taxPreview)}</dd></div>
+            <div className="flex justify-between text-ink/70"><dt>{dealer ? "GST" : "Includes GST"}</dt><dd>{inr(taxPreview)}</dd></div>
             <div className="flex justify-between text-ink/70"><dt>Shipping</dt><dd>Free</dd></div>
           </dl>
           <div className="mt-4 pt-4 border-t flex justify-between font-medium">
