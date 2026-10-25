@@ -1,0 +1,76 @@
+# One Caddy in front of everything. It gets and renews the HTTPS certificates for both names
+# by itself (Let's Encrypt), so there is no certbot step and nothing to renew by hand.
+#
+#   SITE_DOMAIN=idealx.in          the shop, the dealer portal and /admin
+#   STOCK_DOMAIN=stock.idealx.in   Stock Room (inventory), its own app and login
+#
+# DNS: A records for idealx.in, www.idealx.in and stock.idealx.in pointing at this server.
+# Local test: SITE_DOMAIN=idealx.localhost STOCK_DOMAIN=stock.idealx.localhost (Caddy's own CA).
+{
+	# A browser opening the server by bare IP sends no SNI; answer with the shop's certificate.
+	default_sni {$SITE_DOMAIN}
+}
+
+(common) {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+		-X-Powered-By
+	}
+	log {
+		output stdout
+		format json
+	}
+}
+
+{$SITE_DOMAIN} {
+	import common
+	header Permissions-Policy "camera=(self), microphone=(), geolocation=(self), xr-spatial-tracking=(self)"
+	request_body {
+		max_size 25MB
+	}
+
+	# The API is internal: the site talks to it over the Docker network. Only Razorpay's webhook
+	# and the health check are reachable from outside, under /api/v1.
+	handle /api/v1/payments/razorpay/webhook {
+		uri strip_prefix /api/v1
+		reverse_proxy api:8000 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+	handle /api/v1/healthz {
+		uri strip_prefix /api/v1
+		reverse_proxy api:8000
+	}
+	handle /api/v1/* {
+		respond "Not found" 404
+	}
+
+	# Object storage: product photos and AR models (public bucket) and the 5-minute signed links
+	# for invoices (private bucket; without a valid signature the store answers 403). The Host
+	# header is passed through unchanged, which the S3 signatures depend on.
+	@storage path /{$S3_BUCKET}/* /{$S3_PRIVATE_BUCKET}/*
+	handle @storage {
+		reverse_proxy storage:8333
+	}
+
+	handle {
+		reverse_proxy web:3000 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+}
+
+www.{$SITE_DOMAIN} {
+	redir https://{$SITE_DOMAIN}{uri} permanent
+}
+
+{$STOCK_DOMAIN} {
+	import common
+	reverse_proxy inventory:8787 {
+		header_up X-Real-IP {remote_host}
+	}
+}

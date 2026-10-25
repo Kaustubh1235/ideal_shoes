@@ -13,11 +13,12 @@ x-api-env: &api-env
   MSG91_SENDER_ID: ${MSG91_SENDER_ID:-BHRTBT}
   MSG91_TEMPLATE_OTP: ${MSG91_TEMPLATE_OTP:-}
   OTP_DEV_MODE: ${OTP_DEV_MODE:-true}
-  S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+  S3_ENDPOINT: ${S3_ENDPOINT:-http://storage:8333}
   S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
-  S3_BUCKET: ${S3_BUCKET:-bharatboot}
-  S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
-  S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin123}
+  S3_BUCKET: ${S3_BUCKET:-media}
+  S3_PRIVATE_BUCKET: ${S3_PRIVATE_BUCKET:-private}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:-devaccess}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:-devsecret123}
   S3_REGION: ${S3_REGION:-ap-south-1}
   S3_FORCE_PATH_STYLE: "true"
   SMTP_HOST: ${SMTP_HOST:-mailhog}
@@ -51,6 +52,10 @@ x-api-env: &api-env
   WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
   WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
   WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+  INVENTORY_API_URL: ${INVENTORY_API_URL:-}
+  INVENTORY_API_KEY: ${INVENTORY_API_KEY:-}
+  INVENTORY_APP_URL: ${INVENTORY_APP_URL:-}
+  AUTH_URL: ${AUTH_URL:-http://localhost:3000}
   LOG_LEVEL: ${LOG_LEVEL:-info}
   SENTRY_DSN: ${SENTRY_DSN:-}
 
@@ -86,38 +91,26 @@ services:
       timeout: 3s
       retries: 10
 
-  minio:
-    image: minio/minio:latest
+  # S3-compatible store (SeaweedFS; MinIO no longer publishes images). Public bucket "media"
+  # for product photos, private bucket "private" for invoices; created by the api on start.
+  storage:
+    image: chrislusf/seaweedfs:4.48
     restart: unless-stopped
-    command: server /data --console-address ":9001"
+    entrypoint: ["/bin/sh", "/etc/seaweedfs/start.sh"]
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
-      MINIO_DEFAULT_BUCKETS: bharatboot
+      S3_ACCESS_KEY: devaccess
+      S3_SECRET_KEY: devsecret123
+      S3_BUCKET: media
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "9000:8333"
     volumes:
-      - minio_data:/data
+      - ../seaweedfs/start.sh:/etc/seaweedfs/start.sh:ro
+      - storage_data:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8333/status || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
-
-  minio-init:
-    image: minio/mc:latest
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set local http://minio:9000 minioadmin minioadmin123 &&
-      mc mb --ignore-existing local/bharatboot &&
-      mc anonymous set download local/bharatboot/public &&
-      echo 'MinIO bucket initialized'
-      "
-    restart: "no"
+      retries: 20
 
   mailhog:
     image: mailhog/mailhog:latest
@@ -142,14 +135,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      minio:
+      storage:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
       interval: 10s
       timeout: 5s
       retries: 5
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["sh", "-c", "alembic upgrade head && python -m app.services.storage.s3 && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
 
   worker:
     build:
@@ -200,7 +193,8 @@ services:
       MSG91_TEMPLATE_OTP: ${MSG91_TEMPLATE_OTP:-}
       OTP_DEV_MODE: ${OTP_DEV_MODE:-true}
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
-      S3_BUCKET: ${S3_BUCKET:-bharatboot}
+      S3_BUCKET: ${S3_BUCKET:-media}
+      INVENTORY_APP_URL: ${INVENTORY_APP_URL:-}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-bharatboot}
       JWT_ISSUER: ${JWT_ISSUER:-bharatboot-auth}
       ADMIN_IP_ALLOWLIST: ${ADMIN_IP_ALLOWLIST:-}
@@ -220,6 +214,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  minio_data:
+  storage_data:
   web_node_modules:
   web_next:

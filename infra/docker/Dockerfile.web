@@ -1,51 +1,46 @@
 # =============================================================================
-# Next.js 14 multi-stage build for monorepo (pnpm workspaces + turbo).
-# Stages: deps -> dev | builder -> runner
+# Next.js 14 multi-stage build for the monorepo (pnpm workspaces).
+# Stages: deps -> builder -> runner, and deps -> dev for local hot reload.
 # =============================================================================
 ARG NODE_VERSION=20-alpine
 
 # -------- deps: install workspace dependencies ------------------------------
 FROM node:${NODE_VERSION} AS deps
-RUN corepack enable
+# Prisma's query engine links against OpenSSL, which the Alpine image does not include.
+RUN apk add --no-cache openssl && corepack enable
 WORKDIR /app
 
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* turbo.json tsconfig.base.json ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json tsconfig.base.json ./
 COPY apps/web/package.json ./apps/web/
+COPY apps/inventory/package.json ./apps/inventory/
 COPY packages/db/package.json ./packages/db/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/types/package.json ./packages/types/
 COPY packages/gst/package.json ./packages/gst/
 COPY packages/config/package.json ./packages/config/
 
-RUN pnpm install --frozen-lockfile || pnpm install
-
-# -------- dev: hot-reload local dev image -----------------------------------
-FROM node:${NODE_VERSION} AS dev
-RUN corepack enable
-WORKDIR /app
-COPY --from=deps /app /app
-COPY . .
-EXPOSE 3000
-ENV PORT=3000
-CMD ["pnpm", "--filter", "@bharatboot/web", "dev"]
+# The lockfile is committed; a mismatch must fail the build rather than resolve new versions.
+RUN pnpm install --frozen-lockfile
 
 # -------- builder: production build -----------------------------------------
 FROM node:${NODE_VERSION} AS builder
-RUN corepack enable
+RUN apk add --no-cache openssl && corepack enable
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app ./
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm --filter @bharatboot/web... build
+RUN pnpm --filter @bharatboot/db exec prisma generate \
+ && pnpm --filter @bharatboot/web build
 
 # -------- runner: minimal production image ----------------------------------
 FROM node:${NODE_VERSION} AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
 
-RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
+RUN apk add --no-cache openssl && addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
@@ -53,5 +48,18 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
 USER nextjs
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/api/healthz >/dev/null || exit 1
 
 CMD ["node", "apps/web/server.js"]
+
+# -------- dev: hot-reload local dev image (last, so production builds skip it) ---
+FROM node:${NODE_VERSION} AS dev
+RUN apk add --no-cache openssl && corepack enable
+WORKDIR /app
+COPY --from=deps /app /app
+COPY . .
+RUN pnpm --filter @bharatboot/db exec prisma generate
+EXPOSE 3000
+ENV PORT=3000
+CMD ["pnpm", "--filter", "@bharatboot/web", "dev"]

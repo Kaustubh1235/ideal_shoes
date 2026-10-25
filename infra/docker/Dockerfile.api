@@ -27,13 +27,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy pyproject and install deps first (layer caching)
-COPY apps/api/pyproject.toml apps/api/poetry.lock* ./
+# Copy pyproject and install deps first (layer caching). Non-editable, so the image does not
+# depend on a bind mount; the dev compose mounts the source over /app and still works.
+COPY apps/api/pyproject.toml ./
 RUN pip install --upgrade pip && \
-    pip install -e . || pip install $(python -c "import tomllib; data=tomllib.load(open('pyproject.toml','rb')); deps=data['project']['dependencies']; print(' '.join(deps))")
+    python -c "import tomllib; d=tomllib.load(open('pyproject.toml','rb')); print('\n'.join(d['project']['dependencies']))" > /tmp/req.txt && \
+    pip install -r /tmp/req.txt
 
 # Copy source
 COPY apps/api/ ./
+COPY scripts/seed_admin.py ./scripts/seed_admin.py
+
+RUN useradd --system --uid 1001 --home /app api && chown -R api /app
+USER api
 
 EXPOSE 8000
 

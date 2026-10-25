@@ -15,7 +15,7 @@
     "test": "turbo run test",
     "clean": "turbo run clean && rm -rf node_modules",
     "format": "prettier --write \"**/*.{ts,tsx,md,json,yaml,yml}\"",
-    "db:up": "docker compose -f infra/docker/compose.yml up -d postgres redis minio mailhog",
+    "db:up": "docker compose -f infra/docker/compose.yml up -d postgres redis storage mailhog",
     "db:migrate": "cd apps/api && alembic upgrade head",
     "db:revision": "cd apps/api && alembic revision --autogenerate -m",
     "db:downgrade": "cd apps/api && alembic downgrade -1",
@@ -25,7 +25,7 @@
     "openapi:codegen": "bash scripts/openapi-codegen.sh",
     "stack:up": "docker compose -f infra/docker/compose.yml up --build",
     "stack:down": "docker compose -f infra/docker/compose.yml down",
-    "stack:prod": "docker compose -f infra/docker/compose.prod.yml up -d",
+    "stack:prod": "sh scripts/prod.sh up -d --build",
     "task:tender-poll": "cd apps/api && python -m app.services.tenders.cppp_rss"
   },
   "devDependencies": {

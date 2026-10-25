@@ -1,17 +1,21 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "../..");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  poweredByHeader: false,
   experimental: {
     serverActions: { bodySizeLimit: "5mb" },
+    // Trace from the monorepo root so the standalone server includes the workspace packages
+    // and pnpm's hoisted modules (Prisma's engine among them).
+    outputFileTracingRoot: root,
   },
   transpilePackages: ["@bharatboot/ui", "@bharatboot/types", "@bharatboot/gst", "@bharatboot/db"],
-  images: {
-    remotePatterns: [
-      { protocol: "http", hostname: "localhost" },
-      { protocol: "http", hostname: "minio" },
-      { protocol: "https", hostname: "**" },
-    ],
-  },
+  // No page uses next/image; with remotePatterns "**" its /_next/image endpoint was an open proxy.
+  images: { unoptimized: true },
   async headers() {
     return [
       {

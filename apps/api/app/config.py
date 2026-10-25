@@ -37,13 +37,13 @@ class Settings(BaseSettings):
     msg91_template_otp: str = ""
     otp_dev_mode: bool = True
 
-    # S3 / MinIO
-    s3_endpoint: str = "http://minio:9000"
+    # S3-compatible storage (SeaweedFS in the stack)
+    s3_endpoint: str = "http://storage:8333"
     s3_public_endpoint: str = "http://localhost:9000"
     s3_bucket: str = "media"  # public: product photos, AR models
     s3_private_bucket: str = "private"  # invoices, GSTR exports, tender attachments
-    s3_access_key: str = "minioadmin"
-    s3_secret_key: str = "minioadmin123"
+    s3_access_key: str = "devaccess"
+    s3_secret_key: str = "devsecret123"
     s3_region: str = "ap-south-1"
     s3_force_path_style: bool = True
 

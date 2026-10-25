@@ -1,11 +1,12 @@
-"""S3 / MinIO storage.
+"""S3-compatible object storage (SeaweedFS in the stack; any S3 service works).
 
-Two kinds of objects:
-  * public/...  product images and AR models, readable by anyone (the bucket policy set by
-    minio-init allows anonymous GET on public/ only). Stored as their public URL.
-  * everything else (invoices, GSTR exports, tender attachments) is private. Stored as an
+Two buckets:
+  * S3_BUCKET (media): product images and AR models, readable by anyone. Keys under public/
+    go here and are stored as their public URL.
+  * S3_PRIVATE_BUCKET (private): invoices, GSTR exports, tender attachments. Stored as an
     ``s3://<bucket>/<key>`` reference and handed out as a short-lived presigned GET URL after
-    an authorisation check (see routers/invoices.py and routers/gstr.py).
+    an authorisation check (routers/invoices.py, gstr.py, tenders.py).
+Anonymous read is granted on the media bucket only, by the store's config (infra/seaweedfs).
 """
 from __future__ import annotations
 
@@ -52,21 +53,33 @@ class S3Storage:
     def bucket(self) -> str:
         return self.settings.s3_bucket
 
+    @property
+    def private_bucket(self) -> str:
+        return self.settings.s3_private_bucket
+
+    def ensure_buckets(self) -> None:
+        existing = {b["Name"] for b in self._internal.list_buckets().get("Buckets", [])}
+        for b in (self.bucket, self.private_bucket):
+            if b not in existing:
+                self._internal.create_bucket(Bucket=b)
+
     def public_url(self, key: str) -> str:
         base = (self.settings.s3_public_endpoint or self.settings.s3_endpoint).rstrip("/")
         return f"{base}/{self.bucket}/{key}"
 
     def upload_bytes(self, key: str, data: bytes, content_type: str = "application/octet-stream") -> str:
         """Store bytes. Returns the public URL for public/ keys, else a private s3:// reference."""
-        self._internal.put_object(Bucket=self.bucket, Key=key, Body=data, ContentType=content_type)
         if key.startswith("public/"):
+            self._internal.put_object(Bucket=self.bucket, Key=key, Body=data, ContentType=content_type)
             return self.public_url(key)
-        return f"{PRIVATE_PREFIX}{self.bucket}/{key}"
+        self._internal.put_object(Bucket=self.private_bucket, Key=key, Body=data, ContentType=content_type)
+        return f"{PRIVATE_PREFIX}{self.private_bucket}/{key}"
 
     def presigned_put(self, key: str, content_type: str, expires: int = 600) -> dict:
+        bucket = self.bucket if key.startswith("public/") else self.private_bucket
         url = self._public.generate_presigned_url(
             "put_object",
-            Params={"Bucket": self.bucket, "Key": key, "ContentType": content_type},
+            Params={"Bucket": bucket, "Key": key, "ContentType": content_type},
             ExpiresIn=expires,
         )
         out = {"url": url, "key": key, "method": "PUT", "headers": {"Content-Type": content_type}}
@@ -76,13 +89,19 @@ class S3Storage:
 
     def presigned_get(self, ref: str, expires: int = 300, filename: str | None = None) -> str:
         """Short-lived download link for a stored reference (s3://bucket/key) or a bare key."""
-        key = ref
+        bucket, key = self.private_bucket, ref
         if ref.startswith(PRIVATE_PREFIX):
-            key = ref[len(PRIVATE_PREFIX) :].split("/", 1)[1]
-        params = {"Bucket": self.bucket, "Key": key}
+            bucket, key = ref[len(PRIVATE_PREFIX) :].split("/", 1)
+        params = {"Bucket": bucket, "Key": key}
         if filename:
             params["ResponseContentDisposition"] = f'attachment; filename="{filename}"'
         return self._public.generate_presigned_url("get_object", Params=params, ExpiresIn=expires)
 
 
 s3_client = S3Storage()
+
+
+if __name__ == "__main__":
+    # python -m app.services.storage.s3  -- create the buckets (run by the migrate job).
+    s3_client.ensure_buckets()
+    print(f"buckets ready: {s3_client.bucket}, {s3_client.private_bucket}")
