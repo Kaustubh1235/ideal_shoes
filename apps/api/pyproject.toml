@@ -30,6 +30,8 @@ dependencies = [
   "razorpay==2.0.1",
   "boto3==1.35.30",
   "WeasyPrint==62.3",
+  # WeasyPrint 62 calls pydyf APIs removed in 0.11 ("'super' object has no attribute 'transform'").
+  "pydyf==0.10.0",
   "jinja2==3.1.4",
   "feedparser==6.0.11",
   "email-validator==2.2.0",
