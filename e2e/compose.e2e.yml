@@ -1,0 +1,13 @@
+# Test-only additions to the production stack, used by e2e/stack_e2e.py. Never use on a server.
+#   - Postgres published on 127.0.0.1:55433 so the demo seed can run from the host;
+#   - Mailpit, a local mail catcher, so the order-confirmation email can be checked
+#     (set SMTP_HOST=mailpit SMTP_PORT=1025 SMTP_TLS=false in the test .env).
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:55433:5432"
+  mailpit:
+    image: axllent/mailpit:v1.29.7
+    ports:
+      - "127.0.0.1:58025:8025"
+    networks: [internal]
