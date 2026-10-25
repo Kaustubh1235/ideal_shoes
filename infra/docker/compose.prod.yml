@@ -96,7 +96,7 @@ services:
   migrate:
     <<: *api
     restart: "no"
-    command: ["sh", "-c", "alembic upgrade head && python -m app.services.storage.s3"]
+    command: ["sh", "-c", "alembic upgrade head && python -m app.db.bootstrap && python -m app.services.storage.s3"]
     depends_on:
       postgres:
         condition: service_healthy
