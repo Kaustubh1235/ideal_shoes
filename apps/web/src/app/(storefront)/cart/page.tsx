@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateCartId, getCart } from "@/lib/cart";
 import { inr } from "@/lib/money";
+import { splitInclusive } from "@bharatboot/gst";
 import { Button, EmptyState } from "@bharatboot/ui";
 import { ShoppingCart } from "lucide-react";
 import { CartItemRow } from "@/components/storefront/cart-item-row";
@@ -48,14 +49,15 @@ export default async function CartPage() {
         unitPrice: price,
         quantity: i.quantity,
         lineTotal: price * i.quantity,
+        hsnCode: v.product.hsnCode,
       };
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
   const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
-  // Naive tax preview at 18% -- the real engine computes per-line at checkout.
-  const taxPreview = Math.round(subtotal * 0.18);
-  const total = subtotal + taxPreview;
+  // Shown prices include GST; this is the GST part of them.
+  const taxPreview = lines.reduce((s, l) => s + splitInclusive(l.unitPrice, l.quantity, l.hsnCode).tax, 0);
+  const total = subtotal;
 
   return (
     <div className="container py-8">
@@ -72,11 +74,11 @@ export default async function CartPage() {
           <h2 className="font-display text-lg">Order Summary</h2>
           <dl className="mt-4 space-y-2 text-sm">
             <div className="flex justify-between"><dt>Subtotal</dt><dd>{inr(subtotal)}</dd></div>
-            <div className="flex justify-between text-ink/70"><dt>GST (est.)</dt><dd>{inr(taxPreview)}</dd></div>
+            <div className="flex justify-between text-ink/70"><dt>Includes GST</dt><dd>{inr(taxPreview)}</dd></div>
             <div className="flex justify-between text-ink/70"><dt>Shipping</dt><dd>{subtotal >= 200000 ? "Free" : "Calculated at checkout"}</dd></div>
           </dl>
           <div className="mt-4 pt-4 border-t flex justify-between font-medium">
-            <span>Estimated Total</span>
+            <span>Total</span>
             <span>{inr(total)}</span>
           </div>
           <Button asChild size="lg" className="mt-6 w-full">

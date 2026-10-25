@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateCartId, getCart, clearCart } from "@/lib/cart";
+import { splitInclusive } from "@bharatboot/gst";
 
 const AddrSchema = z.object({
   fullName: z.string().min(2),
@@ -79,15 +80,13 @@ export async function placeOrderAction(formData: FormData) {
 
   for (const it of items) {
     const v = byId.get(it.variantId);
-    if (!v) continue;
-    const unit = v.priceOverride ?? v.product.basePrice;
-    const lineGross = unit * it.quantity; // paise
+    if (!v || !v.isActive || v.product.status !== "active") continue;
+    const unit = v.priceOverride ?? v.product.basePrice; // paise, incl. GST as shown on the storefront
+    const lineGross = unit * it.quantity;
     subtotal += lineGross;
-    taxable_value += lineGross;
 
-    // Slab: <=₹1000 -> 12%; >₹1000 -> 18% (footwear default). HSN-based via @bharatboot/gst.
-    const gstRate = (unit / 100) <= 1000 ? 0.12 : 0.18;
-    const totalTax = Math.round(lineGross * gstRate);
+    const { gstRate, taxableValue: lineTaxable, tax: totalTax } = splitInclusive(unit, it.quantity, v.product.hsnCode);
+    taxable_value += lineTaxable;
     let cgst = 0, sgst = 0, igst = 0;
     if (isInterState) {
       igst = totalTax;
@@ -106,12 +105,12 @@ export async function placeOrderAction(formData: FormData) {
       quantity: it.quantity,
       unit_price: unit,
       discount: 0,
-      taxable_value: lineGross,
+      taxable_value: lineTaxable,
       gst_rate: gstRate,
       cgst,
       sgst,
       igst,
-      line_total: lineGross + cgst + sgst + igst,
+      line_total: lineGross,
       variant_id: v.id,
     });
   }

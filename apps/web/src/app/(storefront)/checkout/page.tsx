@@ -76,11 +76,11 @@ export default async function CheckoutPage() {
           ))}
         </ul>
         <div className="mt-4 pt-4 border-t flex justify-between font-medium">
-          <span>Subtotal (pre-tax)</span>
+          <span>Total (incl. GST)</span>
           <span>{inr(subtotal)}</span>
         </div>
         <p className="mt-2 text-xs text-ink/60">
-          Tax computed at checkout based on place-of-supply. Final invoice is GST-compliant.
+          Prices include GST. Your tax invoice shows CGST/SGST or IGST based on the delivery state.
         </p>
       </aside>
     </div>
