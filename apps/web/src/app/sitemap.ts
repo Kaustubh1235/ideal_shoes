@@ -1,11 +1,12 @@
 import type { MetadataRoute } from "next";
+import { unstable_noStore as noStore } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { CATEGORY_LABELS } from "@/lib/nav";
 
-// Built per request: the database is not reachable while the image is built.
-export const dynamic = "force-dynamic";
 
+// Per request, as robots.ts: at build time there is no database, so it would list no products.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  noStore();
   const base = (process.env.AUTH_URL ?? "http://localhost:3000").replace(/\/$/, "");
   const fixed = ["", "/products", "/about", "/contact", "/tenders", "/dealer-application", "/shipping", "/returns", "/terms", "/privacy"];
   let products: { slug: string; updatedAt: Date }[] = [];
