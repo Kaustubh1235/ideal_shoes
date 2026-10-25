@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { getOrCreateCartId, getCart } from "@/lib/cart";
+import { getCartId, getCart } from "@/lib/cart";
 import { prisma } from "@/lib/prisma";
 import { inr } from "@/lib/money";
 import { Button, Input, Label } from "@bharatboot/ui";
@@ -13,7 +13,7 @@ export const metadata = { title: "Checkout", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 export default async function CheckoutPage() {
-  const cartId = await getOrCreateCartId();
+  const cartId = getCartId();
   const items = await getCart(cartId);
   if (items.length === 0) redirect("/cart");
 

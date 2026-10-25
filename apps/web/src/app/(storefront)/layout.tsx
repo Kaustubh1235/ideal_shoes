@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { ShoppingBag, User, Search } from "lucide-react";
 import { auth } from "@/auth";
-import { getOrCreateCartId, cartCount } from "@/lib/cart";
+import { getCartId, cartCount } from "@/lib/cart";
 import { MobileMenu } from "@/components/storefront/mobile-menu";
 import { NAV } from "@/lib/nav";
 
+// Every page reads the session, the cart or the database: render per request, never at build time.
+export const dynamic = "force-dynamic";
+
 export default async function StorefrontLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  const cartId = await getOrCreateCartId();
+  const cartId = getCartId();
   const count = await cartCount(cartId);
   const phone = process.env.SELLER_PHONE;
 

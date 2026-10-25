@@ -11,6 +11,13 @@ import { cookies } from "next/headers";
 const COOKIE = "bb_cart";
 const TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
+/** The visitor's cart id, or null before their first add-to-cart. Safe in pages (read-only). */
+export function getCartId(): string | null {
+  return cookies().get(COOKIE)?.value ?? null;
+}
+
+/** Creates the cart cookie if needed. Only in server actions and route handlers: Next does not
+ * allow setting cookies while rendering a page. */
 export async function getOrCreateCartId(): Promise<string> {
   const jar = cookies();
   let id = jar.get(COOKIE)?.value;
@@ -32,7 +39,8 @@ export interface CartLine {
   quantity: number;
 }
 
-export async function getCart(cartId: string): Promise<CartLine[]> {
+export async function getCart(cartId: string | null): Promise<CartLine[]> {
+  if (!cartId) return [];
   const raw = await redis.hgetall(`cart:${cartId}`);
   return Object.entries(raw).map(([variantId, qty]) => ({ variantId, quantity: Number.parseInt(qty, 10) }));
 }
@@ -59,7 +67,8 @@ export async function clearCart(cartId: string): Promise<void> {
   await redis.del(`cart:${cartId}`);
 }
 
-export async function cartCount(cartId: string): Promise<number> {
+export async function cartCount(cartId: string | null): Promise<number> {
+  if (!cartId) return 0;
   const all = await redis.hvals(`cart:${cartId}`);
   return all.reduce((s, v) => s + Number.parseInt(v, 10), 0);
 }

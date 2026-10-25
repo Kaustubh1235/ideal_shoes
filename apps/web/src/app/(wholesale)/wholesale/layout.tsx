@@ -4,6 +4,9 @@ import { auth, signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@bharatboot/ui";
 
+// Every page reads the session, the cart or the database: render per request, never at build time.
+export const dynamic = "force-dynamic";
+
 export const metadata = { title: { default: "Dealer portal", template: "%s · IDEALX dealers" }, robots: { index: false, follow: false } };
 
 export default async function WholesaleLayout({ children }: { children: React.ReactNode }) {

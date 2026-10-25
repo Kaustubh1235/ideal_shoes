@@ -17,6 +17,9 @@ import {
   QrCode,
 } from "lucide-react";
 
+// Every page reads the session, the cart or the database: render per request, never at build time.
+export const dynamic = "force-dynamic";
+
 export const metadata = { title: { default: "Admin", template: "%s · IDEALX admin" }, robots: { index: false, follow: false } };
 
 const NAV = [

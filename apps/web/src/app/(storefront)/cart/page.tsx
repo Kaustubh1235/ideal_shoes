@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getOrCreateCartId, getCart } from "@/lib/cart";
+import { getCartId, getCart } from "@/lib/cart";
 import { inr } from "@/lib/money";
 import { auth } from "@/auth";
 import { dealerTier, priceLines } from "@/lib/pricing";
@@ -13,7 +13,7 @@ export const metadata = { title: "Cart", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 export default async function CartPage() {
-  const cartId = await getOrCreateCartId();
+  const cartId = getCartId();
   const items = await getCart(cartId);
 
   if (items.length === 0) {
