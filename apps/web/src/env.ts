@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+// `next build` imports every route to collect page data, with no runtime secrets present (Docker
+// builds must not carry them). Placeholders cover that phase only; a running server still validates.
+const isBuild = process.env.NEXT_PHASE === "phase-production-build";
+const source = isBuild
+  ? { DATABASE_URL: "postgresql://build:build@localhost:5432/build", AUTH_SECRET: "build-phase-placeholder-secret", ...process.env }
+  : process.env;
+
 const env = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -24,6 +31,6 @@ const env = z
     NEXT_PUBLIC_HERO_IMAGE_URL: z.string().default(""),
     INVENTORY_APP_URL: z.string().default(""),
   })
-  .parse(process.env);
+  .parse(source);
 
 export default env;

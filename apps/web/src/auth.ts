@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import env from "@/env";
 import * as OTPAuth from "otpauth";
+import { authConfig } from "@/auth.config";
 
 declare module "next-auth" {
   interface Session {
@@ -27,13 +28,8 @@ const CredsSchema = z.object({
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   secret: env.AUTH_SECRET,
-  session: { strategy: "jwt" },
-  pages: {
-    signIn: "/login",
-    error: "/login",
-  },
-  trustHost: true,
   providers: [
     Credentials({
       name: "Email and password",
@@ -141,26 +137,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.userId = (user as any).id;
-        token.userType = (user as any).userType;
-        token.role = (user as any).role ?? null;
-        token.dealerId = (user as any).dealerId ?? null;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = (token.userId as string) ?? session.user.id;
-        session.user.userType = (token.userType as any) ?? "customer";
-        session.user.role = (token.role as any) ?? null;
-        session.user.dealerId = (token.dealerId as any) ?? null;
-      }
-      return session;
-    },
-  },
 });
 
 /** Helper for FastAPI calls -- returns a Bearer JWT for the current session. */

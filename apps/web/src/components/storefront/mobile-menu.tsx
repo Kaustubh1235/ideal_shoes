@@ -31,6 +31,7 @@ export function MobileMenu({
   useEffect(() => {
     if (!open) return;
     const panel = panelRef.current;
+    const opener = openerRef.current;
     const focusables = () =>
       Array.from(
         panel?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? [],
@@ -48,8 +49,8 @@ export function MobileMenu({
       if (e.key === "Tab") {
         const list = focusables();
         if (list.length === 0) return;
-        const first = list[0];
-        const last = list[list.length - 1];
+        const first = list[0]!;
+        const last = list[list.length - 1]!;
         if (e.shiftKey && document.activeElement === first) {
           e.preventDefault();
           last.focus();
@@ -63,7 +64,7 @@ export function MobileMenu({
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
-      openerRef.current?.focus();
+      opener?.focus();
     };
   }, [open]);
 
