@@ -80,9 +80,10 @@ export default async function PayPage({ params, searchParams }: { params: { orde
         />
       ) : (
         <div className="mt-6 rounded-md border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-900">
-          <p className="font-medium">Razorpay is not configured yet.</p>
-          <p className="mt-1">Add RAZORPAY_KEY_ID + RAZORPAY_KEY_SECRET to <code>.env</code>, then restart. See <code>NEXT-STEPS.md</code> step 1.</p>
-          {rzp?.error && <p className="mt-2 text-xs opacity-70">Server response: {rzp.error}</p>}
+          <p className="font-medium">Online payment is not available yet.</p>
+          <p className="mt-1">
+            Your order {order.orderNo} is saved. Please contact us with the order number to pay, or try again later.
+          </p>
         </div>
       )}
     </div>

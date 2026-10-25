@@ -210,3 +210,20 @@ def test_webhook_amount_mismatch_does_not_mark_paid(env, webhook):
     o, p = _order(env["Session"])
     post("payment.captured", p.gateway_order_id, p.amount - 100)
     assert _status(env, o.id) == "pending_payment" and sent == []
+
+
+def test_no_razorpay_keys_in_production_means_no_fake_checkout(env, monkeypatch):
+    from app.services.payments import razorpay_client as rc
+
+    monkeypatch.setattr(rc.settings, "environment", "production")
+    monkeypatch.setattr(rc.settings, "razorpay_key_id", "")
+    owner = str(uuid.uuid4())
+    o, _ = _order(env["Session"], uuid.UUID(owner))
+    from app.db.models import Payment
+
+    db = env["Session"]()
+    db.query(Payment).filter(Payment.order_id == o.id).delete()
+    db.commit()
+    db.close()
+    r = env["client"].post("/payments/razorpay/order", json={"order_id": str(o.id)}, headers=env["token"](owner, "customer"))
+    assert r.status_code == 400 and r.json()["detail"] == "payments_not_configured"

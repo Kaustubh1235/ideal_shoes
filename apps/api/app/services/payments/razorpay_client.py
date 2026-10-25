@@ -40,6 +40,9 @@ def create_razorpay_order(db: Session, order_id) -> dict:
         rzp_order_id = existing.gateway_order_id
     else:
         client = _client()
+        if client is None and settings.is_production:
+            # A made-up order id would show a Pay button that can only fail at Razorpay.
+            raise ValueError("payments_not_configured")
         if client is None:
             log.warning("razorpay.keys_missing.using_mock_id")
             rzp_order_id = f"order_DEVMOCK_{order.order_no}"
