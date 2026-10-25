@@ -34,12 +34,13 @@ export function LoginForm({ callbackUrl, initialError }: { callbackUrl: string; 
         redirect: false,
         callbackUrl,
       });
-      if (res?.error === "REQUIRES_TOTP" || res?.error === "CredentialsSignin") {
-        if (!requiresTotp) {
-          setRequiresTotp(true);
-          return;
-        }
-        setError("Invalid credentials or TOTP code");
+      if ((res as { code?: string } | undefined)?.code === "totp_required") {
+        setRequiresTotp(true);
+        setError(requiresTotp ? "Enter the 6-digit code from your authenticator app" : null);
+        return;
+      }
+      if (res?.error) {
+        setError(requiresTotp ? "Wrong password or authenticator code" : "Wrong email or password");
         return;
       }
       if (res?.ok) {
@@ -62,7 +63,7 @@ export function LoginForm({ callbackUrl, initialError }: { callbackUrl: string; 
         body: JSON.stringify({ phone }),
       });
       if (!r.ok) {
-        setError("Could not send OTP");
+        setError((await r.json().catch(() => null))?.error ?? "Could not send OTP");
         return;
       }
       const data = await r.json();
@@ -81,7 +82,7 @@ export function LoginForm({ callbackUrl, initialError }: { callbackUrl: string; 
         body: JSON.stringify({ phone, code: otp }),
       });
       if (!r.ok) {
-        setError("Invalid OTP");
+        setError((await r.json().catch(() => null))?.error ?? "Invalid OTP");
         return;
       }
       const data = await r.json();

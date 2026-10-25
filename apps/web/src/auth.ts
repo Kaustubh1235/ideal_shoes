@@ -1,4 +1,4 @@
-import NextAuth, { type DefaultSession } from "next-auth";
+import NextAuth, { CredentialsSignin, type DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -18,6 +18,11 @@ declare module "next-auth" {
       requiresTotp?: boolean;
     } & DefaultSession["user"];
   }
+}
+
+/** Password was right; the staff member's authenticator code is still needed. */
+class TotpRequired extends CredentialsSignin {
+  code = "totp_required";
 }
 
 const CredsSchema = z.object({
@@ -77,10 +82,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         // Staff requires TOTP
         if (user.userType === "staff" && user.staff?.totpEnabled) {
-          if (!totpCode) {
-            // Caller flow: surface this so the UI prompts for TOTP
-            throw new Error("REQUIRES_TOTP");
-          }
+          // Auth.js turns a plain Error into a generic configuration error; this reaches the form as code.
+          if (!totpCode) throw new TotpRequired();
           if (!user.staff?.totpSecret) return null;
           const totp = new OTPAuth.TOTP({
             issuer: env.ADMIN_TOTP_ISSUER,

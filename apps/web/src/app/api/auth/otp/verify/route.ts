@@ -10,7 +10,7 @@ const Body = z.object({
 });
 
 export async function POST(req: Request) {
-  const json = await req.json();
+  const json = await req.json().catch(() => null);
   const parsed = Body.safeParse(json);
   if (!parsed.success) return NextResponse.json({ ok: false }, { status: 400 });
 
@@ -19,7 +19,8 @@ export async function POST(req: Request) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ ...parsed.data, purpose: "login" }),
   });
-  if (!r.ok) return NextResponse.json({ ok: false }, { status: 400 });
+  if (r.status === 429) return NextResponse.json({ ok: false, error: "Too many wrong codes. Ask for a new one." }, { status: 429 });
+  if (!r.ok) return NextResponse.json({ ok: false, error: "That code is not right, or it has expired." }, { status: 400 });
 
   const token = nanoid(40);
   // 5-minute window to complete signIn
