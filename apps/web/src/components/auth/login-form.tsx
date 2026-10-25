@@ -1,12 +1,10 @@
 "use client";
 import { useState, useTransition } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { Button, Input, Label, Tabs, TabsContent, TabsList, TabsTrigger } from "@bharatboot/ui";
 import { toast } from "sonner";
 
 export function LoginForm({ callbackUrl, initialError }: { callbackUrl: string; initialError?: string }) {
-  const router = useRouter();
   const [tab, setTab] = useState<"email" | "phone">("email");
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(initialError ?? null);
@@ -22,6 +20,10 @@ export function LoginForm({ callbackUrl, initialError }: { callbackUrl: string; 
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpToken, setOtpToken] = useState<string | null>(null);
+
+  // A full page load, not router.push: before sign-in Next prefetched the protected page and
+  // cached its redirect to /login, and a client-side push would replay that redirect.
+  const signedIn = () => window.location.assign(callbackUrl);
 
   const submitEmail = (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,10 +46,7 @@ export function LoginForm({ callbackUrl, initialError }: { callbackUrl: string; 
         setError(requiresTotp ? "Wrong password or authenticator code" : "Wrong email or password");
         return;
       }
-      if (res?.ok) {
-        router.push(callbackUrl);
-        router.refresh();
-      }
+      if (res?.ok) signedIn();
     });
   };
 
@@ -94,10 +93,7 @@ export function LoginForm({ callbackUrl, initialError }: { callbackUrl: string; 
         redirect: false,
         callbackUrl,
       });
-      if (res?.ok) {
-        router.push(callbackUrl);
-        router.refresh();
-      } else {
+      if (res?.ok) signedIn(); else {
         setError("Sign-in failed");
       }
     });
