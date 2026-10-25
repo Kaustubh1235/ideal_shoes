@@ -3,7 +3,7 @@ import { dealerApplyAction } from "@/app/actions/dealer";
 
 export const metadata = { title: "Become a dealer", description: "Stock IDEALX boots and formal shoes: apply for a dealer account with your GSTIN for wholesale prices and GST invoices." };
 
-export default function DealerApplicationPage() {
+export default function DealerApplicationPage({ searchParams }: { searchParams: { error?: string } }) {
   return (
     <div className="container py-12 max-w-2xl">
       <h1 className="font-display text-3xl">Become a Dealer</h1>
@@ -11,6 +11,14 @@ export default function DealerApplicationPage() {
         Apply for an authorised dealer account. We&apos;ll review your application and
         provision login + price tier within 2 business days.
       </p>
+
+      {searchParams.error && (
+        <p role="alert" className="mt-6 rounded-md border border-oxblood-200 bg-oxblood-50 p-3 text-sm text-oxblood-700">
+          {searchParams.error === "exists"
+            ? "There is already an account with this email, phone or GSTIN. Sign in, or contact us and we will sort it out."
+            : "Too many applications from this connection. Please try again in an hour."}
+        </p>
+      )}
 
       <form action={dealerApplyAction} className="mt-8 space-y-6 rounded-lg border border-leather-100 bg-cream p-6">
         <div className="grid gap-3 md:grid-cols-2">

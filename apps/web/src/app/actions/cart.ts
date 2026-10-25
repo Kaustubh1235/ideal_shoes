@@ -6,7 +6,7 @@ import { getOrCreateCartId, addToCart, setCartQty, removeFromCart, clearCart } f
 
 const AddSchema = z.object({
   variantId: z.string().uuid(),
-  qty: z.number().int().min(1).max(99),
+  qty: z.number().int().min(1).max(999), // the dealer catalog allows up to 999 per line
 });
 
 export async function addToCartAction(
@@ -30,8 +30,10 @@ export async function addToCartAction(
 }
 
 export async function updateCartQtyAction(variantId: string, qty: number) {
+  const parsed = z.object({ variantId: z.string().uuid(), qty: z.number().int().min(0).max(10_000) }).safeParse({ variantId, qty });
+  if (!parsed.success) return;
   const cartId = await getOrCreateCartId();
-  await setCartQty(cartId, variantId, qty);
+  await setCartQty(cartId, parsed.data.variantId, parsed.data.qty);
   revalidatePath("/cart");
 }
 
