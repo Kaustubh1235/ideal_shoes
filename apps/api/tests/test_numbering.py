@@ -16,7 +16,8 @@ from app.services.invoices.numbering import current_financial_year, next_invoice
 @pytest.fixture()
 def db():
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
+    # Only the table under test: the full schema uses Postgres types (JSONB) that SQLite cannot create.
+    Base.metadata.create_all(engine, tables=[InvoiceSeries.__table__])
     Session = sessionmaker(bind=engine, expire_on_commit=False)
     s = Session()
     yield s
