@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import env from "@/env";
 import * as OTPAuth from "otpauth";
 import { authConfig } from "@/auth.config";
+import { clear, clientIp, hit } from "@/lib/rate-limit";
 
 declare module "next-auth" {
   interface Session {
@@ -30,6 +31,25 @@ const CredsSchema = z.object({
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   secret: env.AUTH_SECRET,
+  callbacks: {
+    ...authConfig.callbacks,
+    // Re-check the account every 5 minutes so a deactivated user or dealer loses access quickly
+    // instead of keeping a valid session cookie until it expires. (Middleware, on the Edge,
+    // cannot reach the database; every page and action that reads the session goes through here.)
+    async jwt(params) {
+      const token = await authConfig.callbacks.jwt(params);
+      if (params.user) {
+        token.checkedAt = Date.now();
+        return token;
+      }
+      if (token.userId && Date.now() - Number(token.checkedAt ?? 0) > 5 * 60 * 1000) {
+        const u = await prisma.user.findUnique({ where: { id: token.userId as string }, select: { isActive: true } });
+        if (!u?.isActive) return null;
+        token.checkedAt = Date.now();
+      }
+      return token;
+    },
+  },
   providers: [
     Credentials({
       name: "Email and password",
@@ -38,11 +58,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
         totpCode: { label: "TOTP code", type: "text" },
       },
-      async authorize(raw) {
+      async authorize(raw, request) {
         const parsed = CredsSchema.safeParse(raw);
         if (!parsed.success) return null;
         const { email, password, totpCode } = parsed.data;
         if (!email || !password) return null;
+        // Password guessing: 10 failed tries per account and 30 per address in 15 minutes.
+        const ip = clientIp(request);
+        const acct = `login:acct:${email.toLowerCase()}`;
+        if (!(await hit(`login:ip:${ip}`, 30, 900)) || !(await hit(acct, 10, 900))) return null;
         const user = await prisma.user.findUnique({
           where: { email },
           include: { customer: true, dealer: true, staff: true },
@@ -69,6 +93,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           const delta = totp.validate({ token: totpCode, window: 1 });
           if (delta === null) return null;
         }
+        await clear(acct);
 
         return {
           id: user.id,
