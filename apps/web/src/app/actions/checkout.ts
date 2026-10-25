@@ -161,6 +161,7 @@ export async function placeOrderAction(formData: FormData) {
         shippingAddressId: shipping.id,
         buyerGstin: parsed.buyerGstin ?? null,
         buyerLegalName: parsed.buyerLegalName ?? parsed.billing.fullName,
+        contactEmail: parsed.email ?? session?.user?.email ?? null,
         placeOfSupply,
         subtotal,
         taxableValue: taxable_value,

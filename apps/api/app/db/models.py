@@ -444,6 +444,7 @@ class Order(Base):
     shipping_address_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     buyer_gstin: Mapped[str | None] = mapped_column(String(15), nullable=True)
     buyer_legal_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    contact_email: Mapped[str | None] = mapped_column(String(254), nullable=True)
     place_of_supply: Mapped[str | None] = mapped_column(String(2), nullable=True)
     reverse_charge: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     subtotal: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

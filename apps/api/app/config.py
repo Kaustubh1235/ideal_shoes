@@ -40,7 +40,8 @@ class Settings(BaseSettings):
     # S3 / MinIO
     s3_endpoint: str = "http://minio:9000"
     s3_public_endpoint: str = "http://localhost:9000"
-    s3_bucket: str = "bharatboot"
+    s3_bucket: str = "media"  # public: product photos, AR models
+    s3_private_bucket: str = "private"  # invoices, GSTR exports, tender attachments
     s3_access_key: str = "minioadmin"
     s3_secret_key: str = "minioadmin123"
     s3_region: str = "ap-south-1"
@@ -96,6 +97,13 @@ class Settings(BaseSettings):
     inventory_api_url: str = ""
     inventory_api_key: str = ""
     inventory_app_url: str = ""
+
+    # Public address of the shop, for links in emails (AUTH_URL is the same thing for Auth.js).
+    auth_url: str = ""
+
+    @property
+    def public_site_url(self) -> str:
+        return self.auth_url.rstrip("/")
 
     @field_validator("seller_address_json")
     @classmethod

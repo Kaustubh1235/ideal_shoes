@@ -415,6 +415,7 @@ model Order {
   shippingAddressId   String?      @map("shipping_address_id") @db.Uuid
   buyerGstin          String?      @map("buyer_gstin")
   buyerLegalName      String?      @map("buyer_legal_name")
+  contactEmail        String?      @map("contact_email")
   placeOfSupply       String?      @map("place_of_supply") // 2-digit state code
   reverseCharge       Boolean      @default(false) @map("reverse_charge")
   subtotal            Int          @default(0)

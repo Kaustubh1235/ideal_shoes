@@ -47,28 +47,58 @@ def task_export_gstr1(month: str) -> dict:
         db.close()
 
 
-@celery_app.task(name="notify.email")
+@celery_app.task(name="notify.email", autoretry_for=(OSError,), retry_backoff=True, max_retries=5)
 def task_send_email(to: str, subject: str, html: str) -> bool:
-    """Lightweight SMTP send. For richer templated emails, expand later."""
+    """Send one HTML email over SMTP. Skipped (False) until SMTP_HOST is set."""
     import smtplib
     from email.message import EmailMessage
+    from email.utils import make_msgid
+
     from app.config import get_settings
 
     s = get_settings()
+    if not s.smtp_host:
+        log.info("email.not_configured.skipping subject=%s", subject)
+        return False
     msg = EmailMessage()
     msg["From"] = s.smtp_from
     msg["To"] = to
     msg["Subject"] = subject
-    msg.set_content("HTML email -- see body")
+    msg["Message-ID"] = make_msgid(domain=(s.smtp_from.rsplit("@", 1)[-1].strip("> ") or None))
+    if s.seller_email:
+        msg["Reply-To"] = s.seller_email
+    msg.set_content("This message is best viewed as HTML.")
     msg.add_alternative(html, subtype="html")
 
-    with smtplib.SMTP(s.smtp_host, s.smtp_port) as smtp:
+    with smtplib.SMTP(s.smtp_host, s.smtp_port, timeout=20) as smtp:
         if s.smtp_tls:
             smtp.starttls()
         if s.smtp_user:
             smtp.login(s.smtp_user, s.smtp_pass)
         smtp.send_message(msg)
     return True
+
+
+@celery_app.task(name="notify.order_confirmed_email")
+def task_order_confirmed_email(order_id: str) -> bool:
+    """Confirmation mail for a paid order, to the account email or the one given at checkout."""
+    from app.db.models import Order
+    from app.services.notify.order_messages import order_confirmed_email, order_contact
+
+    db = SessionLocal()
+    try:
+        order = db.query(Order).filter(Order.id == UUID(order_id)).first()
+        if order is None:
+            return False
+        name, _phone, email = order_contact(db, order)
+        if not email:
+            log.info("email.no_address.skipping order=%s", order.order_no)
+            return False
+        subject, html = order_confirmed_email(order, name)
+        task_send_email.delay(email, subject, html)
+        return True
+    finally:
+        db.close()
 
 
 @celery_app.task(name="inventory.sync_stock")
@@ -98,18 +128,20 @@ def task_inventory_order_out(self, order_id: str) -> dict:
 
 @celery_app.task(name="notify.whatsapp_order_confirmed", autoretry_for=(Exception,), retry_backoff=True, max_retries=3)
 def task_whatsapp_order_confirmed(order_id: str) -> bool:
-    """Send the approved `order_confirmed` WhatsApp template for a paid order (no-op if unset)."""
+    """Send the approved `order_confirmed` WhatsApp template for a paid order (no-op if unset).
+    Guests are reached on the phone number of their delivery address."""
     from app.db.models import Order
+    from app.services.notify.order_messages import order_contact
     from app.services.whatsapp.client import send_template
 
     db = SessionLocal()
     try:
         order = db.query(Order).filter(Order.id == UUID(order_id)).first()
-        if order is None or order.user is None:
+        if order is None:
             return False
-        name = (order.user.customer.name if order.user.customer and order.user.customer.name else "there")
+        name, phone, _email = order_contact(db, order)
         amount = f"{order.grand_total / 100:,.0f}"
-        return send_template(order.user.phone, "order_confirmed", [name, order.order_no, amount])
+        return send_template(phone, "order_confirmed", [name, order.order_no, amount])
     finally:
         db.close()
 
