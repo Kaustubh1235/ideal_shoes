@@ -99,3 +99,18 @@ def test_match_variants_by_sku_or_barcode_case_insensitive():
     assert set(m) == {"idx-boot-dms-9-black", "oxf-pln-blk-8 "}
     assert m["idx-boot-dms-9-black"].sku == "IDX-BOOT-DMS-9-BLACK"
     assert m["oxf-pln-blk-8 "].sku == "IDX-OXF-PLAIN-8-BLACK"
+
+
+def test_sync_skips_when_the_stock_app_is_down_or_refuses():
+    """Unreachable or 401: log and skip, never raise into the worker, touch nothing."""
+    from app.services.inventory.sync import sync_stock_from_inventory
+
+    class NoDb:
+        def query(self, *_a, **_k):  # pragma: no cover - must not be reached
+            raise AssertionError("database touched although the stock app was unreachable")
+
+    def down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    assert sync_stock_from_inventory(NoDb(), _client(down)).skipped_reason == "unreachable"
+    assert sync_stock_from_inventory(NoDb(), _client(lambda r: httpx.Response(401, json={"error": "bad key"}))).skipped_reason == "unreachable"

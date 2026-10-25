@@ -11,11 +11,12 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Iterable
 
+import httpx
 from sqlalchemy.orm import Session
 
 from app.db.enums import StockMovementReason
 from app.db.models import Inventory, Order, ProductVariant, StockMovement, Warehouse
-from app.services.inventory.client import InventoryClient, InventoryNotConfigured, StockItem
+from app.services.inventory.client import InventoryClient, InventoryError, InventoryNotConfigured, StockItem
 
 log = logging.getLogger(__name__)
 
@@ -82,6 +83,11 @@ def sync_stock_from_inventory(db: Session, client: InventoryClient | None = None
         as_of, items = client.fetch_stock()
     except InventoryNotConfigured:
         result.skipped_reason = "not_configured"
+        return result
+    except (httpx.HTTPError, InventoryError) as e:
+        # Stock Room down or refusing the key: keep the current numbers, try again next tick.
+        result.skipped_reason = "unreachable"
+        log.warning("inventory.sync.unreachable", extra={"error": str(e)[:300]})
         return result
     result.as_of = as_of
 
