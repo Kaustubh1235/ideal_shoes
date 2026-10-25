@@ -5,11 +5,11 @@ issuing internal service tokens.
 from __future__ import annotations
 
 import hashlib
-import random
-import string
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -42,10 +42,33 @@ def _hash_code(code: str) -> str:
     return hashlib.sha256(code.encode()).hexdigest()
 
 
+# Each request may send an SMS, which costs money and can be abused to spam a number.
+OTP_PER_PHONE_10MIN = 3
+OTP_PER_PHONE_DAY = 10
+
+
 @router.post("/otp/request", response_model=OtpResponse)
 def request_otp(payload: OtpRequest, db: Session = Depends(get_db)) -> OtpResponse:
-    code = "".join(random.choices(string.digits, k=6))
     now = datetime.now(timezone.utc)
+
+    def sent_since(delta: timedelta) -> int:
+        return (
+            db.query(func.count(OtpCode.id))
+            .filter(OtpCode.phone == payload.phone, OtpCode.created_at > now - delta)
+            .scalar()
+            or 0
+        )
+
+    if sent_since(timedelta(minutes=10)) >= OTP_PER_PHONE_10MIN or sent_since(timedelta(days=1)) >= OTP_PER_PHONE_DAY:
+        raise HTTPException(status_code=429, detail="too_many_otp_requests")
+
+    # Showing the code instead of sending it is for local development only. In production a
+    # missing SMS key must fail closed, or anyone could sign in as any phone number.
+    dev = settings.otp_dev_mode and not settings.is_production
+    if not dev and not settings.msg91_auth_key:
+        raise HTTPException(status_code=503, detail="sms_not_configured")
+
+    code = f"{secrets.randbelow(10**6):06d}"
     entry = OtpCode(
         phone=payload.phone,
         code_hash=_hash_code(code),
@@ -55,8 +78,7 @@ def request_otp(payload: OtpRequest, db: Session = Depends(get_db)) -> OtpRespon
     db.add(entry)
     db.commit()
 
-    if settings.otp_dev_mode or not settings.msg91_auth_key:
-        # dev: return code in response and log it
+    if dev:
         print(f"[OTP] phone={payload.phone} code={code} purpose={payload.purpose}")
         return OtpResponse(sent=True, dev_code=code)
 
@@ -86,7 +108,7 @@ def verify_otp(payload: OtpVerify, db: Session = Depends(get_db)) -> dict:
         raise HTTPException(status_code=429, detail="too_many_attempts")
 
     candidate.attempts += 1
-    if candidate.code_hash != code_hash:
+    if not secrets.compare_digest(candidate.code_hash, code_hash):
         db.commit()
         raise HTTPException(status_code=400, detail="invalid_code")
 
