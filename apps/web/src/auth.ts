@@ -25,12 +25,14 @@ class TotpRequired extends CredentialsSignin {
   code = "totp_required";
 }
 
+// Credentials arrive form-encoded, so an absent field can show up as "" or "undefined".
+const blank = (v: unknown) => (v === "" || v === "undefined" || v === "null" ? undefined : v);
 const CredsSchema = z.object({
-  email: z.string().email().optional(),
-  phone: z.string().regex(/^[6-9][0-9]{9}$/).optional(),
-  password: z.string().min(8).optional(),
-  otpVerified: z.string().optional(),
-  totpCode: z.string().regex(/^[0-9]{6}$/).optional(),
+  email: z.preprocess(blank, z.string().email().optional()),
+  phone: z.preprocess(blank, z.string().regex(/^[6-9][0-9]{9}$/).optional()),
+  password: z.preprocess(blank, z.string().min(8).optional()),
+  otpVerified: z.preprocess(blank, z.string().optional()),
+  totpCode: z.preprocess(blank, z.string().regex(/^[0-9]{6}$/).optional()),
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -66,14 +68,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(raw, request) {
         const parsed = CredsSchema.safeParse(raw);
         if (!parsed.success) return null;
-        const { email, password, totpCode } = parsed.data;
+        const { password, totpCode } = parsed.data;
+        const email = parsed.data.email?.trim().toLowerCase();
         if (!email || !password) return null;
         // Password guessing: 10 failed tries per account and 30 per address in 15 minutes.
         const ip = clientIp(request);
         const acct = `login:acct:${email.toLowerCase()}`;
         if (!(await hit(`login:ip:${ip}`, 30, 900)) || !(await hit(acct, 10, 900))) return null;
-        const user = await prisma.user.findUnique({
-          where: { email },
+        const user = await prisma.user.findFirst({
+          where: { email: { equals: email, mode: "insensitive" } },
           include: { customer: true, dealer: true, staff: true },
         });
         if (!user || !user.passwordHash || !user.isActive) return null;

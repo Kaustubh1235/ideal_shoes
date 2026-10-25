@@ -27,10 +27,11 @@ export function LoginForm({ callbackUrl, initialError }: { callbackUrl: string; 
     e.preventDefault();
     setError(null);
     start(async () => {
+      // Only send totpCode when asked for: signIn() form-encodes undefined as the string "undefined".
       const res = await signIn("credentials", {
         email,
         password,
-        totpCode: requiresTotp ? totpCode : undefined,
+        ...(requiresTotp ? { totpCode } : {}),
         redirect: false,
         callbackUrl,
       });
