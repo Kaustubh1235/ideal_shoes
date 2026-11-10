@@ -22,6 +22,8 @@ jobs:
           node-version: "22"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Generate the database client (the web app's types come from it)
+        run: pnpm --filter @bharatboot/db exec prisma generate
       - run: pnpm --filter @bharatboot/gst test
       - run: pnpm --filter @bharatboot/web lint
       - run: pnpm --filter @bharatboot/web typecheck
