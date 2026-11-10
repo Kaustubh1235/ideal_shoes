@@ -103,12 +103,10 @@
   $("pinpad").addEventListener("click", async (e) => {
     const b = e.target.closest("button[data-k]"); if (!b) return; const k = b.dataset.k;
     if (k === "⌫") pin = pin.slice(0, -1); else if (k === "OK") { await submitPin(); return; } else if (pin.length < 8) pin += k;
-    renderPin();
-    if (pin.length >= 4 && k !== "⌫") { /* auto-submit at 4 only if the user stops typing */ clearTimeout(window.__pinT); window.__pinT = setTimeout(submitPin, pin.length >= 6 ? 0 : 500); }
+    renderPin(); // PINs are 4 to 8 digits, so nothing is sent until OK (or Enter)
   });
   document.addEventListener("keydown", (e) => { if ($("gate-pin").hidden || $("gate").hidden) return; if (/^[0-9]$/.test(e.key) && pin.length < 8) { pin += e.key; renderPin(); } else if (e.key === "Backspace") { pin = pin.slice(0, -1); renderPin(); } else if (e.key === "Enter") submitPin(); });
   async function submitPin() {
-    clearTimeout(window.__pinT);
     if (!pinUser || pin.length < 4) return;
     try { const r = await api("POST", "/api/v1/auth/login", { userId: pinUser.id, pin }); S.me = r.me; pin = ""; await boot(); }
     catch (e) { pin = ""; renderPin(); $("pinMsg").hidden = false; $("pinMsg").textContent = e.message; if (navigator.vibrate) navigator.vibrate([60, 40, 60]); }

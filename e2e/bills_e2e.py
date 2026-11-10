@@ -67,6 +67,7 @@ def main() -> int:
         page.click("#people button[data-name='Papa']")
         for d in "2468":
             page.click(f"#pinpad button[data-k='{d}']")
+        page.click("#pinpad button[data-k='OK']")
         expect(page.locator("#app")).to_be_visible(timeout=15000)
         api = lambda method, path, body=None: page.evaluate(
             "([m, p, b]) => fetch(p, { method: m, headers: { 'content-type': 'application/json', 'x-requested-with': 'StockRoom' }, body: b ? JSON.stringify(b) : undefined }).then(async r => ({ status: r.status, data: await r.json() }))",

@@ -359,6 +359,7 @@ def main() -> int:
             page.click("#people button[data-name='Raju']")
             for d in "1234":
                 page.click(f"#pinpad button[data-k='{d}']")
+            page.click("#pinpad button[data-k='OK']")
             expect(page.locator("#app")).to_be_visible(timeout=10000)
             expect(page.locator("#tab-admin")).to_be_hidden()
             assert page.evaluate("document.getElementById('more-admin').hidden"), "staff has no Admin under More"
@@ -374,6 +375,7 @@ def main() -> int:
             page.click("#people button[data-name='Papa']")
             for d in "0000":
                 page.click(f"#pinpad button[data-k='{d}']")
+            page.click("#pinpad button[data-k='OK']")
             expect(page.locator("#pinMsg")).to_contain_text("Wrong PIN")
 
             # ---- desktop width renders the rail -----------------------------------
@@ -384,6 +386,7 @@ def main() -> int:
             dpage.click("#people button[data-name='Papa']")
             for d in "2468":
                 dpage.click(f"#pinpad button[data-k='{d}']")
+            dpage.click("#pinpad button[data-k='OK']")
             expect(dpage.locator("#app")).to_be_visible(timeout=10000)
             dpage.click("#tab-stock")
             expect(dpage.locator("#stockRows tr")).to_have_count(5)  # 3 boots + OP AirMix + Gold sandal
@@ -430,6 +433,7 @@ def main() -> int:
             cpage.click("#people button[data-name='Papa']")
             for d in "2468":
                 cpage.click(f"#pinpad button[data-k='{d}']")
+            cpage.click("#pinpad button[data-k='OK']")
             expect(cpage.locator("#app")).to_be_visible(timeout=10000)
             go(cpage, "scan")
             cpage.click("#scanStart")

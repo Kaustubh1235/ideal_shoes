@@ -1,5 +1,5 @@
 /* Stock Room service worker: cache the app shell so the app opens offline; API is always network-first. */
-const VERSION = "sr-v2";
+const VERSION = "sr-v3";
 const SHELL = ["/", "/index.html", "/styles.css", "/app.js", "/i18n.js", "/scanner.js", "/charts.js", "/vendor/jsQR.js", "/vendor/qrcode.js", "/manifest.webmanifest", "/icons/icon.svg", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {
