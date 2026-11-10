@@ -29,7 +29,7 @@ from app.config import get_settings
 log = logging.getLogger(__name__)
 
 
-class IrpNotConfigured(Exception):
+class IrpNotConfigured(Exception):  # noqa: N818 -- name used across the codebase
     pass
 
 
@@ -154,7 +154,7 @@ def _build_irp_payload(*, seller, buyer, lines, totals, invoice_no, issued_at, p
             "Addr1": seller["address"]["line1"],
             "Loc": seller["address"]["city"],
             "Pin": int(seller["address"]["pincode"] or 0),
-            "Stcd": seller["address"]["state_code"] if "state_code" in seller["address"] else "27",
+            "Stcd": seller["address"].get("state_code", "27"),
         },
         "BuyerDtls": {
             "Gstin": buyer.get("gstin") or "URP",

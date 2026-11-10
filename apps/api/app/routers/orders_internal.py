@@ -12,8 +12,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.auth import AuthUser, can_access_order, get_current_user
-from app.db.models import Order, OrderItem, StockMovement
 from app.db.enums import StockMovementReason
+from app.db.models import Order, OrderItem, StockMovement
 from app.db.session import get_db
 
 router = APIRouter()

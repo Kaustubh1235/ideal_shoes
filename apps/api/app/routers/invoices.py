@@ -26,7 +26,7 @@ def generate(payload: GenerateIn, db: Session = Depends(get_db), _user: AuthUser
     try:
         inv = generate_invoice_for_order(db, payload.order_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     return {"invoice_id": str(inv.id), "invoice_no": inv.invoice_no}
 
 
@@ -53,7 +53,9 @@ def get_invoice(invoice_id: UUID, db: Session = Depends(get_db), user: AuthUser 
 
 
 @router.get("/{invoice_id}/pdf")
-def invoice_pdf(invoice_id: UUID, db: Session = Depends(get_db), user: AuthUser = Depends(get_current_user)) -> RedirectResponse:
+def invoice_pdf(
+    invoice_id: UUID, db: Session = Depends(get_db), user: AuthUser = Depends(get_current_user)
+) -> RedirectResponse:
     """Five-minute download link for the PDF; the object itself is private."""
     inv = _invoice_for(db, invoice_id, user)
     if not inv.pdf_url:

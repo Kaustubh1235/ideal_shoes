@@ -23,7 +23,9 @@ class CreateOrderIn(BaseModel):
 
 
 @router.post("/razorpay/order")
-def create_order(payload: CreateOrderIn, db: Session = Depends(get_db), user: AuthUser = Depends(get_current_user)) -> dict:
+def create_order(
+    payload: CreateOrderIn, db: Session = Depends(get_db), user: AuthUser = Depends(get_current_user)
+) -> dict:
     order = db.query(Order).filter(Order.id == payload.order_id).first()
     if order is None or not can_access_order(user, order.user_id):
         raise HTTPException(status_code=404, detail="not_found")
@@ -59,7 +61,7 @@ async def webhook(
     try:
         payload = await request.json()
     except Exception:
-        raise HTTPException(status_code=400, detail="invalid_json")
+        raise HTTPException(status_code=400, detail="invalid_json") from None
     if not x_razorpay_signature:
         raise HTTPException(status_code=400, detail="missing_signature")
     result = handle_webhook_event(db, payload, raw, x_razorpay_signature)

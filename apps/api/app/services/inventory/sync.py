@@ -8,15 +8,20 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Iterable
 
 import httpx
 from sqlalchemy.orm import Session
 
 from app.db.enums import StockMovementReason
 from app.db.models import Inventory, Order, ProductVariant, StockMovement, Warehouse
-from app.services.inventory.client import InventoryClient, InventoryError, InventoryNotConfigured, StockItem
+from app.services.inventory.client import (
+    InventoryClient,
+    InventoryError,
+    InventoryNotConfigured,
+    StockItem,
+)
 
 log = logging.getLogger(__name__)
 

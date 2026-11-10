@@ -10,6 +10,7 @@ import hashlib
 import hmac
 import json
 import os
+import time
 import uuid
 
 import pytest
@@ -24,8 +25,8 @@ os.environ.setdefault("AUTH_SECRET", "test-secret-test-secret")
 
 @pytest.fixture(scope="module")
 def env():
+    import jwt
     from fastapi.testclient import TestClient
-    from jose import jwt
     from sqlalchemy import create_engine, text
     from sqlalchemy.orm import sessionmaker
 
@@ -53,7 +54,7 @@ def env():
     s = get_settings()
 
     def token(sub: str, user_type: str) -> dict:
-        t = jwt.encode({"sub": sub, "userType": user_type, "iss": s.jwt_issuer, "aud": s.jwt_audience}, s.auth_secret, algorithm="HS256")
+        t = jwt.encode({"sub": sub, "userType": user_type, "iss": s.jwt_issuer, "aud": s.jwt_audience, "exp": int(time.time()) + 300}, s.auth_secret, algorithm="HS256")
         return {"authorization": f"Bearer {t}"}
 
     yield {"client": TestClient(app), "Session": Session, "token": token, "settings": s}

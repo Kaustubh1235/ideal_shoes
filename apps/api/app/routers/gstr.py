@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import re
-
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -72,4 +71,5 @@ def run_file(run_id: UUID, db: Session = Depends(get_db), _user: AuthUser = Depe
     r = db.query(GstrExportRun).filter(GstrExportRun.id == run_id).first()
     if r is None or not r.file_url:
         raise HTTPException(status_code=404, detail="not_found")
-    return RedirectResponse(s3_client.presigned_get(r.file_url, filename=f"GSTR1_{r.period_month}.csv"), status_code=302)
+    url = s3_client.presigned_get(r.file_url, filename=f"GSTR1_{r.period_month}.csv")
+    return RedirectResponse(url, status_code=302)

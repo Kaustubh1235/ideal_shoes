@@ -9,10 +9,8 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
-    JSON,
     Boolean,
     DateTime,
-    Enum as PgEnum,
     Float,
     ForeignKey,
     Index,
@@ -21,6 +19,9 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+)
+from sqlalchemy import (
+    Enum as PgEnum,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -73,13 +74,13 @@ class User(Base):
         nullable=False,
     )
 
-    customer: Mapped["CustomerProfile | None"] = relationship(back_populates="user", uselist=False)
-    dealer: Mapped["DealerProfile | None"] = relationship(back_populates="user", uselist=False)
-    staff: Mapped["StaffProfile | None"] = relationship(back_populates="user", uselist=False)
-    addresses: Mapped[list["Address"]] = relationship(back_populates="user")
-    orders: Mapped[list["Order"]] = relationship(back_populates="user")
-    carts: Mapped[list["Cart"]] = relationship(back_populates="user")
-    sessions: Mapped[list["Session"]] = relationship(back_populates="user")
+    customer: Mapped[CustomerProfile | None] = relationship(back_populates="user", uselist=False)
+    dealer: Mapped[DealerProfile | None] = relationship(back_populates="user", uselist=False)
+    staff: Mapped[StaffProfile | None] = relationship(back_populates="user", uselist=False)
+    addresses: Mapped[list[Address]] = relationship(back_populates="user")
+    orders: Mapped[list[Order]] = relationship(back_populates="user")
+    carts: Mapped[list[Cart]] = relationship(back_populates="user")
+    sessions: Mapped[list[Session]] = relationship(back_populates="user")
 
     __table_args__ = (Index("ix_users_user_type", "user_type"),)
 
@@ -223,9 +224,9 @@ class Warehouse(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = _ts()
 
-    inventory: Mapped[list["Inventory"]] = relationship(back_populates="warehouse")
-    stock_movements: Mapped[list["StockMovement"]] = relationship(back_populates="warehouse")
-    shipments: Mapped[list["Shipment"]] = relationship(back_populates="warehouse")
+    inventory: Mapped[list[Inventory]] = relationship(back_populates="warehouse")
+    stock_movements: Mapped[list[StockMovement]] = relationship(back_populates="warehouse")
+    shipments: Mapped[list[Shipment]] = relationship(back_populates="warehouse")
 
 
 # ---------------------------------------------------------------------------
@@ -243,7 +244,7 @@ class Category(Base):
     )
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    products: Mapped[list["Product"]] = relationship(back_populates="category")
+    products: Mapped[list[Product]] = relationship(back_populates="category")
 
 
 class Product(Base):
@@ -277,8 +278,8 @@ class Product(Base):
     )
 
     category: Mapped[Category | None] = relationship(back_populates="products")
-    variants: Mapped[list["ProductVariant"]] = relationship(back_populates="product")
-    images: Mapped[list["ProductImage"]] = relationship(back_populates="product")
+    variants: Mapped[list[ProductVariant]] = relationship(back_populates="product")
+    images: Mapped[list[ProductImage]] = relationship(back_populates="product")
 
     __table_args__ = (
         Index("ix_products_status", "status"),
@@ -404,7 +405,7 @@ class Cart(Base):
     )
 
     user: Mapped[User | None] = relationship(back_populates="carts")
-    items: Mapped[list["CartItem"]] = relationship(back_populates="cart", cascade="all, delete-orphan")
+    items: Mapped[list[CartItem]] = relationship(back_populates="cart", cascade="all, delete-orphan")
 
 
 class CartItem(Base):
@@ -469,10 +470,10 @@ class Order(Base):
     )
 
     user: Mapped[User | None] = relationship(back_populates="orders")
-    items: Mapped[list["OrderItem"]] = relationship(back_populates="order", cascade="all, delete-orphan")
-    payments: Mapped[list["Payment"]] = relationship(back_populates="order")
-    invoices: Mapped[list["Invoice"]] = relationship(back_populates="order")
-    shipments: Mapped[list["Shipment"]] = relationship(back_populates="order")
+    items: Mapped[list[OrderItem]] = relationship(back_populates="order", cascade="all, delete-orphan")
+    payments: Mapped[list[Payment]] = relationship(back_populates="order")
+    invoices: Mapped[list[Invoice]] = relationship(back_populates="order")
+    shipments: Mapped[list[Shipment]] = relationship(back_populates="order")
 
     __table_args__ = (
         Index("ix_orders_user_id", "user_id"),
@@ -533,7 +534,7 @@ class Payment(Base):
     )
 
     order: Mapped[Order] = relationship(back_populates="payments")
-    events: Mapped[list["PaymentEvent"]] = relationship(back_populates="payment")
+    events: Mapped[list[PaymentEvent]] = relationship(back_populates="payment")
 
     __table_args__ = (
         Index("ix_payments_order_id", "order_id"),
@@ -619,7 +620,7 @@ class Invoice(Base):
     cancel_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     order: Mapped[Order] = relationship(back_populates="invoices")
-    credit_notes: Mapped[list["CreditNote"]] = relationship(back_populates="invoice")
+    credit_notes: Mapped[list[CreditNote]] = relationship(back_populates="invoice")
 
     __table_args__ = (Index("ix_invoices_fy_series", "financial_year", "series_code"),)
 

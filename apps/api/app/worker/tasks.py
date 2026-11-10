@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from app.db.models import IdempotencyKey
@@ -150,7 +150,7 @@ def task_whatsapp_order_confirmed(order_id: str) -> bool:
 def task_cleanup_idempotency() -> int:
     db = SessionLocal()
     try:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         deleted = (
             db.query(IdempotencyKey)
             .filter(IdempotencyKey.expires_at < now)

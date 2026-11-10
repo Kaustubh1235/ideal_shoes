@@ -13,7 +13,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
@@ -42,7 +42,7 @@ def verify_client_callback(order_id: str, payment_id: str, signature: str) -> bo
     """Used on the client redirect after Razorpay Checkout success (separate signature)."""
     if not settings.razorpay_key_secret:
         return False
-    msg = f"{order_id}|{payment_id}".encode("utf-8")
+    msg = f"{order_id}|{payment_id}".encode()
     expected = hmac.new(
         settings.razorpay_key_secret.encode("utf-8"), msg, hashlib.sha256
     ).hexdigest()
@@ -118,11 +118,14 @@ def handle_webhook_event(db: Session, payload: dict[str, Any], raw_body: bytes, 
         order: Order | None = db.query(Order).filter(Order.id == payment.order_id).first()
         paid_amount = entity.get("amount")
         if order and paid_amount is not None and int(paid_amount) != int(payment.amount):
-            log.error("razorpay_webhook.amount_mismatch", extra={"order_id": str(order.id), "paid": paid_amount, "expected": payment.amount})
+            log.error(
+                "razorpay_webhook.amount_mismatch",
+                extra={"order_id": str(order.id), "paid": paid_amount, "expected": payment.amount},
+            )
             order = None  # recorded on the payment; a person must reconcile before it ships
         if order and order.status.value in ("pending_payment", "draft"):
             order.status = "paid"
-            order.paid_at = datetime.now(timezone.utc)
+            order.paid_at = datetime.now(UTC)
             db.add(order)
 
             # Invoice, stock-out to the inventory app (idempotent per order item; no-op when

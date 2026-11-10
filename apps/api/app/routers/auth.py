@@ -6,16 +6,16 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.db.session import get_db
 from app.db.models import OtpCode
+from app.db.session import get_db
 from app.services.sms.msg91 import send_otp_sms
 
 router = APIRouter()
@@ -49,7 +49,7 @@ OTP_PER_PHONE_DAY = 10
 
 @router.post("/otp/request", response_model=OtpResponse)
 def request_otp(payload: OtpRequest, db: Session = Depends(get_db)) -> OtpResponse:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     def sent_since(delta: timedelta) -> int:
         return (
@@ -89,7 +89,7 @@ def request_otp(payload: OtpRequest, db: Session = Depends(get_db)) -> OtpRespon
 @router.post("/otp/verify")
 def verify_otp(payload: OtpVerify, db: Session = Depends(get_db)) -> dict:
     code_hash = _hash_code(payload.code)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     candidate: OtpCode | None = (
         db.query(OtpCode)
         .filter(

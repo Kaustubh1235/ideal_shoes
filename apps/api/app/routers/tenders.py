@@ -14,10 +14,10 @@ from app.auth import AuthUser, require_staff
 from app.db.enums import TenderSource, TenderStatus
 from app.db.models import Tender
 from app.db.session import get_db
+from app.services.storage.s3 import PRIVATE_PREFIX, s3_client
 from app.services.tenders.cppp_rss import poll_cppp_rss
 from app.services.tenders.email_parser import poll_tender_inbox
 from app.services.tenders.writer import upsert_tender
-from app.services.storage.s3 import PRIVATE_PREFIX, s3_client
 
 router = APIRouter()
 

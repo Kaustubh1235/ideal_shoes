@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 TIMEOUT_SECONDS = 10.0
 
 
-class InventoryNotConfigured(RuntimeError):
+class InventoryNotConfigured(RuntimeError):  # noqa: N818 -- name used across the codebase
     """Raised when the inventory link is not configured (env vars unset)."""
 
 
@@ -53,7 +53,7 @@ class StockItem:
     updated_at: str | None = None
 
     @classmethod
-    def from_json(cls, d: dict[str, Any]) -> "StockItem":
+    def from_json(cls, d: dict[str, Any]) -> StockItem:
         return cls(
             sku=str(d.get("sku", "")).strip(),
             qty=int(d.get("qty") or 0),
@@ -159,7 +159,7 @@ class InventoryClient:
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "InventoryClient":
+    def __enter__(self) -> InventoryClient:
         return self
 
     def __exit__(self, *exc: object) -> None:
