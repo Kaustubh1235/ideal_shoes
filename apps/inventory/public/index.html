@@ -16,33 +16,34 @@
 <!-- GATE: setup / login -->
 <div id="gate" class="gate" hidden>
   <div class="card">
+    <div class="gate-lang"><button type="button" id="gateLang" class="lang" aria-label="Language / भाषा"><span data-l="en">EN</span><span data-l="hi">हिं</span></button></div>
     <div id="gate-setup" hidden>
-      <h1>Set up the Stock Room</h1>
-      <p class="muted small">You are the owner. Create your name and a PIN. You can add staff afterwards under Admin.</p>
-      <div class="field"><label for="setupShop">Shop name</label><input id="setupShop" value="Ideal Shoes"></div>
-      <div class="field"><label for="setupName">Your name</label><input id="setupName" placeholder="Papa"></div>
-      <div class="field"><label for="setupPin">PIN (4–8 digits)</label><input id="setupPin" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password"></div>
-      <div class="field"><label for="setupPin2">PIN again</label><input id="setupPin2" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password"></div>
-      <div class="field" id="setupCodeField" hidden><label for="setupCode">Setup code (STOCK_SETUP_TOKEN in the server's .env)</label><input id="setupCode" class="mono" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <h1 data-i18n="setup.title">Set up the Stock Room</h1>
+      <p class="muted small" data-i18n="setup.intro">You are the owner. Choose your name and a PIN. Staff can be added later under Admin.</p>
+      <div class="field"><label for="setupShop" data-i18n="setup.shop">Shop name</label><input id="setupShop" value="Ideal Shoes"></div>
+      <div class="field"><label for="setupName" data-i18n="setup.name">Your name</label><input id="setupName" placeholder="Papa"></div>
+      <div class="field"><label for="setupPin" data-i18n="setup.pin">PIN (4 to 8 digits)</label><input id="setupPin" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password"></div>
+      <div class="field"><label for="setupPin2" data-i18n="setup.pin2">PIN again</label><input id="setupPin2" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password"></div>
+      <div class="field" id="setupCodeField" hidden><label for="setupCode" data-i18n="setup.code">Setup code (STOCK_SETUP_TOKEN in the server's .env)</label><input id="setupCode" class="mono" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
       <div id="setupMsg" class="notice bad" hidden></div>
-      <button type="button" class="btn primary" id="setupGo">Create and open</button>
+      <button type="button" class="btn primary" id="setupGo" data-i18n="setup.go">Create and open</button>
     </div>
     <div id="gate-login" hidden>
       <h1 id="loginShop">Ideal Shoes</h1>
-      <p class="muted small">Who is this? · आप कौन हैं?</p>
+      <p class="muted small" data-i18n="gate.who">Who is this?</p>
       <div class="people" id="people"></div>
     </div>
     <div id="gate-pin" hidden>
       <div class="btn-row" style="justify-content:space-between">
         <h1 id="pinWho">Name</h1>
-        <button type="button" class="btn quiet" id="pinBack">← Back</button>
+        <button type="button" class="btn quiet" id="pinBack" data-i18n="gate.back">← Back</button>
       </div>
-      <p class="muted small">Enter your PIN · अपना PIN डालें</p>
+      <p class="muted small" data-i18n="gate.pin">Enter your PIN, then OK</p>
       <div class="pindots" id="pindots"></div>
       <div id="pinMsg" class="notice bad" hidden></div>
       <div class="pinpad" id="pinpad"></div>
     </div>
-    <div id="gate-wait" hidden><p class="muted">Connecting…</p></div>
+    <div id="gate-wait" hidden><p class="muted" data-i18n="gate.wait">Connecting…</p></div>
     <p class="ver" id="gateVer"></p>
   </div>
 </div>
@@ -55,7 +56,7 @@
       <button type="button" id="langBtn" class="lang" aria-label="Language / भाषा"><span data-l="en">EN</span><span data-l="hi">हिं</span></button>
       <span id="queueBadge" class="badge-q" hidden title="Changes waiting to sync">0</span>
       <span class="dot" id="netDot"></span><span id="netText">…</span>
-      <span class="who"><button type="button" id="logoutBtn" title="Sign out"><span id="meName">—</span> · out</button></span>
+      <span class="who"><button type="button" id="logoutBtn"><span id="meName">—</span> · <span data-i18n="top.out">Sign out</span></button></span>
     </div>
   </header>
   <div class="shell">
@@ -79,7 +80,7 @@
       <button type="button" data-view="admin" id="more-admin" data-i18n="nav.admin" hidden>Admin</button>
     </div>
     <main>
-      <div id="offlineNotice" class="notice" hidden>You're offline. Scans and changes are saved on this phone and will sync when the network is back.</div>
+      <div id="offlineNotice" class="notice" hidden data-i18n="net.offNotice">You're offline. Changes are saved on this phone and will sync when the network is back.</div>
 
       <!-- HOME -->
       <section class="view" id="view-home">
@@ -168,18 +169,18 @@
       <section class="view" id="view-stock" hidden>
         <div class="view-head"><h2 data-i18n="stock.title">Stock</h2><span class="muted small" id="stockSummary"></span></div>
         <div class="searchbar">
-          <input type="search" id="q" placeholder="Search brand, article, colour, SKU, rack…" autocomplete="off">
+          <input type="search" id="q" data-i18n-ph="stock.search" placeholder="Search brand, article, colour, rack…" autocomplete="off">
           <select id="fBrand"><option value="">All brands</option></select>
           <select id="fCat"><option value="">All types</option></select>
-          <select id="fSort"><option value="brand">Sort: brand</option><option value="qtyAsc">Sort: lowest qty</option><option value="ageDesc">Sort: oldest</option><option value="valueDesc">Sort: highest value</option></select>
+          <select id="fSort"><option value="brand" data-i18n="stock.sortBrand">Sort: brand</option><option value="qtyAsc" data-i18n="stock.sortQty">Sort: lowest stock</option><option value="ageDesc" data-i18n="stock.sortAge">Sort: oldest</option><option value="valueDesc" data-i18n="stock.sortValue">Sort: most money</option></select>
         </div>
         <div class="table-wrap" id="stockTable">
-          <table><thead><tr><th>SKU</th><th>Item</th><th>Size</th><th class="r">Qty</th><th class="r">Age</th><th class="r">Value</th><th>Rack</th></tr></thead><tbody id="stockRows"></tbody></table>
+          <table class="stock-table"><thead><tr><th class="w" data-i18n="stock.code">Code</th><th data-i18n="stock.item">Item</th><th class="w sz" data-i18n="stock.size">Size</th><th class="r" data-i18n="stock.qty">Pairs</th><th class="r w" data-i18n="stock.age">Days</th><th class="r" data-i18n="stock.value">Value</th><th class="w" data-i18n="stock.rack">Rack</th></tr></thead><tbody id="stockRows"></tbody></table>
         </div>
         <div class="empty" id="stockEmpty" hidden>
-          <h3>No items yet</h3>
-          <p>Every box becomes one row here: brand, article, colour, size and how many pairs are on the rack. Start with the register, one article at a time.</p>
-          <button type="button" class="btn primary" data-view="add">Add the first article</button>
+          <h3 data-i18n="stock.emptyTitle">No items yet</h3>
+          <p data-i18n="stock.emptyText">Take a photo of a supplier's challan under Maal aaya, and its items appear here.</p>
+          <button type="button" class="btn primary" id="stockEmptyGo" data-i18n="stock.emptyGo">Maal aaya</button>
         </div>
       </section>
 
@@ -236,73 +237,73 @@
 
       <!-- INSIGHTS / DASHBOARD -->
       <section class="view" id="view-dash" hidden>
-        <div class="view-head"><h2 data-i18n="dash.title">Hisaab</h2><div class="btn-row"><select id="dashDays"><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="180">Last 180 days</option></select><span class="muted small" id="dashAsOf"></span></div></div>
+        <div class="view-head"><h2 data-i18n="dash.title">Hisaab</h2><div class="btn-row"><select id="dashDays"><option value="30" data-i18n="dash.d30">Last 30 days</option><option value="90" data-i18n="dash.d90">Last 90 days</option><option value="180" data-i18n="dash.d180">Last 180 days</option></select><span class="muted small" id="dashAsOf"></span></div></div>
         <div class="tiles" id="dashTiles"></div>
         <div class="grid2">
-          <div class="card"><div class="label" style="margin-bottom:8px">Sold vs received per day</div><div id="chTrend"></div><div class="legend"><span><i style="background:var(--accent)"></i>Sold</span><span><i style="background:var(--good)"></i>Received</span></div></div>
-          <div class="card"><div class="label" style="margin-bottom:8px">Where the money sits · ageing</div><div id="chAge"></div></div>
+          <div class="card"><div class="label" style="margin-bottom:8px" data-i18n="dash.trend">Sold and received per day</div><div id="chTrend"></div><div class="legend"><span><i style="background:var(--accent)"></i><span data-i18n="dash.legendSold">Sold</span></span><span><i style="background:var(--good)"></i><span data-i18n="dash.legendIn">Received</span></span></div></div>
+          <div class="card"><div class="label" style="margin-bottom:8px" data-i18n="dash.ageing">Where the money sits · how old</div><div id="chAge"></div></div>
         </div>
         <div class="grid2">
-          <div class="card"><div class="label" style="margin-bottom:8px">Top sellers, last 30 days</div><div class="table-wrap flat"><table><thead><tr><th>Item</th><th class="r">Sold</th><th class="r">Left</th></tr></thead><tbody id="dashMovers"></tbody></table></div></div>
-          <div class="card"><div class="label" style="margin-bottom:8px">Broken size runs · selling articles missing sizes</div><div class="table-wrap flat"><table><thead><tr><th>Article</th><th>Missing</th><th class="r">Sold</th></tr></thead><tbody id="dashGaps"></tbody></table></div></div>
+          <div class="card"><div class="label" style="margin-bottom:8px" data-i18n="dash.top">Top sellers, last 30 days</div><div class="table-wrap flat"><table><thead><tr><th data-i18n="stock.item">Item</th><th class="r" data-i18n="dash.soldCol">Sold</th><th class="r" data-i18n="dash.left">Left</th></tr></thead><tbody id="dashMovers"></tbody></table></div></div>
+          <div class="card" id="dashGapsCard"><div class="label" style="margin-bottom:8px" data-i18n="dash.gaps">Missing sizes · selling articles</div><div class="table-wrap flat"><table><thead><tr><th data-i18n="stock.item">Item</th><th data-i18n="dash.missing">Missing</th><th class="r" data-i18n="dash.soldCol">Sold</th></tr></thead><tbody id="dashGaps"></tbody></table></div></div>
         </div>
         <div class="grid2">
-          <div class="card"><div class="label" style="margin-bottom:8px">By brand</div><div class="table-wrap flat"><table><thead><tr><th>Brand</th><th class="r">SKUs</th><th class="r">Units</th><th class="r">Value</th><th class="r">Dead</th></tr></thead><tbody id="dashBrands"></tbody></table></div></div>
-          <div class="card"><div class="label" style="margin-bottom:8px">Dead stock · 180+ days, nothing sold</div><div class="table-wrap flat"><table><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Days</th><th class="r">Value</th></tr></thead><tbody id="dashDead"></tbody></table></div></div>
+          <div class="card"><div class="label" style="margin-bottom:8px" data-i18n="dash.byBrand">By brand</div><div class="table-wrap flat"><table><thead><tr><th data-i18n="dash.brand">Brand</th><th class="r" data-i18n="dash.articles">Articles</th><th class="r" data-i18n="dash.pairs">Pairs</th><th class="r" data-i18n="dash.value">Value</th><th class="r" data-i18n="dash.deadCol">Not selling</th></tr></thead><tbody id="dashBrands"></tbody></table></div></div>
+          <div class="card"><div class="label" style="margin-bottom:8px" data-i18n="dash.deadTitle">Not selling · nothing sold in 180+ days</div><div class="table-wrap flat"><table><thead><tr><th data-i18n="stock.item">Item</th><th class="r" data-i18n="stock.qty">Pairs</th><th class="r" data-i18n="dash.days">Days</th><th class="r" data-i18n="dash.value">Value</th></tr></thead><tbody id="dashDead"></tbody></table></div></div>
         </div>
         <div class="card ask">
           <div class="label" data-i18n="ask.title">Ask about the stock · AI</div>
-          <div id="askUnset" class="notice" hidden>Not set up yet. Admin → Settings → Insights: choose a provider and paste an API key.</div>
+          <div id="askUnset" class="notice" hidden data-i18n="ask.unset">Not set up yet. Admin → AI: choose a provider and paste a key.</div>
           <div class="chips" id="askChips"></div>
-          <textarea id="askQ" placeholder="e.g. Which articles should we reorder before the wedding season? What should go on the clearance rack?"></textarea>
-          <div class="btn-row"><button type="button" class="btn primary" id="askGo">Ask</button><span class="muted small" id="askStatus"></span></div>
+          <textarea id="askQ" data-i18n-ph="ask.ph"></textarea>
+          <div class="btn-row"><button type="button" class="btn primary" id="askGo" data-i18n="ask.go">Ask</button><span class="muted small" id="askStatus"></span></div>
           <div id="askAnswer" class="answer" hidden></div>
-          <details><summary>Earlier questions</summary><ul class="movelist" id="askHistory" style="margin-top:8px"></ul></details>
-          <details><summary>What the AI sees (data digest)</summary><pre id="digestPre" class="answer small" style="overflow:auto;max-height:300px"></pre></details>
+          <details><summary data-i18n="ask.earlier">Earlier questions</summary><ul class="movelist" id="askHistory" style="margin-top:8px"></ul></details>
+          <details><summary data-i18n="ask.digest">What the AI sees (data digest)</summary><pre id="digestPre" class="answer small" style="overflow:auto;max-height:300px"></pre></details>
         </div>
         <div class="card stack">
-          <div class="label">Export</div>
-          <div class="btn-row"><a class="btn primary" href="/api/v1/export/stock.xlsx">Excel (stock, by article, movements)</a><a class="btn" href="/api/v1/export/items.csv">Stock list (CSV)</a><a class="btn" href="/api/v1/export/movements.csv">Movements (CSV)</a></div>
-          <p class="muted small" style="margin:0">Opens in Excel or Google Sheets. The stock list also imports straight into the website's product variants.</p>
+          <div class="label" data-i18n="export.title">Export</div>
+          <div class="btn-row"><a class="btn primary" href="/api/v1/export/stock.xlsx" data-i18n="export.xlsx">Excel (stock, by article, to order, movements)</a><a class="btn" href="/api/v1/export/items.csv" data-i18n="export.items">Stock list (CSV)</a><a class="btn" href="/api/v1/export/movements.csv" data-i18n="export.moves">Movements (CSV)</a></div>
+          <p class="muted small" style="margin:0" data-i18n="export.note">Opens in Excel or Google Sheets. The stock list also imports into the website's products.</p>
         </div>
       </section>
 
       <!-- ADMIN -->
       <section class="view" id="view-admin" hidden>
-        <div class="view-head"><h2>Admin</h2></div>
+        <div class="view-head"><h2 data-i18n="nav.admin">Admin</h2></div>
         <div class="card stack">
-          <div class="label">People · who can use this</div>
-          <div class="table-wrap flat"><table><thead><tr><th>Name</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody id="userRows"></tbody></table></div>
+          <div class="label" data-i18n="admin.people">People · who can use this</div>
+          <ul class="people-list" id="userRows"></ul>
           <form class="form-grid" id="userForm">
-            <div class="field"><label for="uName">Name</label><input id="uName" required placeholder="Raju"></div>
-            <div class="field"><label for="uPin">PIN (4–8 digits)</label><input id="uPin" required inputmode="numeric" pattern="[0-9]{4,8}" autocomplete="new-password"></div>
-            <div class="field"><label for="uRole">Role</label><select id="uRole"><option value="staff">Staff: scan, sell, count, add</option><option value="admin">Admin: everything</option></select></div>
-            <div class="span3"><button type="submit" class="btn primary">Add person</button></div>
+            <div class="field"><label for="uName" data-i18n="admin.name">Name</label><input id="uName" required placeholder="Raju"></div>
+            <div class="field"><label for="uPin" data-i18n="admin.pin">PIN (4 to 8 digits)</label><input id="uPin" required inputmode="numeric" pattern="[0-9]{4,8}" autocomplete="new-password"></div>
+            <div class="field"><label for="uRole" data-i18n="admin.role">Role</label><select id="uRole"><option value="staff" data-i18n="admin.roleStaff">Staff: bills, sell, count</option><option value="admin" data-i18n="admin.roleAdmin">Admin: everything</option></select></div>
+            <div class="span3"><button type="submit" class="btn primary" data-i18n="admin.add">Add person</button></div>
           </form>
         </div>
         <div class="card stack">
-          <div class="label">Settings</div>
+          <div class="label" data-i18n="admin.settings">Settings</div>
           <form class="form-grid" id="settingsForm">
-            <div class="field"><label for="sShop">Shop name</label><input id="sShop"></div>
-            <div class="field span2"><label for="sUrl">This app's address (printed inside each QR so a phone camera opens the item)</label><input id="sUrl" class="mono" placeholder="https://stock.idealx.in"></div>
-            <div class="field span3"><label for="sRuns">Size runs, one line per type: <code>type: size, size, …</code></label><textarea id="sRuns" class="mono"></textarea></div>
-            <div class="span3"><button type="submit" class="btn primary">Save settings</button></div>
+            <div class="field"><label for="sShop" data-i18n="admin.shop">Shop name</label><input id="sShop"></div>
+            <div class="field span2"><label for="sUrl" data-i18n="admin.url">This app's address (printed inside each QR label)</label><input id="sUrl" class="mono" placeholder="https://stock.idealx.in"></div>
+            <div class="field span3"><label for="sRuns" data-i18n="admin.runs">Size runs, one line per type (type: size, size, …)</label><textarea id="sRuns" class="mono"></textarea></div>
+            <div class="span3"><button type="submit" class="btn primary" data-i18n="admin.save">Save settings</button></div>
           </form>
         </div>
         <div class="card stack">
-          <div class="label">Insights · AI provider</div>
-          <p class="muted small" style="margin:0">Reads bill photos and answers stock questions. The key is stored encrypted on this server and never sent to the browser. The AI sees the stock digest and the bill photos you take, never customer data. A Gemini key comes from aistudio.google.com → Get API key.</p>
+          <div class="label" data-i18n="admin.ai">AI · reads bills and answers questions</div>
+          <p class="muted small" style="margin:0" data-i18n="admin.aiNote">The key is stored encrypted on this server and never sent to a phone.</p>
           <form class="form-grid" id="llmForm">
-            <div class="field"><label for="llmProvider">Provider</label><select id="llmProvider"><option value="none">Off</option><option value="gemini">Google Gemini (reads Hindi best)</option><option value="anthropic">Anthropic (Claude)</option><option value="openai">OpenAI-compatible</option></select></div>
-            <div class="field"><label for="llmModel">Model</label><input id="llmModel" placeholder="gemini-2.5-flash"></div>
+            <div class="field"><label for="llmProvider" data-i18n="admin.provider">Provider</label><select id="llmProvider"><option value="none" data-i18n="admin.aiOff">Off</option><option value="gemini">Google Gemini (reads Hindi best)</option><option value="anthropic">Anthropic (Claude)</option><option value="openai">OpenAI-compatible</option></select></div>
+            <div class="field"><label for="llmModel" data-i18n="admin.model">Model</label><input id="llmModel" placeholder="gemini-2.5-flash"></div>
             <div class="field"><label for="llmBase">Base URL</label><input id="llmBase" class="mono" placeholder="leave blank for the default"></div>
-            <div class="field span2"><label for="llmKey">API key <span id="llmKeyState" class="muted"></span></label><input id="llmKey" type="password" autocomplete="off" placeholder="paste to set or replace"></div>
-            <div class="field"><label for="llmMax">Max answer tokens</label><input id="llmMax" type="number" min="100" max="4000" step="50" value="800"></div>
-            <div class="span3 btn-row"><button type="submit" class="btn primary">Save AI settings</button><button type="button" class="btn danger" id="llmClear">Remove key</button></div>
+            <div class="field span2"><label for="llmKey"><span data-i18n="admin.key">API key</span> <span id="llmKeyState" class="muted"></span></label><input id="llmKey" type="password" autocomplete="off" data-i18n-ph="admin.keyPh" placeholder="paste to set or replace"></div>
+            <div class="field"><label for="llmMax" data-i18n="admin.max">Max answer length (tokens)</label><input id="llmMax" type="number" min="100" max="4000" step="50" value="800"></div>
+            <div class="span3 btn-row"><button type="submit" class="btn primary" data-i18n="admin.aiSave">Save AI settings</button><button type="button" class="btn danger" id="llmClear" data-i18n="admin.aiClear">Remove key</button></div>
           </form>
         </div>
         <div class="card stack">
-          <div class="label">API keys · for the website and AI agents</div>
+          <div class="label" data-i18n="admin.apiKeys">API keys · for the website and AI agents</div>
           <p class="muted small" style="margin:0">A key is shown once when created. <em>Read</em> keys can fetch stock and the digest; <em>Read + write</em> keys can also record movements (the website uses one to deduct web orders). Spec: <a href="/api/v1/public/openapi.json" target="_blank" rel="noopener">openapi.json</a>.</p>
           <div class="table-wrap flat"><table><thead><tr><th>Name</th><th>Prefix</th><th>Scopes</th><th>Last used</th><th></th></tr></thead><tbody id="keyRows"></tbody></table></div>
           <form class="form-grid" id="keyForm">
@@ -313,14 +314,14 @@
           <div id="keyShow" hidden class="stack"><div class="notice good">Copy this key now. It will not be shown again.</div><div class="keybox" id="keyValue"></div><button type="button" class="btn" id="keyCopy">Copy</button></div>
         </div>
         <div class="card stack">
-          <div class="label">Import from Excel or CSV</div>
+          <div class="label" data-i18n="admin.import">Import from Excel or CSV</div>
           <p class="muted small" style="margin:0">Columns: brand, article, colour, size, cat, cost, mrp, qty, loc. Existing SKUs are topped up, new ones created.</p>
-          <div class="btn-row"><label class="btn" for="csvFile">Choose Excel or CSV file</label><input type="file" id="csvFile" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden><a class="btn" href="/api/v1/export/template.xlsx">Blank Excel template</a><span class="muted small" id="csvMsg"></span></div>
+          <div class="btn-row"><label class="btn" for="csvFile" data-i18n="admin.importPick">Choose Excel or CSV file</label><input type="file" id="csvFile" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden><a class="btn" href="/api/v1/export/template.xlsx" data-i18n="admin.template">Blank Excel template</a><span class="muted small" id="csvMsg"></span></div>
         </div>
         <div class="card stack">
-          <div class="label">Backup &amp; activity</div>
-          <div class="btn-row"><a class="btn" href="/api/v1/admin/backup">Download database backup</a><span class="muted small">Backups also run every night on the server.</span></div>
-          <div class="table-wrap flat"><table><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Detail</th></tr></thead><tbody id="auditRows"></tbody></table></div>
+          <div class="label" data-i18n="admin.backup">Backup &amp; activity</div>
+          <div class="btn-row"><a class="btn" href="/api/v1/admin/backup" data-i18n="admin.download">Download database backup</a><span class="muted small" data-i18n="admin.nightly">Backups also run every night on the server.</span></div>
+          <div class="table-wrap flat"><table><thead><tr><th data-i18n="admin.when">When</th><th data-i18n="admin.who">Who</th><th data-i18n="admin.action">Action</th><th data-i18n="admin.detail">Detail</th></tr></thead><tbody id="auditRows"></tbody></table></div>
         </div>
       </section>
     </main>
@@ -334,45 +335,45 @@
     <div><div class="sku" id="shSku">—</div><div class="name" id="shName">—</div><div class="muted small" id="shMeta"></div></div>
     <button type="button" class="x" id="shClose" aria-label="Close">×</button>
   </div>
-  <div class="qty-big"><div><div class="label"><span data-i18n="sheet.inStock">In stock</span> · स्टॉक</div><div class="q" id="shQty">0</div></div><div class="muted small" id="shLoc"></div></div>
+  <div class="qty-big"><div><div class="label" data-i18n="sheet.inStock">In stock</div><div class="q" id="shQty">0</div></div><div class="muted small" id="shLoc"></div></div>
   <div class="actions3">
-    <button type="button" class="btn big" id="shOut">Sold −1<small>बिक्री</small></button>
-    <button type="button" class="btn big" id="shIn">In +1<small>आमद</small></button>
-    <button type="button" class="btn big" id="shCount">Count<small>गिनती</small></button>
+    <button type="button" class="btn big" id="shOut"><span data-i18n="sheet.out">Sold −1</span><small data-i18n="sheet.outSub">बिक्री</small></button>
+    <button type="button" class="btn big" id="shIn"><span data-i18n="sheet.in">In +1</span><small data-i18n="sheet.inSub">आमद</small></button>
+    <button type="button" class="btn big" id="shCount"><span data-i18n="sheet.count">Count</span><small data-i18n="sheet.countSub">गिनती</small></button>
   </div>
   <div id="shCountBox" class="card stack" hidden>
-    <div class="field"><label for="shCountVal">Units you counted on the rack</label><input id="shCountVal" type="number" min="0" step="1" inputmode="numeric"></div>
-    <div class="btn-row"><button type="button" class="btn primary" id="shCountSave">Save count</button><button type="button" class="btn" id="shCountCancel">Cancel</button></div>
+    <div class="field"><label for="shCountVal" data-i18n="sheet.counted">Pairs you counted on the rack</label><input id="shCountVal" type="number" min="0" step="1" inputmode="numeric"></div>
+    <div class="btn-row"><button type="button" class="btn primary" id="shCountSave" data-i18n="sheet.saveCount">Save count</button><button type="button" class="btn" id="shCountCancel" data-i18n="common.cancel">Cancel</button></div>
   </div>
   <div id="shMoreBox" class="card stack" hidden>
     <div class="form-grid">
-      <div class="field"><label for="shDelta">Change by</label><input id="shDelta" type="number" step="1" inputmode="numeric" placeholder="+6 or −2"></div>
-      <div class="field span2"><label for="shNote">Note</label><input id="shNote" placeholder="Returned by customer, sent to Delhi party…"></div>
+      <div class="field"><label for="shDelta" data-i18n="sheet.changeBy">Change by (+ or −)</label><input id="shDelta" type="number" step="1" inputmode="numeric" placeholder="+6 or −2"></div>
+      <div class="field span2"><label for="shNote" data-i18n="sheet.note">Note</label><input id="shNote" data-i18n-ph="sheet.notePh"></div>
     </div>
-    <div class="btn-row"><button type="button" class="btn primary" id="shDeltaSave">Apply</button></div>
+    <div class="btn-row"><button type="button" class="btn primary" id="shDeltaSave" data-i18n="sheet.apply">Apply</button></div>
   </div>
   <div id="shEditBox" class="card stack" hidden>
     <div class="form-grid">
-      <div class="field"><label for="eCost">Cost ₹</label><input id="eCost" type="number" min="0" step="1" inputmode="numeric"></div>
-      <div class="field"><label for="eMrp">MRP ₹</label><input id="eMrp" type="number" min="0" step="1" inputmode="numeric"></div>
-      <div class="field"><label for="eLoc">Rack / godown</label><input id="eLoc" list="locList"></div>
+      <div class="field"><label for="eCost" data-i18n="sheet.cost">Cost ₹</label><input id="eCost" type="number" min="0" step="1" inputmode="numeric"></div>
+      <div class="field"><label for="eMrp" data-i18n="sheet.mrp">MRP ₹</label><input id="eMrp" type="number" min="0" step="1" inputmode="numeric"></div>
+      <div class="field"><label for="eLoc" data-i18n="sheet.rack">Rack / godown</label><input id="eLoc" list="locList"></div>
     </div>
-    <div class="btn-row"><button type="button" class="btn primary" id="eSave">Save details</button></div>
-    <div class="btn-row" id="delRow"><button type="button" class="btn danger" id="eDelete">Delete this SKU</button></div>
-    <div class="btn-row" id="delConfirm" hidden><span class="small">Delete for good?</span><button type="button" class="btn danger" id="eDeleteYes">Yes, delete</button><button type="button" class="btn" id="eDeleteNo">Keep it</button></div>
+    <div class="btn-row"><button type="button" class="btn primary" id="eSave" data-i18n="sheet.saveDetails">Save details</button></div>
+    <div class="btn-row" id="delRow"><button type="button" class="btn danger" id="eDelete" data-i18n="sheet.delete">Delete this item</button></div>
+    <div class="btn-row" id="delConfirm" hidden><span class="small" data-i18n="sheet.deleteSure">Delete for good?</span><button type="button" class="btn danger" id="eDeleteYes" data-i18n="sheet.deleteYes">Yes, delete</button><button type="button" class="btn" id="eDeleteNo" data-i18n="sheet.deleteNo">Keep it</button></div>
   </div>
   <dl class="kv">
-    <dt>Cost / MRP</dt><dd id="shPrice">—</dd>
-    <dt>Last in</dt><dd id="shLastIn">—</dd>
-    <dt>Last sold</dt><dd id="shLastOut">—</dd>
-    <dt>Last counted</dt><dd id="shLastCount">—</dd>
+    <dt data-i18n="sheet.price">Cost / MRP</dt><dd id="shPrice">—</dd>
+    <dt data-i18n="sheet.lastIn">Last in</dt><dd id="shLastIn">—</dd>
+    <dt data-i18n="sheet.lastOut">Last sold</dt><dd id="shLastOut">—</dd>
+    <dt data-i18n="sheet.lastCount">Last counted</dt><dd id="shLastCount">—</dd>
   </dl>
   <div class="btn-row">
-    <button type="button" class="btn" id="shMore">Other change</button>
-    <button type="button" class="btn" id="shEdit">Edit details</button>
-    <button type="button" class="btn" id="shNext" hidden>Scan next →</button>
+    <button type="button" class="btn" id="shMore" data-i18n="sheet.more">Other change</button>
+    <button type="button" class="btn" id="shEdit" data-i18n="sheet.edit">Edit details</button>
+    <button type="button" class="btn" id="shNext" hidden data-i18n="sheet.next">Scan next →</button>
   </div>
-  <div class="label">History</div>
+  <div class="label" data-i18n="sheet.history">History</div>
   <ul class="movelist" id="shMoves"></ul>
 </div>
 

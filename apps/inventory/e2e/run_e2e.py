@@ -157,7 +157,7 @@ def main() -> int:
             # ---- stock list ----------------------------------------------------
             page.click("#tab-stock")
             expect(page.locator("#stockRows tr")).to_have_count(3)
-            expect(page.locator("#stockSummary")).to_contain_text("10 units")
+            expect(page.locator("#stockSummary")).to_contain_text("Articles 1 · pairs 10")
             page.fill("#q", "BLA-9")
             expect(page.locator("#stockRows tr")).to_have_count(1)
             page.fill("#q", "")
@@ -167,6 +167,11 @@ def main() -> int:
             page.fill("#codeInput", f"{base}/#IDEA-DMSBOOT-BLA-9")
             page.click("#codeGo")
             expect(page.locator("#sheet")).to_be_visible()
+            expect(page.locator("#shQty")).to_have_text("5")
+            page.click("#shOut")
+            expect(page.locator("#shQty")).to_have_text("4")
+            # one tap changes stock at once, so the toast offers Undo
+            page.click("#toast button")
             expect(page.locator("#shQty")).to_have_text("5")
             page.click("#shOut")
             expect(page.locator("#shQty")).to_have_text("4")
@@ -332,10 +337,16 @@ def main() -> int:
             gold = pathlib.Path(data) / "gold.csv"
             page.evaluate("""() => fetch('/api/v1/bills/apply', { method: 'POST', headers: { 'content-type': 'application/json', 'x-requested-with': 'StockRoom' },
               body: JSON.stringify({ kind: 'in', lines: [{ qty: 4, article: 'Gold sandal', rate: 310 }] }) }).then(r => r.status)""")
-            gold.write_text("item,qty\nGold sandal,4\n")
+            gold.write_text("item,qty\nGold sandal,4\nSomething unknown,1\n")
             page.click("#billModeOut")
             page.set_input_files("#billSheet", str(gold))
             expect(page.locator("#billCheck")).to_contain_text("4 → 0", timeout=10000)
+            # a row with no match is marked before Approve, and Approve points at it instead of failing silently
+            expect(page.locator("#bl-row-1.need")).to_contain_text("Pick which item this is")
+            page.click("#billApprove")
+            expect(page.locator("#billErr")).to_be_visible()
+            expect(page.locator("#billErr")).to_be_in_viewport()
+            page.click("#billCheck [data-remove='1']")
             page.click("#billApprove")
             expect(page.locator("#billDoneTitle")).to_have_text("4 pairs sold")
             page.click("#billHome")
@@ -350,6 +361,11 @@ def main() -> int:
             expect(page.locator("#homeIn b")).to_have_text("माल आया")
             expect(page.locator("#netText")).to_have_text("चालू")
             page.screenshot(path=str(ROOT / "e2e" / "last-phone-home-hindi.png"), full_page=True)
+            go(page, "stock")
+            expect(page.locator("#stockTable thead")).to_contain_text("जोड़े")
+            expect(page.locator("#stockSummary")).to_contain_text("आर्टिकल")
+            expect(page.locator("#logoutBtn")).to_contain_text("बाहर निकलें")
+            go(page, "home")
             page.click("#langBtn")
             expect(page.locator("#homeIn b")).to_have_text("Maal aaya")
 

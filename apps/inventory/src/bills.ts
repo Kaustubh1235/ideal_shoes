@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { getSetting, getItem, now, type ItemRow, type MovementRow } from "./db";
 import { decryptSecret } from "./auth";
 import { getLlmConfig } from "./insights";
-import { StockError, addStock, applyMovement, normalizeSku, skuFor, type Actor } from "./stock";
+import { StockError, addStock, applyMovement, latin, normalizeSku, skuFor, type Actor } from "./stock";
 
 /** One line as read from a bill photo or a sales sheet, before a person checks it. */
 export interface BillLine {
@@ -41,7 +41,8 @@ Rules:
 - Otherwise keep names in the script they are written in: Hindi stays in Devanagari, never translated or transliterated (नीला stays नीला, not Blue).
 - size: only when written for that row (e.g. "8", "6-10", "M"); otherwise "".
 - Dates are written day-month-year in India (21-7-26 is 2026-07-21).
-- Never guess a number you cannot read: use null and say what was unclear in "notes".`;
+- Never guess a number you cannot read: use null and say what was unclear in "notes".
+- "notes" is for the shopkeeper: one short plain sentence about what was hard to read, or "" if nothing was.`;
 
 const MAX_LINES = 100;
 /** A day's sales sheet can be long; addStock takes up to 500 rows at once, so that is the cap everywhere. */
@@ -52,6 +53,13 @@ function str(v: unknown, max = 60): string {
     .trim()
     .replace(/\s+/g, " ")
     .slice(0, max);
+}
+/** Longer text cut at a word, with … so it never stops mid-word. */
+function clip(v: unknown, max: number): string {
+  const s = str(v, 10_000);
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max - 1);
+  return cut.slice(0, cut.lastIndexOf(" ") > max / 2 ? cut.lastIndexOf(" ") : cut.length) + "…";
 }
 
 function num(v: unknown): number | null {
@@ -93,7 +101,7 @@ export function normaliseRead(raw: unknown): BillRead {
     };
   });
   const date = /^\d{4}-\d{2}-\d{2}$/.test(String(r.date ?? "")) ? String(r.date) : "";
-  const read: BillRead = { kind, supplier: str(r.supplier), billNo: str(r.billNo, 30), date, total: num(r.total), notes: str(r.notes, 300), lines, checks: [] };
+  const read: BillRead = { kind, supplier: str(r.supplier), billNo: str(r.billNo, 30), date, total: num(r.total), notes: clip(r.notes, 300), lines, checks: [] };
   read.checks = checkSums(read);
   return read;
 }
@@ -218,6 +226,23 @@ export function colourKey(c: string): string {
   if (!k || k === "-") return "";
   return COLOURS[k] ?? k;
 }
+// Shades a bill may write as the plain colour: नीला on a challan is often the Navy on the box.
+const SHADE_OF: Record<string, string> = { NAVY: "BLUE", MAROON: "RED", CHERRY: "BROWN", TAN: "BROWN" };
+const colourFamily = (k: string) => SHADE_OF[k] ?? k;
+
+/**
+ * How a word sounds, the same for Hindi and English spellings: रिलैंक्सो and Relaxo both give RLKS,
+ * फ्लाइट and Flite give FLT. Vowels vary most between scripts and hands, so only consonants count.
+ */
+export function soundKey(w: string): string {
+  const s = latin(w).toUpperCase().replace(/[^A-Z0-9]/g, "")
+    .replace(/PH/g, "F").replace(/X/g, "KS").replace(/CK/g, "K").replace(/Q/g, "K").replace(/W/g, "V").replace(/Z/g, "J")
+    .replace(/(.)H/g, "$1").replace(/C/g, "K");
+  if (/^[0-9]+$/.test(s)) return s;
+  // A nasal before a consonant (the dot in रिलैंक्सो) is often not written in English: drop it first.
+  return s.replace(/N(?=[^AEIOUY0-9])/g, "").replace(/[AEIOUY]/g, "").replace(/(.)\1+/g, "$1");
+}
+const soundWords = (s: string) => words(s).map(soundKey).filter((w) => w.length >= 2);
 
 /** How well a line's words match an item, 0..1. Brand and article count most; size only when both have one. */
 export function matchScore(line: Pick<BillLine, "brand" | "article" | "colour" | "size" | "text">, it: ItemRow): number {
@@ -233,10 +258,14 @@ export function matchScore(line: Pick<BillLine, "brand" | "article" | "colour" |
     const hit = b.filter((w) => a.has(w) || [...a].some((x) => x.length >= 3 && (x.includes(w) || w.includes(x)))).length;
     s = b.length ? (0.6 * hit) / b.length : 0;
   }
+  // The same words in another script or spelling (रिलैंक्सो फ्लाइट for Relaxo Flite): match by sound.
+  const heard = new Set(soundWords(`${line.brand} ${line.article} ${line.text}`));
+  const said = soundWords(`${it.brand} ${it.article}`);
+  if (said.length && heard.size) s = Math.max(s, (0.75 * said.filter((w) => heard.has(w)).length) / said.length);
   if (s === 0) return 0;
   // A different colour is a different item: never good enough to be picked for the person.
   const want_c = colourKey(line.colour), have_c = colourKey(it.colour);
-  if (want_c && have_c) s += want_c === have_c ? 0.1 : -0.45;
+  if (want_c && have_c) s += want_c === have_c ? 0.1 : colourFamily(want_c) === colourFamily(have_c) ? 0 : -0.45;
   if (line.size && it.size !== "-") s += squash(line.size) === squash(it.size) ? 0.1 : -0.3;
   return Math.max(0, Math.min(1, s));
 }
@@ -434,7 +463,10 @@ export function applyBill(db: Database, input: ApplyInput, actor: Actor): ApplyO
   return { bill: getBill(db, id)!, results };
 }
 
-/** Put stock back the way it was before a bill. Items made by the bill stay, at their earlier quantity. */
+/**
+ * Put stock back the way it was before a bill. Items the bill created, and nothing else has touched since,
+ * go away again, so an undone delivery leaves no empty rows behind.
+ */
 export function undoBill(db: Database, id: string, actor: Actor): BillRow {
   const bill = getBill(db, id);
   if (!bill) throw new StockError(404, "Bill not found");
@@ -444,6 +476,12 @@ export function undoBill(db: Database, id: string, actor: Actor): BillRow {
     for (const m of moves) {
       if (!m.delta || !getItem(db, m.sku)) continue;
       applyMovement(db, { sku: m.sku, type: "adj", delta: -m.delta, note: `Undo bill${bill.bill_no ? " #" + bill.bill_no : ""}`, ref: `undo:${id}` }, actor);
+    }
+    const made = moves.filter((m) => m.type === "new").map((m) => m.sku);
+    for (const sku of made) {
+      const it = getItem(db, sku);
+      const others = db.query<{ n: number }, [string, string, string]>("SELECT COUNT(*) AS n FROM movements WHERE sku = ? AND (ref IS NULL OR (ref <> ? AND ref <> ?))").get(sku, id, `undo:${id}`)!.n;
+      if (it && it.qty === 0 && others === 0) db.query("DELETE FROM items WHERE sku = ?").run(sku);
     }
     db.query("UPDATE bills SET status = 'undone', undone_at = ? WHERE id = ?").run(now(), id);
   });

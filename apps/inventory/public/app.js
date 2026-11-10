@@ -10,7 +10,8 @@
   const fmtTime = (iso) => (iso ? new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }) : "");
   const ageDays = (it) => Math.max(0, Math.floor((Date.now() - Date.parse(it.lastIn || it.createdAt)) / DAY));
   const isDead = (it) => it.qty > 0 && ageDays(it) >= 180 && (!it.lastOut || (Date.now() - Date.parse(it.lastOut)) / DAY >= 180);
-  const catName = { boot: "Boots", shoe: "Shoes", jacket: "Jackets", bag: "Bags", belt: "Belts & wallets", other: "Other" };
+  const CATS = ["boot", "shoe", "jacket", "bag", "belt", "other"];
+  const catName = (c) => (CATS.includes(c) ? I18N.t("cat." + c) : c);
   const SIZED = ["boot", "shoe", "jacket", "belt"];
   const code = (s, n) => String(s || "").toUpperCase().replace(/[^A-Z0-9]+/g, "").slice(0, n);
   const skuPrefix = (b, a, c) => [code(b, 4), code(a, 8), code(c, 3)].filter(Boolean).join("-");
@@ -20,7 +21,14 @@
 
   // ---------- toast ----------
   let toastT;
-  function toast(msg, ms = 2200) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms); }
+  function toast(msg, ms = 2200, action) {
+    const el = $("toast"); el.textContent = msg; el.hidden = false; clearTimeout(toastT);
+    if (action) {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = action.label;
+      b.addEventListener("click", () => { el.hidden = true; action.fn(); }); el.append(" ", b); ms = Math.max(ms, 6000);
+    }
+    toastT = setTimeout(() => { el.hidden = true; }, ms);
+  }
 
   // ---------- api ----------
   async function api(method, path, body, raw) {
@@ -82,6 +90,7 @@
     $("app").hidden = true; $("gate").hidden = false;
     ["gate-setup", "gate-login", "gate-pin"].forEach((id) => { $(id).hidden = true; });
     $("gate-wait").hidden = false;
+    applyGateLang();
     try {
       const st = await api("GET", "/api/v1/auth/state");
       $("gate-wait").hidden = true;
@@ -89,10 +98,10 @@
       if (st.me) { S.me = st.me; await boot(); return; }
       if (st.setupNeeded) { $("gate-setup").hidden = false; $("setupCodeField").hidden = !st.setupCodeNeeded; $("setupName").focus(); return; }
       $("loginShop").textContent = st.shop || "Ideal Shoes";
-      $("people").innerHTML = st.users.map((u) => `<button type="button" data-id="${esc(u.id)}" data-name="${esc(u.name)}">${esc(u.name)}<small>${u.role === "admin" ? "admin" : "staff"}</small></button>`).join("");
+      $("people").innerHTML = st.users.map((u) => `<button type="button" data-id="${esc(u.id)}" data-name="${esc(u.name)}">${esc(u.name)}<small>${esc(I18N.t(u.role === "admin" ? "role.admin" : "role.staff"))}</small></button>`).join("");
       $("gate-login").hidden = false;
     } catch (e) {
-      $("gate-wait").hidden = false; $("gate-wait").innerHTML = `<p class="muted">Can't reach the server. ${esc(e.message)}</p><button type="button" class="btn" id="retryGate">Retry</button>`;
+      $("gate-wait").hidden = false; $("gate-wait").innerHTML = `<p class="muted">${esc(I18N.t("gate.noServer"))} ${esc(e.message)}</p><button type="button" class="btn" id="retryGate">${esc(I18N.t("gate.retry"))}</button>`;
       $("retryGate").addEventListener("click", showGate);
     }
   }
@@ -102,24 +111,31 @@
   (function buildPad() { const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "OK"]; $("pinpad").innerHTML = keys.map((k) => `<button type="button" data-k="${k}" class="${k === "⌫" || k === "OK" ? "alt" : ""}">${k}</button>`).join(""); })();
   $("pinpad").addEventListener("click", async (e) => {
     const b = e.target.closest("button[data-k]"); if (!b) return; const k = b.dataset.k;
-    if (k === "⌫") pin = pin.slice(0, -1); else if (k === "OK") { await submitPin(); return; } else if (pin.length < 8) pin += k;
+    if (k === "⌫") pin = pin.slice(0, -1); else if (k === "OK") { await submitPin(); return; } else if (pin.length < 8) { pin += k; $("pinMsg").hidden = true; }
     renderPin(); // PINs are 4 to 8 digits, so nothing is sent until OK (or Enter)
   });
-  document.addEventListener("keydown", (e) => { if ($("gate-pin").hidden || $("gate").hidden) return; if (/^[0-9]$/.test(e.key) && pin.length < 8) { pin += e.key; renderPin(); } else if (e.key === "Backspace") { pin = pin.slice(0, -1); renderPin(); } else if (e.key === "Enter") submitPin(); });
+  document.addEventListener("keydown", (e) => { if ($("gate-pin").hidden || $("gate").hidden) return; if (/^[0-9]$/.test(e.key) && pin.length < 8) { pin += e.key; $("pinMsg").hidden = true; renderPin(); } else if (e.key === "Backspace") { pin = pin.slice(0, -1); renderPin(); } else if (e.key === "Enter") submitPin(); });
   async function submitPin() {
     if (!pinUser || pin.length < 4) return;
     try { const r = await api("POST", "/api/v1/auth/login", { userId: pinUser.id, pin }); S.me = r.me; pin = ""; await boot(); }
-    catch (e) { pin = ""; renderPin(); $("pinMsg").hidden = false; $("pinMsg").textContent = e.message; if (navigator.vibrate) navigator.vibrate([60, 40, 60]); }
+    catch (e) {
+      pin = ""; renderPin(); $("pinMsg").hidden = false;
+      const at = /after (.+)\.$/.exec(e.message);
+      $("pinMsg").textContent = e.status === 401 ? I18N.t("pin.wrong") : e.status === 423 && at ? I18N.t("pin.locked", { time: at[1] }) : e.message;
+      if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+    }
   }
   $("setupGo").addEventListener("click", async () => {
     const name = $("setupName").value.trim(), p1 = $("setupPin").value.trim(), p2 = $("setupPin2").value.trim();
     const msg = $("setupMsg"); msg.hidden = true;
-    if (!name) { msg.hidden = false; msg.textContent = "Enter your name."; return; }
-    if (!/^[0-9]{4,8}$/.test(p1)) { msg.hidden = false; msg.textContent = "PIN must be 4 to 8 digits."; return; }
-    if (p1 !== p2) { msg.hidden = false; msg.textContent = "The two PINs don't match."; return; }
+    if (!name) { msg.hidden = false; msg.textContent = I18N.t("setup.needName"); return; }
+    if (!/^[0-9]{4,8}$/.test(p1)) { msg.hidden = false; msg.textContent = I18N.t("setup.badPin"); return; }
+    if (p1 !== p2) { msg.hidden = false; msg.textContent = I18N.t("setup.noMatch"); return; }
     try { const r = await api("POST", "/api/v1/auth/setup", { name, pin: p1, shop: $("setupShop").value.trim(), appUrl: location.origin, setupCode: $("setupCode").value.trim() }); S.me = r.me; await boot(); }
-    catch (e) { msg.hidden = false; msg.textContent = e.message; }
+    catch (e) { msg.hidden = false; msg.textContent = e.status === 403 ? I18N.t("setup.badCode") : e.message; }
   });
+  function applyGateLang() { I18N.apply($("gate")); $("gateLang").querySelectorAll("span").forEach((x) => x.classList.toggle("on", x.dataset.l === I18N.lang)); }
+  $("gateLang").addEventListener("click", () => { I18N.set(I18N.lang === "hi" ? "en" : "hi"); applyGateLang(); });
   $("logoutBtn").addEventListener("click", async () => { try { await api("POST", "/api/v1/auth/logout"); } catch {} S.me = null; Scanner.stop(); showGate(); });
 
   // ---------- boot ----------
@@ -178,14 +194,17 @@
   const locs = () => [...new Set([...S.items.values()].map((i) => i.loc).filter(Boolean))].sort();
   function fillSelect(sel, values, first) { const cur = sel.value; sel.innerHTML = first + values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join(""); sel.value = values.includes(cur) ? cur : ""; }
   function fillCats() {
-    const cats = S.settings.categories || Object.keys(catName);
-    $("aCat").innerHTML = cats.map((c) => `<option value="${c}">${catName[c] || c}</option>`).join("");
-    $("fCat").innerHTML = '<option value="">All types</option>' + cats.map((c) => `<option value="${c}">${catName[c] || c}</option>`).join("");
+    const cats = S.settings.categories || CATS;
+    const cur = $("fCat").value;
+    $("aCat").innerHTML = cats.map((c) => `<option value="${esc(c)}">${esc(catName(c))}</option>`).join("");
+    $("fCat").innerHTML = `<option value="">${esc(t("stock.allTypes"))}</option>` + cats.map((c) => `<option value="${esc(c)}">${esc(catName(c))}</option>`).join("");
+    $("fCat").value = cur;
     onCatChange();
   }
   function render() {
     const bs = brands();
-    fillSelect($("fBrand"), bs, '<option value="">All brands</option>'); fillSelect($("lBrand"), bs, '<option value="">All brands</option>');
+    const allBrands = `<option value="">${esc(t("stock.allBrands"))}</option>`;
+    fillSelect($("fBrand"), bs, allBrands); fillSelect($("lBrand"), bs, allBrands);
     $("brandList").innerHTML = bs.map((b) => `<option value="${esc(b)}">`).join(""); $("locList").innerHTML = locs().map((l) => `<option value="${esc(l)}">`).join("");
     $("scanCount").textContent = S.items.size ? `${S.items.size} SKUs on file` : "";
     renderMoves($("scanRecent"), S.moves.slice(0, 8), true);
@@ -213,19 +232,24 @@
   function replaceMove(id, real) {
     for (const list of [S.moves, S.sheetMoves]) { if (!list) continue; const i = list.findIndex((x) => x.id === id); if (i >= 0) list[i] = real; }
   }
-  async function move(input) {
+  async function move(input, isUndo) {
     const it = item(input.sku); if (!it) { toast("Unknown item"); return; }
-    if (input.type === "out" && it.qty <= 0) { toast("Already at 0"); return; }
+    if (input.type === "out" && it.qty <= 0) { toast(t("move.zero")); return; }
     const m = { id: crypto.randomUUID(), ...input };
+    const before = it.qty;
     applyLocal(m); render();
     try {
       const r = await api("POST", "/api/v1/movements", m);
       S.items.set(r.item.sku, r.item);
       replaceMove(m.id, r.movement);
       render();
-      toast(`${m.type === "out" ? "Sold" : m.type === "in" ? "In" : "Counted"} · ${m.sku} → ${r.item.qty}`);
+      // One tap on the item sheet changes stock at once, so it can be taken back just as fast.
+      const back = m.type === "count" ? { sku: m.sku, type: "count", counted: before, note: t("move.undo") } : { sku: m.sku, type: r.movement.delta > 0 ? "out" : "in", delta: -r.movement.delta, note: t("move.undo") };
+      const what = t(m.type === "out" ? "move.sold" : m.type === "in" ? "move.in" : "move.counted");
+      if (isUndo || !r.movement.delta) toast(`${what} · ${itemName(r.item)} → ${r.item.qty}`);
+      else toast(`${what} · ${itemName(r.item)} → ${r.item.qty}`, 6000, { label: t("move.undo"), fn: () => move(back, true) });
     } catch (e) {
-      if (e.network) { S.pending.push(m); saveQueue(); setOnline(false); toast("Saved on this phone. Will sync when online.", 3000); }
+      if (e.network) { S.pending.push(m); saveQueue(); setOnline(false); toast(t("move.queued"), 3000); }
       else if (!e.auth) { toast(e.message, 3500); await refresh(); }
     }
   }
@@ -292,27 +316,27 @@
   $("shIn").addEventListener("click", () => move({ sku: S.openSku, type: "in", delta: 1, note: "Stock in" }));
   $("shCount").addEventListener("click", () => { const it = item(S.openSku); $("shCountVal").value = it ? it.qty : 0; $("shCountBox").hidden = false; $("shCountVal").focus(); $("shCountVal").select(); });
   $("shCountCancel").addEventListener("click", () => { $("shCountBox").hidden = true; });
-  $("shCountSave").addEventListener("click", async () => { const v = parseInt($("shCountVal").value, 10); if (isNaN(v) || v < 0) { toast("Enter the number counted"); return; } $("shCountBox").hidden = true; await move({ sku: S.openSku, type: "count", counted: v }); });
+  $("shCountSave").addEventListener("click", async () => { const v = parseInt($("shCountVal").value, 10); if (isNaN(v) || v < 0) { toast(t("move.needNum")); return; } $("shCountBox").hidden = true; await move({ sku: S.openSku, type: "count", counted: v }); });
   $("shMore").addEventListener("click", () => { $("shMoreBox").hidden = !$("shMoreBox").hidden; $("shEditBox").hidden = true; });
-  $("shDeltaSave").addEventListener("click", async () => { const d = parseInt($("shDelta").value, 10); if (!d) { toast("Enter a + or − number"); return; } const note = $("shNote").value.trim(); $("shDelta").value = ""; $("shNote").value = ""; $("shMoreBox").hidden = true; await move({ sku: S.openSku, type: d > 0 ? "in" : "out", delta: d, note }); });
+  $("shDeltaSave").addEventListener("click", async () => { const d = parseInt($("shDelta").value, 10); if (!d) { toast(t("move.needDelta")); return; } const note = $("shNote").value.trim(); $("shDelta").value = ""; $("shNote").value = ""; $("shMoreBox").hidden = true; await move({ sku: S.openSku, type: d > 0 ? "in" : "out", delta: d, note }); });
   $("shEdit").addEventListener("click", () => { const it = item(S.openSku); if (!it) return; $("eCost").value = it.cost || ""; $("eMrp").value = it.mrp || ""; $("eLoc").value = it.loc || ""; $("shEditBox").hidden = !$("shEditBox").hidden; $("shMoreBox").hidden = true; });
-  $("eSave").addEventListener("click", async () => { try { const r = await api("PATCH", `/api/v1/items/${encodeURIComponent(S.openSku)}`, { cost: +$("eCost").value || 0, mrp: +$("eMrp").value || 0, loc: $("eLoc").value.trim() }); S.items.set(r.item.sku, r.item); $("shEditBox").hidden = true; toast("Saved"); render(); } catch (e) { toast(e.message); } });
+  $("eSave").addEventListener("click", async () => { try { const r = await api("PATCH", `/api/v1/items/${encodeURIComponent(S.openSku)}`, { cost: +$("eCost").value || 0, mrp: +$("eMrp").value || 0, loc: $("eLoc").value.trim() }); S.items.set(r.item.sku, r.item); $("shEditBox").hidden = true; toast(t("move.saved")); render(); } catch (e) { toast(e.message); } });
   $("eDelete").addEventListener("click", () => { $("delRow").hidden = true; $("delConfirm").hidden = false; });
   $("eDeleteNo").addEventListener("click", () => { $("delRow").hidden = false; $("delConfirm").hidden = true; });
   $("eDeleteYes").addEventListener("click", async () => { const sku = S.openSku; try { await api("DELETE", `/api/v1/items/${encodeURIComponent(sku)}`); S.items.delete(sku); closeSheet(); toast("Deleted " + sku); await refresh(); } catch (e) { toast(e.message); } });
   function renderSheet() {
     const it = item(S.openSku); if (!it) { closeSheet(); return; }
     $("shSku").textContent = it.sku; $("shName").textContent = itemName(it);
-    $("shMeta").textContent = `${catName[it.cat] || "Item"}${it.size && it.size !== "-" ? " · Size " + it.size : ""} · ${ageDays(it)} days on rack`;
-    $("shQty").textContent = it.qty; $("shLoc").textContent = it.loc ? "Rack: " + it.loc : "";
+    $("shMeta").textContent = [catName(it.cat), it.size && it.size !== "-" ? t("sheet.size", { s: it.size }) : "", t("sheet.days", { n: ageDays(it) })].filter(Boolean).join(" · ");
+    $("shQty").textContent = it.qty; $("shLoc").textContent = it.loc ? t("sheet.rackIs", { r: it.loc }) : "";
     $("shPrice").textContent = `${it.cost ? rupee(it.cost) : "—"} / ${it.mrp ? rupee(it.mrp) : "—"}`;
     $("shLastIn").textContent = fmtDate(it.lastIn || it.createdAt); $("shLastOut").textContent = fmtDate(it.lastOut); $("shLastCount").textContent = fmtDate(it.lastCount);
     const admin = S.me && S.me.role === "admin"; $("shEdit").hidden = !admin;
     renderMoves($("shMoves"), (S.sheetMoves || S.moves.filter((m) => m.sku === it.sku)).slice(0, 20), false);
   }
   function renderMoves(ul, moves, withSku) {
-    if (!moves.length) { ul.innerHTML = '<li class="one muted small">No entries yet</li>'; return; }
-    ul.innerHTML = moves.map((m) => `<li><span class="mv ${m.type === "count" ? "count" : m.delta < 0 ? "out" : "in"}">${m.type === "count" ? "count" : (m.delta > 0 ? "+" : "") + m.delta}</span><span>${withSku ? `<span class="mono small">${esc(m.sku)}</span> ` : ""}${esc(m.note || m.type)}${m.pending ? ' <span class="muted">· waiting to sync</span>' : ""}</span><span class="muted small num">${esc(fmtDate(m.at))} ${esc(fmtTime(m.at))}</span></li>`).join("");
+    if (!moves.length) { ul.innerHTML = `<li class="one muted small">${esc(t("moves.none"))}</li>`; return; }
+    ul.innerHTML = moves.map((m) => `<li><span class="mv ${m.type === "count" ? "count" : m.delta < 0 ? "out" : "in"}">${m.type === "count" ? "count" : (m.delta > 0 ? "+" : "") + m.delta}</span><span>${withSku ? `<span class="mono small">${esc(m.sku)}</span> ` : ""}${esc(m.note || m.type)}${m.pending ? ` <span class="muted">· ${esc(t("moves.waiting"))}</span>` : ""}</span><span class="muted small num">${esc(fmtDate(m.at))} ${esc(fmtTime(m.at))}</span></li>`).join("");
   }
   $("scanRecent").addEventListener("click", (e) => { const li = e.target.closest("li"); if (!li) return; const m = S.moves.slice(0, 8)[[...li.parentNode.children].indexOf(li)]; if (m && item(m.sku)) openSheet(m.sku); });
 
@@ -333,10 +357,17 @@
     const arr = filteredItems();
     $("stockEmpty").hidden = S.items.size > 0; $("stockTable").hidden = S.items.size === 0;
     let units = 0, value = 0; arr.forEach((it) => { units += it.qty; value += it.qty * (it.cost || 0); });
-    $("stockSummary").textContent = `${arr.length} SKUs · ${fmtN.format(units)} units · ${rupee(value)} at cost`;
-    $("stockRows").innerHTML = arr.slice(0, 800).map((it) => `<tr class="row" data-sku="${esc(it.sku)}"><td class="mono small">${esc(it.sku)}</td><td>${esc(itemName(it))}</td><td>${esc(sizeText(it))}</td><td class="r">${qtyPill(it)}</td><td class="r">${ageDays(it)}d${isDead(it) ? ' <span class="pill dead">dead</span>' : ""}</td><td class="r">${it.cost ? rupee(it.qty * it.cost) : "—"}</td><td>${esc(it.loc || "")}</td></tr>`).join("");
+    const articles = new Set(arr.map((it) => `${it.brand}|${it.article}|${it.colour}`)).size;
+    $("stockSummary").textContent = t("stock.summary", { n: articles, units: fmtN.format(units), value: rupee(value) });
+    // Stock is kept by article: the size column and the type filter only show when the shop uses them.
+    const all = [...S.items.values()];
+    $("stockTable").classList.toggle("nosize", !all.some((it) => it.size && it.size !== "-"));
+    $("fCat").hidden = new Set(all.map((it) => it.cat)).size < 2;
+    const dead = esc(t("stock.dead"));
+    $("stockRows").innerHTML = arr.slice(0, 800).map((it) => `<tr class="row" data-sku="${esc(it.sku)}"><td class="mono small w">${esc(it.sku)}</td><td class="wrap">${esc(itemName(it))}${isDead(it) ? ` <span class="pill dead">${dead}</span>` : ""}</td><td class="w sz">${esc(sizeText(it))}</td><td class="r">${qtyPill(it)}</td><td class="r w">${ageDays(it)}</td><td class="r">${it.cost ? rupee(it.qty * it.cost) : "—"}</td><td class="w">${esc(it.loc || "")}</td></tr>`).join("");
   }
   $("stockRows").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-sku]"); if (tr) openSheet(tr.dataset.sku); });
+  $("stockEmptyGo").addEventListener("click", () => newBill("in"));
 
   // ---------- add ----------
   function runFor(cat) { return (S.settings.sizeRuns && S.settings.sizeRuns[cat]) || []; }
@@ -374,7 +405,7 @@
   const copiesFor = (it) => { const m = $("lCopies").value; return m === "qty" ? Math.max(0, it.qty) : parseInt(m, 10); };
   const qrText = (sku) => (S.settings.appUrl ? S.settings.appUrl.replace(/#.*$/, "").replace(/\/+$/, "") + "/#" + sku : sku);
   function qrSvg(text) { try { const qr = window.qrcode(0, "M"); qr.addData(text); qr.make(); return qr.createSvgTag({ cellSize: 2, margin: 0, scalable: true }); } catch { return ""; } }
-  const labelHtml = (it, cls) => `<div class="${cls}">${qrSvg(qrText(it.sku))}<div><div class="b">${esc(it.brand)}</div><div class="a">${esc(it.article)} · ${esc(it.colour)}</div><div class="z">${esc(it.size && it.size !== "-" ? it.size : catName[it.cat] || "")}</div><div class="k">${esc(it.sku)}</div></div></div>`;
+  const labelHtml = (it, cls) => `<div class="${cls}">${qrSvg(qrText(it.sku))}<div><div class="b">${esc(it.brand)}</div><div class="a">${esc(it.article)} · ${esc(it.colour)}</div><div class="z">${esc(it.size && it.size !== "-" ? it.size : catName(it.cat))}</div><div class="k">${esc(it.sku)}</div></div></div>`;
   ["lBrand", "lq", "lCopies"].forEach((id) => $(id).addEventListener("input", renderLabels));
   $("lAll").addEventListener("click", () => { labelItems().forEach((it) => S.selected.add(it.sku)); renderLabels(); });
   $("lNone").addEventListener("click", () => { S.selected.clear(); renderLabels(); });
@@ -407,32 +438,34 @@
   }
   function renderDash(d) {
     const s = d.summary;
-    $("dashAsOf").textContent = "as of " + fmtTime(d.asOf) + ", " + fmtDate(d.asOf);
+    $("dashAsOf").textContent = t("dash.asOf", { t: fmtTime(d.asOf) + ", " + fmtDate(d.asOf) });
+    const empty = (n, key) => `<tr><td colspan="${n}" class="muted">${esc(t(key))}</td></tr>`;
     $("dashTiles").innerHTML = [
-      { l: "Units in stock", v: fmtN.format(s.units), sub: `${s.skus} SKUs` },
-      { l: "Stock at cost", v: rupee(s.valueAtCost), sub: `retail ${rupee(s.retailValue)}` },
-      { l: "Sold, last " + d.days + " days", v: fmtN.format(d.trend.reduce((a, x) => a + x.sold, 0)), sub: `${fmtN.format(d.trend.reduce((a, x) => a + x.received, 0))} received` },
-      { l: "Dead stock · 180+ days", v: rupee(s.deadValue), sub: `${fmtN.format(s.deadUnits)} units · ${s.zeroStockSkus} SKUs at zero`, alert: s.deadValue > 0 },
-    ].map((t) => `<div class="tile ${t.alert ? "alert" : ""}"><div class="label">${t.l}</div><div class="v">${t.v}</div><div class="sub">${esc(t.sub)}</div></div>`).join("");
+      { l: t("dash.units"), v: fmtN.format(s.units), sub: t("dash.unitsSub", { n: s.skus }) },
+      { l: t("dash.cost"), v: rupee(s.valueAtCost), sub: s.retailValue ? t("dash.retail", { v: rupee(s.retailValue) }) : "" },
+      { l: t("dash.sold", { n: d.days }), v: fmtN.format(d.trend.reduce((a, x) => a + x.sold, 0)), sub: t("dash.received", { n: fmtN.format(d.trend.reduce((a, x) => a + x.received, 0)) }) },
+      { l: t("dash.dead"), v: rupee(s.deadValue), sub: t("dash.deadSub", { n: fmtN.format(s.deadUnits), z: s.zeroStockSkus }), alert: s.deadValue > 0 },
+    ].map((x) => `<div class="tile ${x.alert ? "alert" : ""}"><div class="label">${esc(x.l)}</div><div class="v">${esc(x.v)}</div><div class="sub">${esc(x.sub)}</div></div>`).join("");
     $("chTrend").innerHTML = Charts.dailyBars(d.trend);
-    $("chAge").innerHTML = Charts.hBars(d.ageing.map((b) => ({ name: b.name, value: b.value, sub: `${fmtN.format(b.units)} units` })), { money: true });
-    $("dashMovers").innerHTML = d.topMovers.map((m) => `<tr class="row" data-sku="${esc(m.sku)}"><td class="wrap">${esc(m.name)}</td><td class="r">${m.sold}</td><td class="r">${m.qty === 0 ? '<span class="pill zero">0</span>' : m.qty}</td></tr>`).join("") || '<tr><td colspan="3" class="muted">Nothing sold yet in this window</td></tr>';
-    $("dashGaps").innerHTML = d.sizeGaps.map((g) => `<tr><td class="wrap">${esc(g.brand)} ${esc(g.article)} · ${esc(g.colour)}</td><td class="wrap">${g.missing.map((s) => `<span class="pill zero">${esc(s)}</span>`).join(" ")}</td><td class="r">${g.sold30}</td></tr>`).join("") || '<tr><td colspan="3" class="muted">Every selling article has its full size run. Good.</td></tr>';
-    $("dashBrands").innerHTML = d.byBrand.map((b) => `<tr><td>${esc(b.brand)}</td><td class="r">${b.skus}</td><td class="r">${fmtN.format(b.units)}</td><td class="r">${rupee(b.value)}</td><td class="r">${b.deadValue ? rupee(b.deadValue) : "—"}</td></tr>`).join("") || '<tr><td colspan="5" class="muted">No stock yet</td></tr>';
-    $("dashDead").innerHTML = d.dead.map((it) => `<tr class="row" data-sku="${esc(it.sku)}"><td class="wrap">${esc(itemName(it))} ${esc(sizeText(it))}</td><td class="r">${it.qty}</td><td class="r">${it.ageDays}</td><td class="r">${rupee(it.value)}</td></tr>`).join("") || '<tr><td colspan="4" class="muted">Nothing has sat for 180 days.</td></tr>';
+    $("chAge").innerHTML = Charts.hBars(d.ageing.map((b, i) => ({ name: t("age." + i), value: b.value, sub: t("dash.pairsN", { n: fmtN.format(b.units) }) })), { money: true });
+    $("dashMovers").innerHTML = d.topMovers.map((m) => `<tr class="row" data-sku="${esc(m.sku)}"><td class="wrap">${esc(item(m.sku) ? itemName(item(m.sku)) : m.name)}</td><td class="r">${m.sold}</td><td class="r">${m.qty === 0 ? '<span class="pill zero">0</span>' : m.qty}</td></tr>`).join("") || empty(3, "dash.noneSold");
+    // Shops that keep stock by article have no size runs to break: the card only shows when there is a gap.
+    $("dashGapsCard").hidden = !d.sizeGaps.length;
+    $("dashGaps").innerHTML = d.sizeGaps.map((g) => `<tr><td class="wrap">${esc(g.brand)} ${esc(g.article)} · ${esc(g.colour)}</td><td class="wrap">${g.missing.map((x) => `<span class="pill zero">${esc(x)}</span>`).join(" ")}</td><td class="r">${g.sold30}</td></tr>`).join("");
+    $("dashBrands").innerHTML = d.byBrand.map((b) => `<tr><td>${esc(b.brand)}</td><td class="r">${b.skus}</td><td class="r">${fmtN.format(b.units)}</td><td class="r">${rupee(b.value)}</td><td class="r">${b.deadValue ? rupee(b.deadValue) : "—"}</td></tr>`).join("") || empty(5, "dash.noStock");
+    $("dashDead").innerHTML = d.dead.map((it) => `<tr class="row" data-sku="${esc(it.sku)}"><td class="wrap">${esc(itemName(it))} ${it.size && it.size !== "-" ? esc(it.size) : ""}</td><td class="r">${it.qty}</td><td class="r">${it.ageDays}</td><td class="r">${rupee(it.value)}</td></tr>`).join("") || empty(4, "dash.noDead");
   }
   document.querySelectorAll("#dashMovers, #dashDead").forEach((el) => el.addEventListener("click", (e) => { const tr = e.target.closest("tr[data-sku]"); if (tr && item(tr.dataset.sku)) openSheet(tr.dataset.sku); }));
-  const CHIPS = ["What should go on the clearance rack this week?", "Which selling articles are missing sizes?", "Which brand is tying up the most money for the least sales?", "What should we reorder before the wedding season?"];
-  $("askChips").innerHTML = CHIPS.map((c) => `<button type="button">${esc(c)}</button>`).join("");
+  function renderChips() { $("askChips").innerHTML = ["chip.1", "chip.2", "chip.3"].map((k) => `<button type="button">${esc(t(k))}</button>`).join(""); }
   $("askChips").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { $("askQ").value = b.textContent; $("askQ").focus(); } });
   function renderInsights(ins) {
     const off = !ins.llm || ins.llm.provider === "none" || !ins.llm.hasKey;
     $("askUnset").hidden = !off; $("askGo").disabled = off;
-    $("askHistory").innerHTML = ins.insights.map((i) => `<li class="one"><div class="small"><b>${esc(i.question)}</b> <span class="muted">· ${esc(fmtDate(i.at))}</span></div><div class="answer small" style="margin-top:4px">${esc(i.answer)}</div></li>`).join("") || '<li class="one muted small">No questions asked yet</li>';
+    $("askHistory").innerHTML = ins.insights.map((i) => `<li class="one"><div class="small"><b>${esc(i.question)}</b> <span class="muted">· ${esc(fmtDate(i.at))}</span></div><div class="answer small" style="margin-top:4px">${esc(i.answer)}</div></li>`).join("") || `<li class="one muted small">${esc(t("ask.none"))}</li>`;
   }
   $("askGo").addEventListener("click", async () => {
     const q = $("askQ").value.trim(); if (!q) return;
-    $("askGo").disabled = true; $("askStatus").textContent = "Thinking…"; $("askAnswer").hidden = true;
+    $("askGo").disabled = true; $("askStatus").textContent = t("ask.thinking"); $("askAnswer").hidden = true;
     try { const r = await api("POST", "/api/v1/insights/ask", { question: q, lang: I18N.lang }); $("askAnswer").hidden = false; $("askAnswer").textContent = r.answer; $("askStatus").textContent = r.model; const ins = await api("GET", "/api/v1/insights"); renderInsights(ins); }
     catch (e) { $("askStatus").textContent = ""; toast(e.message, 5000); }
     $("askGo").disabled = false;
@@ -447,30 +480,30 @@
     } catch (e) { if (!e.auth) toast(e.message); }
   }
   function renderUsers(users) {
-    $("userRows").innerHTML = users.map((u) => `<tr><td>${esc(u.name)}${u.id === S.me.userId ? ' <span class="muted small">(you)</span>' : ""}</td><td><span class="pill role ${u.role}">${u.role}</span></td><td>${u.active ? "active" : '<span class="muted">off</span>'}${u.lockedUntil && Date.parse(u.lockedUntil) > Date.now() ? ' <span class="pill low">locked</span>' : ""}</td><td class="btn-row" style="justify-content:flex-end"><button type="button" class="btn" data-act="pin" data-id="${u.id}">New PIN</button>${u.id !== S.me.userId ? `<button type="button" class="btn ${u.active ? "danger" : ""}" data-act="toggle" data-id="${u.id}" data-active="${u.active ? 1 : 0}">${u.active ? "Deactivate" : "Reactivate"}</button>` : ""}</td></tr>`).join("");
+    $("userRows").innerHTML = users.map((u) => `<li><div><b>${esc(u.name)}</b>${u.id === S.me.userId ? ` <span class="muted small">${esc(t("admin.you"))}</span>` : ""} <span class="pill role ${esc(u.role)}">${esc(t(u.role === "admin" ? "role.admin" : "role.staff"))}</span> ${u.active ? `<span class="small">${esc(t("admin.active"))}</span>` : `<span class="muted small">${esc(t("admin.off"))}</span>`}${u.lockedUntil && Date.parse(u.lockedUntil) > Date.now() ? ` <span class="pill low">${esc(t("admin.locked"))}</span>` : ""}</div><div class="btn-row"><button type="button" class="btn" data-act="pin" data-id="${esc(u.id)}">${esc(t("admin.newPin"))}</button>${u.id !== S.me.userId ? `<button type="button" class="btn ${u.active ? "danger" : ""}" data-act="toggle" data-id="${esc(u.id)}" data-active="${u.active ? 1 : 0}">${esc(t(u.active ? "admin.deactivate" : "admin.reactivate"))}</button>` : ""}</div></li>`).join("");
   }
   $("userRows").addEventListener("click", async (e) => {
     const b = e.target.closest("button[data-act]"); if (!b) return;
     try {
       if (b.dataset.act === "toggle") { await api("PATCH", `/api/v1/admin/users/${b.dataset.id}`, { active: b.dataset.active !== "1" }); }
-      else { const newPin = askPin(); if (!newPin) return; await api("PATCH", `/api/v1/admin/users/${b.dataset.id}`, { pin: newPin }); toast("PIN changed"); }
+      else { const newPin = askPin(); if (!newPin) return; await api("PATCH", `/api/v1/admin/users/${b.dataset.id}`, { pin: newPin }); toast(t("admin.pinChanged")); }
       loadAdmin();
     } catch (err) { toast(err.message); }
   });
-  function askPin() { const v = window.prompt("New PIN (4–8 digits)"); if (v == null) return null; const t = v.trim(); if (/^[0-9]{4,8}$/.test(t)) return t; toast("PIN must be 4 to 8 digits"); return null; }
-  $("userForm").addEventListener("submit", async (e) => { e.preventDefault(); try { await api("POST", "/api/v1/admin/users", { name: $("uName").value.trim(), pin: $("uPin").value.trim(), role: $("uRole").value }); $("uName").value = ""; $("uPin").value = ""; toast("Added"); loadAdmin(); } catch (err) { toast(err.message); } });
+  function askPin() { const v = window.prompt(t("admin.askPin")); if (v == null) return null; const p = v.trim(); if (/^[0-9]{4,8}$/.test(p)) return p; toast(t("setup.badPin")); return null; }
+  $("userForm").addEventListener("submit", async (e) => { e.preventDefault(); try { await api("POST", "/api/v1/admin/users", { name: $("uName").value.trim(), pin: $("uPin").value.trim(), role: $("uRole").value }); $("uName").value = ""; $("uPin").value = ""; toast(t("admin.added")); loadAdmin(); } catch (err) { toast(err.message); } });
   function renderSettings(s) {
     S.settings = s; $("shopName").textContent = s.shop;
     $("sShop").value = s.shop; $("sUrl").value = s.appUrl || "";
     $("sRuns").value = Object.entries(s.sizeRuns || {}).map(([k, v]) => `${k}: ${v.join(", ")}`).join("\n");
     $("llmProvider").value = s.llm.provider; $("llmModel").value = s.llm.model || ""; $("llmBase").value = s.llm.baseUrl || ""; $("llmMax").value = s.llm.maxTokens || 800; $("llmKey").value = "";
-    $("llmKeyState").textContent = s.llm.hasKey ? "· a key is saved" : "· no key yet";
+    $("llmKeyState").textContent = t(s.llm.hasKey ? "admin.keySaved" : "admin.noKey");
     fillCats();
   }
   $("settingsForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const runs = {}; $("sRuns").value.split(/\n/).forEach((line) => { const i = line.indexOf(":"); if (i < 0) return; const k = line.slice(0, i).trim().toLowerCase(); const v = line.slice(i + 1).split(/[,\s]+/).map((x) => x.trim()).filter(Boolean); if (k && v.length) runs[k] = v; });
-    try { const r = await api("PUT", "/api/v1/admin/settings", { shop: $("sShop").value.trim(), appUrl: $("sUrl").value.trim(), sizeRuns: runs }); renderSettings(r.settings); toast("Settings saved"); } catch (err) { toast(err.message); }
+    try { const r = await api("PUT", "/api/v1/admin/settings", { shop: $("sShop").value.trim(), appUrl: $("sUrl").value.trim(), sizeRuns: runs }); renderSettings(r.settings); toast(t("admin.saved")); } catch (err) { toast(err.message); }
   });
   // A different provider has its own address and model: clear them so its defaults apply.
   $("llmProvider").addEventListener("change", () => { $("llmBase").value = ""; $("llmModel").value = ""; });
@@ -478,9 +511,9 @@
     e.preventDefault();
     const llm = { provider: $("llmProvider").value, model: $("llmModel").value.trim(), baseUrl: $("llmBase").value.trim(), maxTokens: +$("llmMax").value || 800 };
     if ($("llmKey").value.trim()) llm.apiKey = $("llmKey").value.trim();
-    try { const r = await api("PUT", "/api/v1/admin/settings", { llm }); renderSettings(r.settings); toast("AI settings saved"); } catch (err) { toast(err.message); }
+    try { const r = await api("PUT", "/api/v1/admin/settings", { llm }); renderSettings(r.settings); toast(t("admin.aiSaved")); } catch (err) { toast(err.message); }
   });
-  $("llmClear").addEventListener("click", async () => { try { const r = await api("PUT", "/api/v1/admin/settings", { llm: { clearKey: true, provider: "none" } }); renderSettings(r.settings); toast("Key removed"); } catch (err) { toast(err.message); } });
+  $("llmClear").addEventListener("click", async () => { try { const r = await api("PUT", "/api/v1/admin/settings", { llm: { clearKey: true, provider: "none" } }); renderSettings(r.settings); toast(t("admin.keyRemoved")); } catch (err) { toast(err.message); } });
   function renderKeys(keys) {
     $("keyRows").innerHTML = keys.map((k) => `<tr><td>${esc(k.name)}${k.revokedAt ? ' <span class="muted small">(revoked)</span>' : ""}</td><td class="mono small">idx_${esc(k.prefix)}_…</td><td>${k.scopes.join(" + ")}</td><td class="small muted">${k.lastUsedAt ? fmtDate(k.lastUsedAt) + " " + fmtTime(k.lastUsedAt) : "never"}</td><td style="text-align:right">${k.revokedAt ? "" : `<button type="button" class="btn danger" data-revoke="${k.id}">Revoke</button>`}</td></tr>`).join("") || '<tr><td colspan="5" class="muted">No keys yet</td></tr>';
   }
@@ -497,7 +530,7 @@
     catch (err) { $("csvMsg").textContent = err.message; }
   });
   function renderAudit(rows) {
-    $("auditRows").innerHTML = rows.map((a) => `<tr><td class="small muted">${esc(fmtDate(a.at))} ${esc(fmtTime(a.at))}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td class="small muted wrap">${esc(a.target || "")} ${esc(a.detail ? String(a.detail).slice(0, 120) : "")}</td></tr>`).join("") || '<tr><td colspan="4" class="muted">Nothing yet</td></tr>';
+    $("auditRows").innerHTML = rows.map((a) => `<tr><td class="small muted">${esc(fmtDate(a.at))} ${esc(fmtTime(a.at))}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td class="small muted wrap">${esc(a.target || "")} ${esc(a.detail ? String(a.detail).slice(0, 120) : "")}</td></tr>`).join("") || `<tr><td colspan="4" class="muted">${esc(t("admin.nothing"))}</td></tr>`;
   }
 
 
@@ -508,7 +541,10 @@
     $("langBtn").querySelectorAll("span").forEach((x) => x.classList.toggle("on", x.dataset.l === I18N.lang));
     setOnline(S.online);
     setBillMode(S.bill.mode);
-    if (S.view === "home") { renderHomeTiles(); renderHome(); }
+    renderChips(); fillCats(); render();
+    if (S.view === "home") renderHome();
+    if (S.view === "dash" && S.dash) renderDash(S.dash);
+    if (S.view === "admin") loadAdmin();
     if (S.bill.lines && !$("billCheck").hidden) renderCheck();
     if (S.bill.done && !$("billDone").hidden) renderDone();
     if (S.view === "bill") renderBillList();
@@ -587,9 +623,21 @@
     const sign = b.kind === "in" ? "+" : "−";
     const what = [b.supplier, b.bill_no && "#" + b.bill_no, b.source === "sheet" ? "Excel" : ""].filter(Boolean).join(" · ") || t(b.kind === "in" ? "bill.in" : "bill.out");
     const photo = b.has_photo ? ` · <a href="/api/v1/bills/${esc(encodeURIComponent(b.id))}/photo" target="_blank" rel="noopener">${esc(t("bill.photoLink"))}</a>` : "";
-    const undone = b.status === "undone" ? ` <span class="muted">(${esc(t("bill.statusUndone"))})</span>` : "";
+    const again = b.status === "undone" && b.has_photo ? ` <button type="button" class="btn quiet small" data-again="${esc(b.id)}" data-kind="${esc(b.kind)}">${esc(t("bill.again"))}</button>` : "";
+    const undone = b.status === "undone" ? ` <span class="muted">(${esc(t("bill.statusUndone"))})</span>${again}` : "";
     return `<li><span class="mv ${b.kind}">${sign}${b.units}</span><span><span class="${b.status === "undone" ? "undone" : ""}">${esc(what)}</span>${undone}<span class="muted small"> · ${esc(b.by_name || "")}${photo}</span></span><span class="muted small num">${esc(fmtDate(b.at))} ${esc(fmtTime(b.at))}</span></li>`;
   }
+  // An undone bill often only had a mistake: read its photo again instead of asking for a new one.
+  ["billList", "homeToday"].forEach((id) => $(id).addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-again]"); if (!b) return;
+    newBill(b.dataset.kind);
+    try {
+      const r = await fetch(`/api/v1/bills/${encodeURIComponent(b.dataset.again)}/photo`, { credentials: "same-origin" });
+      if (!r.ok) throw new Error(`Error ${r.status}`);
+      const blob = await r.blob();
+      readPhoto(new File([blob], "bill.jpg", { type: blob.type || "image/jpeg" }));
+    } catch (x) { billMsg(x.message, "bad"); }
+  }));
   function renderBillList() { $("billList").innerHTML = (S.bill.recent || []).length ? S.bill.recent.slice(0, 30).map(billLi).join("") : `<li class="one muted small">${esc(t("bill.noRecent"))}</li>`; }
 
   /** Shrink a phone photo to about 1600 px JPEG before upload: faster, cheaper, and plenty for reading. */
@@ -615,8 +663,18 @@
       startCheck(r, "photo");
     } catch (e) {
       billStep("pick");
-      billMsg(e.network ? t("bill.offline") : /not set up/i.test(e.message) ? t("bill.notSetUp") : e.message, "bad");
+      billMsg(e.network ? t("bill.offline") : aiError(e), "bad");
     }
+  }
+  /** The server's AI errors are for the logs; the person gets one plain sentence. */
+  function aiError(e) {
+    const m = e.message || "";
+    if (/not set up/i.test(m)) return t("bill.notSetUp");
+    if (/returned (401|403)|key/i.test(m)) return t("bill.aiKey");
+    if (/too long/i.test(m)) return t("bill.aiSlow");
+    if (/readable answer/i.test(m)) return t("bill.aiUnreadable");
+    if (e.status === 502 || /reach the AI|AI provider/i.test(m)) return t("bill.aiFail");
+    return m;
   }
   ["billCamera", "billGallery"].forEach((id) => $(id).addEventListener("change", (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; readPhoto(f); }));
   $("billSheet").addEventListener("change", async (e) => {
@@ -649,6 +707,14 @@
     S.bill.done = null;
     renderCheck();
   }
+  /** The sum checks come from the server in English; say them in the app's language. */
+  function checkText(c) {
+    let m;
+    if ((m = /^Row (\d+): quantity not readable$/.exec(c))) return t("check.qty", { r: m[1] });
+    if ((m = /^Row (\d+): (\S+) × (\S+) = (\S+), bill says (\S+)$/.exec(c))) return t("check.row", { r: m[1], q: m[2], rate: m[3], sum: m[4], amt: m[5] });
+    if ((m = /^Rows add up to (\S+), bill total says (\S+)$/.exec(c))) return t("check.total", { sum: m[1], total: m[2] });
+    return c;
+  }
   function lineQty(l) { const n = parseInt(l.qty, 10); return n > 0 ? n : 0; }
   function blankLine(unclear) { return { text: "", qty: "", brand: "", article: "", colour: "", rate: "", mrp: "", sku: "", candidates: [], unclear: Boolean(unclear) }; }
   function renderCheck() {
@@ -662,12 +728,15 @@
         + l.candidates.map((c) => item(c.sku)).filter(Boolean).map((x) => opt(x, x.sku === l.sku)).join("")
         + `<optgroup label="${esc(t("nav.stock"))}">${all.filter((x) => !candSkus.has(x.sku)).slice(0, 800).map((x) => opt(x, x.sku === l.sku)).join("")}</optgroup>`;
       const q = lineQty(l);
-      const after = it ? `<div class="after">${esc(itemName(it))}: ${it.qty} → <b>${mode === "in" ? it.qty + q : Math.max(0, it.qty - q)}</b></div>` : "";
+      const over = it && mode === "out" && q > it.qty ? ` <span class="pill low">${esc(t("bill.overBook", { have: it.qty, n: q - it.qty }))}</span>` : "";
+      const after = it ? `<div class="after">${esc(itemName(it))}: ${it.qty} → <b>${mode === "in" ? it.qty + q : Math.max(0, it.qty - q)}</b>${over}</div>` : "";
+      const need = mode === "out" && !l.sku && q > 0;
       const nameField = mode === "in" && !l.sku ? `<div class="field"><label for="bl-article-${i}">${esc(t("bill.item"))}</label><input id="bl-article-${i}" data-i="${i}" data-f="article" value="${esc(l.article)}"></div>` : `<div class="field"><label for="bl-sku-${i}">${esc(t("bill.match"))}</label><select id="bl-sku-${i}" data-i="${i}" data-f="sku">${options}</select></div>`;
       const partsFields = mode === "in" && !l.sku ? `<div class="grid2c"><div class="field"><label for="bl-brand-${i}">${esc(t("bill.brand"))}</label><input id="bl-brand-${i}" data-i="${i}" data-f="brand" value="${esc(l.brand)}" placeholder="${esc(t("bill.optional"))}" list="brandList"></div><div class="field"><label for="bl-colour-${i}">${esc(t("bill.colour"))}</label><input id="bl-colour-${i}" data-i="${i}" data-f="colour" value="${esc(l.colour)}" placeholder="${esc(t("bill.optional"))}" list="colourList"></div></div>` : "";
       const matchField = mode === "in" && !l.sku ? `<div class="field"><label for="bl-sku-${i}">${esc(t("bill.match"))}</label><select id="bl-sku-${i}" data-i="${i}" data-f="sku">${options}</select></div>` : "";
-      return `<div class="bill-row ${l.unclear ? "warn" : ""}">
+      return `<div class="bill-row ${l.unclear ? "warn" : ""} ${need ? "need" : ""}" id="bl-row-${i}">
         ${l.text ? `<div class="written">${esc(t("bill.written"))}: “${esc(l.text)}”</div>` : ""}
+        ${need ? `<div class="need-hint">${esc(t("bill.needPick"))}</div>` : ""}
         <div class="grid"><div class="field"><label for="bl-qty-${i}">${esc(t("bill.qty"))}</label><input id="bl-qty-${i}" class="qty" data-i="${i}" data-f="qty" inputmode="numeric" value="${esc(l.qty)}"></div>${nameField}</div>
         ${partsFields}
         ${matchField}
@@ -680,8 +749,10 @@
     const money = lines.reduce((a, l) => a + lineQty(l) * (parseFloat(l.rate) || 0), 0);
     const notes = [];
     if (h.alreadyEntered) notes.push(`<div class="notice bad">${esc(t("bill.dupe", { date: fmtDate(h.alreadyEntered) }))} <label class="small"><input type="checkbox" id="billForce" ${h.force ? "checked" : ""}> ${esc(t("bill.force"))}</label></div>`);
-    if (h.source === "photo") notes.push(`<div class="notice ${h.checks.length ? "" : "good"}">${esc(lines.length === 1 ? t("bill.row1") : t("bill.rows", { n: lines.length }))} ${h.checks.length ? "" : esc(t("bill.allOk"))}${h.checks.map((c) => `<br>• ${esc(c)}`).join("")}${h.notes ? `<br><span class="muted">${esc(h.notes)}</span>` : ""}</div>`);
-    else if (h.checks.length) notes.push(`<div class="notice">${h.checks.map((c) => esc(c)).join("<br>")}</div>`);
+    // The AI's own remark is for when something looks off: one tap away, not the first thing on screen.
+    const aiNote = h.notes ? `<details class="ai-note"><summary>${esc(t("bill.aiSaw"))}</summary>${esc(h.notes)}</details>` : "";
+    if (h.source === "photo") notes.push(`<div class="notice ${h.checks.length ? "" : "good"}">${esc(lines.length === 1 ? t("bill.row1") : t("bill.rows", { n: lines.length }))} ${h.checks.length ? "" : esc(t("bill.allOk"))}${h.checks.map((c) => `<br>• ${esc(checkText(c))}`).join("")}${aiNote}</div>`);
+    else if (h.checks.length) notes.push(`<div class="notice">${h.checks.map((c) => esc(checkText(c))).join("<br>")}</div>`);
     $("billCheck").innerHTML = `
       <div class="btn-row" style="justify-content:space-between"><h3 style="margin:0">${esc(t("bill.check"))} · ${esc(t(mode === "in" ? "bill.in" : "bill.out"))}</h3><button type="button" class="btn quiet" id="billRestart">${esc(t("bill.retake"))}</button></div>
       ${notes.join("")}
@@ -693,8 +764,7 @@
       ${rows}
       <div><button type="button" class="btn" id="billAddRow">${esc(t("bill.addRow"))}</button></div>
       <div class="bill-total"><span>${esc(t("bill.total"))}</span><span class="mono">${esc(t("bill.pairs", { n: units }))}${money ? " · " + esc(rupee(money)) : ""}</span></div>
-      <div id="billErr" class="notice bad" hidden></div>
-      <div class="bill-approve"><button type="submit" class="btn primary" id="billApprove">${esc(t(mode === "in" ? "bill.approveIn" : "bill.approveOut", { n: units }))}</button><small>${esc(t("bill.nothingYet"))}</small></div>`;
+      <div class="bill-approve"><div id="billErr" class="notice bad" hidden></div><button type="submit" class="btn primary" id="billApprove">${esc(t(mode === "in" ? "bill.approveIn" : "bill.approveOut", { n: units }))}</button><small>${esc(t("bill.nothingYet"))}</small></div>`;
     billStep("check");
   }
   $("billCheck").addEventListener("input", (e) => {
@@ -727,8 +797,13 @@
     const lines = S.bill.lines.filter((l) => lineQty(l) > 0);
     const err = $("billErr"); err.hidden = true;
     if (!lines.length) { err.hidden = false; err.textContent = t("bill.pairs", { n: 0 }); return; }
-    if (mode === "out" && lines.some((l) => !l.sku)) { err.hidden = false; err.textContent = t("bill.needItem"); return; }
-    if (mode === "in" && lines.some((l) => !l.sku && !l.article.trim())) { err.hidden = false; err.textContent = t("bill.needName"); return; }
+    const stuck = (key, bad) => {
+      err.hidden = false; err.textContent = t(key);
+      const i = S.bill.lines.findIndex((l) => lineQty(l) > 0 && bad(l)); const row = $("bl-row-" + i);
+      if (row) { row.classList.add("need"); row.scrollIntoView({ behavior: "smooth", block: "center" }); const f = row.querySelector("select, input[data-f=article]"); if (f) f.focus({ preventScroll: true }); }
+    };
+    if (mode === "out" && lines.some((l) => !l.sku)) { stuck("bill.needItem", (l) => !l.sku); return; }
+    if (mode === "in" && lines.some((l) => !l.sku && !l.article.trim())) { stuck("bill.needName", (l) => !l.sku && !l.article.trim()); return; }
     const body = {
       id: h.id, kind: mode, source: h.source, photoId: h.photoId, force: h.force, supplier: h.supplier, billNo: h.billNo, date: h.date, total: h.total,
       lines: lines.map((l) => ({ qty: lineQty(l), sku: l.sku || undefined, brand: l.sku ? undefined : l.brand.trim(), article: l.sku ? undefined : l.article.trim(), colour: l.sku ? undefined : l.colour.trim(), rate: parseFloat(l.rate) || null, mrp: parseFloat(l.mrp) || null })),
@@ -743,7 +818,8 @@
     } catch (x) {
       $("billApprove").disabled = false;
       err.hidden = false; err.textContent = x.network ? t("bill.offline") : x.message;
-      if (x.status === 409) { h.alreadyEntered = h.alreadyEntered || new Date().toISOString(); renderCheck(); $("billErr").hidden = false; $("billErr").textContent = x.message; }
+      if (x.status === 409 && /already entered/i.test(x.message)) { h.alreadyEntered = h.alreadyEntered || new Date().toISOString(); renderCheck(); $("billErr").hidden = false; $("billErr").textContent = t("bill.dupe", { date: fmtDate(h.alreadyEntered) }); }
+      else if (x.status === 409) { renderCheck(); $("billErr").hidden = false; $("billErr").textContent = x.message; }
     }
   });
   function renderDone() {

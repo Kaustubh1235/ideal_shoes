@@ -416,3 +416,35 @@ describe("colour decides the match", () => {
     expect(candidatesFor(line("neela"), stock)[0].sku).toBe("PARA-SLIPPER-BLU");
   });
 });
+
+describe("fable review fixes", () => {
+  const row = (brand: string, article: string, colour: string, sku: string) => ({ sku, brand, article, colour, size: "-", cat: "shoe", cost: 0, mrp: 0, qty: 10, loc: "", created_at: "", last_in: null, last_out: null, last_count: null, updated_at: "" }) as ItemRow;
+  const stock = [row("Relaxo", "Flite", "Navy", "RELA-FLITE-NAV"), row("Bata", "Chappal", "Black", "BATA-CHAPPAL-BLA"), row("Relaxo", "Flite", "Black", "RELA-FLITE-BLA")];
+  const hindi = (article: string, colour: string, brand = "") => ({ text: `${brand} ${article} ${colour}`.trim(), qty: 5, brand, article, colour, size: "", rate: null, amount: null });
+
+  test("a Hindi row finds the same item written in English, sure enough to be picked", () => {
+    const c = candidatesFor(hindi("रिलैंक्सो फ्लाइट", "नीला"), stock);
+    expect(c[0].sku).toBe("RELA-FLITE-NAV");
+    expect(c[0].score).toBeGreaterThanOrEqual(0.6);
+    expect(c.find((x) => x.sku === "RELA-FLITE-BLA")!.score).toBeLessThan(0.6); // Black is still a different item
+    expect(candidatesFor(hindi("चप्पल", "काला", "बाटा"), stock)[0].sku).toBe("BATA-CHAPPAL-BLA");
+  });
+
+  test("undo removes the items the bill created, but keeps items that were there before", async () => {
+    await call("POST", "/api/v1/bills/apply", { kind: "in", lines: [{ qty: 3, brand: "Lakhani", article: "Sports", colour: "Grey" }] });
+    const r = await call("POST", "/api/v1/bills/apply", { kind: "in", lines: [{ qty: 2, brand: "Lakhani", article: "Sports", colour: "Grey" }, { qty: 4, brand: "Paragon", article: "Ghost", colour: "Black" }] });
+    expect(r.status).toBe(200);
+    await call("POST", `/api/v1/bills/${r.data.bill.id}/undo`);
+    const items = (await call("GET", "/api/v1/items")).data.items;
+    expect(items.find((i: any) => i.sku === "LAKH-SPORTS-GRE").qty).toBe(3);
+    expect(items.find((i: any) => i.article === "Ghost")).toBeUndefined();
+  });
+
+  test("an item the bill created but someone has sold from since stays after undo", async () => {
+    const r = await call("POST", "/api/v1/bills/apply", { kind: "in", lines: [{ qty: 4, brand: "Paragon", article: "Kept", colour: "Black" }] });
+    const sku = r.data.items[0].sku;
+    await call("POST", "/api/v1/movements", { id: crypto.randomUUID(), sku, type: "out", delta: -1 });
+    await call("POST", `/api/v1/bills/${r.data.bill.id}/undo`);
+    expect((await call("GET", "/api/v1/items")).data.items.find((i: any) => i.sku === sku)).toBeDefined();
+  });
+});
