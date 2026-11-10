@@ -357,7 +357,8 @@
     const arr = filteredItems();
     $("stockEmpty").hidden = S.items.size > 0; $("stockTable").hidden = S.items.size === 0;
     let units = 0, value = 0; arr.forEach((it) => { units += it.qty; value += it.qty * (it.cost || 0); });
-    const articles = new Set(arr.map((it) => `${it.brand}|${it.article}|${it.colour}`)).size;
+    // Same count as Home: articles that have pairs on the rack.
+    const articles = new Set(arr.filter((it) => it.qty > 0).map((it) => `${it.brand}|${it.article}|${it.colour}`)).size;
     $("stockSummary").textContent = t("stock.summary", { n: articles, units: fmtN.format(units), value: rupee(value) });
     // Stock is kept by article: the size column and the type filter only show when the shop uses them.
     const all = [...S.items.values()];
@@ -745,7 +746,8 @@
         <div><button type="button" class="btn quiet" data-remove="${i}">${esc(t("bill.remove"))}</button></div>
       </div>`;
     }).join("");
-    const units = lines.reduce((a, l) => a + lineQty(l), 0);
+    // A sale can only take what the book has: the button says how many pairs will really leave stock.
+    const units = lines.reduce((a, l) => { const it = mode === "out" && l.sku ? item(l.sku) : null; return a + (it ? Math.min(lineQty(l), it.qty) : lineQty(l)); }, 0);
     const money = lines.reduce((a, l) => a + lineQty(l) * (parseFloat(l.rate) || 0), 0);
     const notes = [];
     if (h.alreadyEntered) notes.push(`<div class="notice bad">${esc(t("bill.dupe", { date: fmtDate(h.alreadyEntered) }))} <label class="small"><input type="checkbox" id="billForce" ${h.force ? "checked" : ""}> ${esc(t("bill.force"))}</label></div>`);
