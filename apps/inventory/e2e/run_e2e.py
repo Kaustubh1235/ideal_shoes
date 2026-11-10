@@ -288,7 +288,8 @@ def main() -> int:
             expect(page.locator("#billCheck")).to_contain_text("AI read 1 row.", timeout=15000)
             expect(page.locator("#billCheck")).to_contain_text("The sums match the bill")
             assert page.input_value("#bl-qty-0") == "48"
-            assert page.input_value("#bl-name-0") == "OP AirMix"
+            assert page.input_value("#bl-article-0") == "AirMix"
+            assert page.input_value("#bl-brand-0") == "OP"  # brand, item and colour stay separate fields
             assert page.input_value("#bl-rate-0") == "355"
             assert page.input_value("#bhSupplier") == "Meenu"
             expect(page.locator("#billApprove")).to_have_text("Approve · add 48 pairs")
@@ -303,8 +304,13 @@ def main() -> int:
             page.click("#billNext")
             page.set_input_files("#billGallery", str(challan))
             expect(page.locator("#billCheck")).to_contain_text("already entered", timeout=15000)
-            expect(page.locator("#bl-sku-0")).to_have_value("OPAIRMIX")  # matched to the item just made
-            page.click("#billRestart")
+            expect(page.locator("#bl-sku-0")).to_have_value("OP-AIRMIX")  # matched to the item just made
+            # leaving a stock-in draft and tapping Maal bika starts a clean sale, never the old draft
+            page.click("#tab-home")
+            page.click("#homeOut")
+            expect(page.locator("#billPick")).to_be_visible()
+            expect(page.locator("#billCheck")).to_be_hidden()
+            expect(page.locator("#billModeOut")).to_have_attribute("aria-pressed", "true")
             expect(page.locator("#billList li").first).to_contain_text("Meenu")
 
             # ---- sale from a CSV, then undo --------------------------------------------
@@ -312,14 +318,14 @@ def main() -> int:
             sales.write_text("item,qty,rate\nOP AirMix,3,650\n")
             page.click("#billModeOut")
             page.set_input_files("#billSheet", str(sales))
-            expect(page.locator("#bl-sku-0")).to_have_value("OPAIRMIX", timeout=10000)
+            expect(page.locator("#bl-sku-0")).to_have_value("OP-AIRMIX", timeout=10000)
             expect(page.locator("#billCheck")).to_contain_text("48 → 45")
             page.click("#billApprove")
             expect(page.locator("#billDoneTitle")).to_have_text("3 pairs sold")
             page.click("#billUndo")
             expect(page.locator("#toast")).to_contain_text("Undone")
             expect(page.locator("#billList li").first).to_contain_text("undone")
-            qty = page.evaluate("fetch('/api/v1/items/OPAIRMIX').then(r => r.json()).then(d => d.item.qty)")
+            qty = page.evaluate("fetch('/api/v1/items/OP-AIRMIX').then(r => r.json()).then(d => d.item.qty)")
             assert qty == 48, qty
 
             # ---- a fast seller running out is suggested; approving puts it on To order ----

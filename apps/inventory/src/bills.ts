@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { getSetting, getItem, now, type ItemRow, type MovementRow } from "./db";
 import { decryptSecret } from "./auth";
 import { getLlmConfig } from "./insights";
-import { StockError, addStock, applyMovement, normalizeSku, type Actor } from "./stock";
+import { StockError, addStock, applyMovement, normalizeSku, skuFor, type Actor } from "./stock";
 
 /** One line as read from a bill photo or a sales sheet, before a person checks it. */
 export interface BillLine {
@@ -43,6 +43,8 @@ Rules:
 - Never guess a number you cannot read: use null and say what was unclear in "notes".`;
 
 const MAX_LINES = 100;
+/** A day's sales sheet can be long; addStock takes up to 500 rows at once, so that is the cap everywhere. */
+export const MAX_APPLY_LINES = 500;
 
 function str(v: unknown, max = 60): string {
   return String(v ?? "")
@@ -248,7 +250,8 @@ export function salesFromTable(table: string[][]): BillLine[] {
   const iSize = col(["size"]), iQty = col(["qty", "quantity", "pairs", "sold"]), iRate = col(["rate", "price", "mrp"]), iAmount = col(["amount", "total"]);
   if (iQty < 0 || (iSku < 0 && iArticle < 0)) throw new StockError(400, "The sheet needs a qty column and either sku or article");
   const out: BillLine[] = [];
-  for (const c of rows.slice(1, 1 + 2000)) {
+  if (rows.length - 1 > MAX_APPLY_LINES) throw new StockError(400, `The sheet has more than ${MAX_APPLY_LINES} rows. Split it into smaller files.`);
+  for (const c of rows.slice(1)) {
     const get = (i: number) => (i >= 0 ? String(c[i] ?? "").trim() : "");
     const qty = num(get(iQty));
     if (qty === null || qty === 0) continue;
@@ -305,7 +308,11 @@ export interface ApplyInput {
   date?: string;
   total?: number | null;
   source?: "photo" | "sheet" | "manual";
-  photo?: ImageInput & { hash: string };
+  /** Made by the phone when the check screen opens; repeating the same id returns the saved bill instead of applying it twice. */
+  id?: string;
+  /** SHA-256 of the photo that was read, for the duplicate check even when the photo itself is no longer held. */
+  photoHash?: string;
+  photo?: { mime: string; bytes: Uint8Array };
   /** Enter a bill whose photo was already entered once. */
   force?: boolean;
   lines: ApplyLine[];
@@ -314,7 +321,12 @@ export interface ApplyInput {
 export interface ApplyOutcome {
   bill: BillRow;
   results: { sku: string; before: number; after: number; delta: number; created: boolean; short: number }[];
+  /** True when this id was already saved and nothing new was applied. */
+  replay?: boolean;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const nameKey = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]+/g, "");
 
 const PHOTO_DAYS = 180;
 
@@ -340,13 +352,19 @@ export function applyBill(db: Database, input: ApplyInput, actor: Actor): ApplyO
   if (input.kind !== "in" && input.kind !== "out") throw new StockError(400, "kind must be in or out");
   const lines = Array.isArray(input.lines) ? input.lines.filter((l) => posInt(l?.qty)) : [];
   if (!lines.length) throw new StockError(400, "No rows with a quantity");
-  if (lines.length > MAX_LINES) throw new StockError(400, `Too many rows (max ${MAX_LINES})`);
-  const hash = input.photo?.hash && /^[0-9a-f]{64}$/.test(input.photo.hash) ? input.photo.hash : null;
+  if (lines.length > MAX_APPLY_LINES) throw new StockError(400, `Too many rows (max ${MAX_APPLY_LINES}). Split the sheet.`);
+  const id = input.id && UUID_RE.test(input.id) ? input.id.toLowerCase() : crypto.randomUUID();
+  const saved = getBill(db, id);
+  if (saved) {
+    // The phone sent the same Approve twice (lost reply, double tap): answer with what was saved.
+    const moves = db.query<MovementRow, [string]>("SELECT * FROM movements WHERE ref = ? ORDER BY at").all(id);
+    return { bill: saved, replay: true, results: moves.map((m) => ({ sku: m.sku, before: m.before_qty, after: m.after_qty, delta: m.delta, created: m.type === "new", short: 0 })) };
+  }
+  const hash = input.photoHash && /^[0-9a-f]{64}$/.test(input.photoHash) ? input.photoHash : null;
   if (hash && !input.force) {
     const dup = billByPhoto(db, hash);
     if (dup) throw new StockError(409, `This photo was already entered on ${dup.at.slice(0, 10)}. Enter it again only if it is a different delivery.`);
   }
-  const id = crypto.randomUUID();
   const supplier = str(input.supplier);
   const billNo = str(input.billNo, 30);
   const date = /^\d{4}-\d{2}-\d{2}$/.test(String(input.date ?? "")) ? String(input.date) : "";
@@ -372,6 +390,14 @@ export function applyBill(db: Database, input: ApplyInput, actor: Actor): ApplyO
         ? { brand: existing.brand, article: existing.article, colour: existing.colour, size: existing.size, cat: existing.cat }
         : { brand: str(l.brand) || "-", article: str(l.article), colour: str(l.colour, 30) || "-", size: "-", cat: "shoe" };
       if (!row.article) throw new StockError(400, "Every new item needs a name");
+      if (!existing) {
+        // The code keeps only the first letters of each part, so two different names can land on one code.
+        // Topping up a different article by accident would mix their counts: refuse and say which one.
+        const clash = getItem(db, skuFor(row.brand, row.article, row.colour, "-"));
+        if (clash && nameKey(`${clash.brand}${clash.article}${clash.colour}`) !== nameKey(`${row.brand}${row.article}${row.colour}`)) {
+          throw new StockError(409, `"${[row.brand, row.article, row.colour].filter((x) => x !== "-").join(" ")}" gets the same code as "${[clash.brand, clash.article, clash.colour].filter((x) => x !== "-").join(" ")}" (${clash.sku}). Pick that item under "In stock as", or change the name so they differ in the first letters.`);
+        }
+      }
       const [r] = addStock(db, [{ ...row, qty, cost: money(l.rate), mrp: money(l.mrp) }], actor, { note, ref: id });
       results.push({ sku: r.item.sku, before: r.movement.before_qty, after: r.movement.after_qty, delta: r.movement.delta, created: r.movement.type === "new", short: 0 });
       units += qty;
@@ -380,7 +406,7 @@ export function applyBill(db: Database, input: ApplyInput, actor: Actor): ApplyO
       id, input.kind, now(), actor.userId ?? null, supplier, billNo, date, input.total == null ? null : money(input.total), units, lines.length, hash, input.source ?? "manual",
     );
     if (input.photo && hash) {
-      db.query("INSERT INTO bill_photos (bill_id, mime, data, at) VALUES (?,?,?,?)").run(id, input.photo.mime, Buffer.from(input.photo.base64, "base64"), now());
+      db.query("INSERT INTO bill_photos (bill_id, mime, data, at) VALUES (?,?,?,?)").run(id, input.photo.mime, input.photo.bytes, now());
     }
     db.query("DELETE FROM bill_photos WHERE at < ?").run(new Date(Date.now() - PHOTO_DAYS * 86400000).toISOString());
   });

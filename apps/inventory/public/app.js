@@ -563,8 +563,10 @@
       loadHome();
     } catch (err) { toast(err.message); }
   });
-  $("homeIn").addEventListener("click", () => { setBillMode("in"); show("bill"); });
-  $("homeOut").addEventListener("click", () => { setBillMode("out"); show("bill"); });
+  // The Home buttons always start a new bill: a half-checked draft from the other mode must never be approved as this one.
+  function newBill(mode) { S.bill.lines = null; S.bill.head = null; S.bill.done = null; setBillMode(mode); show("bill"); billStep("pick"); }
+  $("homeIn").addEventListener("click", () => newBill("in"));
+  $("homeOut").addEventListener("click", () => newBill("out"));
 
   // ---------- bill: photo or sheet → check → approve ----------
   S.bill = { mode: "in", recent: [], lines: null, head: null, done: null };
@@ -635,20 +637,22 @@
     if ((r.lines || []).some((l) => (l.candidates || []).some((c) => !item(c.sku)))) await refresh();
     // The person chose In or Sold; the AI's guess only fills in when it is sure and they did not pick.
     const mode = S.bill.mode;
-    S.bill.head = { supplier: r.supplier || "", billNo: r.billNo || "", date: r.date || "", total: r.total, notes: r.notes || "", checks: r.checks || [], photoId: r.photoId || null, alreadyEntered: r.alreadyEntered || null, source, force: false };
+    // The id makes Approve safe to repeat (lost reply, double tap); the mode is fixed for this draft.
+    S.bill.head = { id: crypto.randomUUID(), mode, supplier: r.supplier || "", billNo: r.billNo || "", date: r.date || "", total: r.total, notes: r.notes || "", checks: r.checks || [], photoId: r.photoId || null, alreadyEntered: r.alreadyEntered || null, source, force: false };
     S.bill.lines = (r.lines || []).map((l) => {
       const cands = l.candidates || [];
       const best = cands[0];
       const sure = best && (mode === "out" || best.score >= 0.6);
-      return { text: l.text || "", qty: l.qty == null ? "" : l.qty, name: [l.brand, l.article, l.colour].filter(Boolean).join(" ").trim() || l.text || "", rate: l.rate == null ? "" : l.rate, mrp: "", sku: sure ? best.sku : "", candidates: cands, unclear: l.qty == null };
+      return { text: l.text || "", qty: l.qty == null ? "" : l.qty, brand: l.brand || "", article: l.article || (l.brand || l.colour ? "" : l.text || ""), colour: l.colour || "", rate: l.rate == null ? "" : l.rate, mrp: "", sku: sure ? best.sku : "", candidates: cands, unclear: l.qty == null };
     });
-    if (!S.bill.lines.length) S.bill.lines.push({ text: "", qty: "", name: "", rate: "", mrp: "", sku: "", candidates: [], unclear: true });
+    if (!S.bill.lines.length) S.bill.lines.push(blankLine(true));
     S.bill.done = null;
     renderCheck();
   }
   function lineQty(l) { const n = parseInt(l.qty, 10); return n > 0 ? n : 0; }
+  function blankLine(unclear) { return { text: "", qty: "", brand: "", article: "", colour: "", rate: "", mrp: "", sku: "", candidates: [], unclear: Boolean(unclear) }; }
   function renderCheck() {
-    const h = S.bill.head, mode = S.bill.mode, lines = S.bill.lines;
+    const h = S.bill.head, mode = h.mode, lines = S.bill.lines;
     const all = [...S.items.values()].sort((a, b) => itemName(a).localeCompare(itemName(b)));
     const opt = (it, sel) => `<option value="${esc(it.sku)}" ${sel ? "selected" : ""}>${esc(itemName(it))}${it.size && it.size !== "-" ? " " + esc(it.size) : ""} · ${it.qty}</option>`;
     const rows = lines.map((l, i) => {
@@ -659,11 +663,13 @@
         + `<optgroup label="${esc(t("nav.stock"))}">${all.filter((x) => !candSkus.has(x.sku)).slice(0, 800).map((x) => opt(x, x.sku === l.sku)).join("")}</optgroup>`;
       const q = lineQty(l);
       const after = it ? `<div class="after">${esc(itemName(it))}: ${it.qty} → <b>${mode === "in" ? it.qty + q : Math.max(0, it.qty - q)}</b></div>` : "";
-      const nameField = mode === "in" && !l.sku ? `<div class="field"><label for="bl-name-${i}">${esc(t("bill.item"))}</label><input id="bl-name-${i}" data-i="${i}" data-f="name" value="${esc(l.name)}"></div>` : `<div class="field"><label for="bl-sku-${i}">${esc(t("bill.match"))}</label><select id="bl-sku-${i}" data-i="${i}" data-f="sku">${options}</select></div>`;
+      const nameField = mode === "in" && !l.sku ? `<div class="field"><label for="bl-article-${i}">${esc(t("bill.item"))}</label><input id="bl-article-${i}" data-i="${i}" data-f="article" value="${esc(l.article)}"></div>` : `<div class="field"><label for="bl-sku-${i}">${esc(t("bill.match"))}</label><select id="bl-sku-${i}" data-i="${i}" data-f="sku">${options}</select></div>`;
+      const partsFields = mode === "in" && !l.sku ? `<div class="grid2c"><div class="field"><label for="bl-brand-${i}">${esc(t("bill.brand"))}</label><input id="bl-brand-${i}" data-i="${i}" data-f="brand" value="${esc(l.brand)}" placeholder="${esc(t("bill.optional"))}" list="brandList"></div><div class="field"><label for="bl-colour-${i}">${esc(t("bill.colour"))}</label><input id="bl-colour-${i}" data-i="${i}" data-f="colour" value="${esc(l.colour)}" placeholder="${esc(t("bill.optional"))}" list="colourList"></div></div>` : "";
       const matchField = mode === "in" && !l.sku ? `<div class="field"><label for="bl-sku-${i}">${esc(t("bill.match"))}</label><select id="bl-sku-${i}" data-i="${i}" data-f="sku">${options}</select></div>` : "";
       return `<div class="bill-row ${l.unclear ? "warn" : ""}">
         ${l.text ? `<div class="written">${esc(t("bill.written"))}: “${esc(l.text)}”</div>` : ""}
         <div class="grid"><div class="field"><label for="bl-qty-${i}">${esc(t("bill.qty"))}</label><input id="bl-qty-${i}" class="qty" data-i="${i}" data-f="qty" inputmode="numeric" value="${esc(l.qty)}"></div>${nameField}</div>
+        ${partsFields}
         ${matchField}
         <div class="grid2c"><div class="field"><label for="bl-rate-${i}">${esc(t("bill.rate"))}</label><input id="bl-rate-${i}" data-i="${i}" data-f="rate" inputmode="numeric" value="${esc(l.rate)}"></div>${mode === "in" && !l.sku ? `<div class="field"><label for="bl-mrp-${i}">${esc(t("bill.mrp"))}</label><input id="bl-mrp-${i}" data-i="${i}" data-f="mrp" inputmode="numeric" placeholder="${esc(t("bill.optional"))}" value="${esc(l.mrp)}"></div>` : ""}</div>
         ${after}
@@ -711,21 +717,21 @@
   }
   $("billCheck").addEventListener("click", (e) => {
     const rm = e.target.closest("[data-remove]");
-    if (rm) { S.bill.lines.splice(+rm.dataset.remove, 1); if (!S.bill.lines.length) S.bill.lines.push({ text: "", qty: "", name: "", rate: "", mrp: "", sku: "", candidates: [] }); renderCheck(); return; }
-    if (e.target.id === "billAddRow") { S.bill.lines.push({ text: "", qty: "", name: "", rate: "", mrp: "", sku: "", candidates: [] }); renderCheck(); return; }
+    if (rm) { S.bill.lines.splice(+rm.dataset.remove, 1); if (!S.bill.lines.length) S.bill.lines.push(blankLine()); renderCheck(); return; }
+    if (e.target.id === "billAddRow") { S.bill.lines.push(blankLine()); renderCheck(); return; }
     if (e.target.id === "billRestart") { S.bill.lines = null; S.bill.head = null; billStep("pick"); }
   });
   $("billCheck").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const h = S.bill.head, mode = S.bill.mode;
+    const h = S.bill.head, mode = h.mode;
     const lines = S.bill.lines.filter((l) => lineQty(l) > 0);
     const err = $("billErr"); err.hidden = true;
     if (!lines.length) { err.hidden = false; err.textContent = t("bill.pairs", { n: 0 }); return; }
     if (mode === "out" && lines.some((l) => !l.sku)) { err.hidden = false; err.textContent = t("bill.needItem"); return; }
-    if (mode === "in" && lines.some((l) => !l.sku && !l.name.trim())) { err.hidden = false; err.textContent = t("bill.needName"); return; }
+    if (mode === "in" && lines.some((l) => !l.sku && !l.article.trim())) { err.hidden = false; err.textContent = t("bill.needName"); return; }
     const body = {
-      kind: mode, source: h.source, photoId: h.photoId, force: h.force, supplier: h.supplier, billNo: h.billNo, date: h.date, total: h.total,
-      lines: lines.map((l) => ({ qty: lineQty(l), sku: l.sku || undefined, article: l.sku ? undefined : l.name.trim(), rate: parseFloat(l.rate) || null, mrp: parseFloat(l.mrp) || null })),
+      id: h.id, kind: mode, source: h.source, photoId: h.photoId, force: h.force, supplier: h.supplier, billNo: h.billNo, date: h.date, total: h.total,
+      lines: lines.map((l) => ({ qty: lineQty(l), sku: l.sku || undefined, brand: l.sku ? undefined : l.brand.trim(), article: l.sku ? undefined : l.article.trim(), colour: l.sku ? undefined : l.colour.trim(), rate: parseFloat(l.rate) || null, mrp: parseFloat(l.mrp) || null })),
     };
     $("billApprove").disabled = true;
     try {

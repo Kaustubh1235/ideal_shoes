@@ -326,3 +326,63 @@ describe("insights in Hindi", () => {
     expect(ai.calls.at(-1)!.body.messages[0].content).toContain("Answer in simple Hindi");
   });
 });
+
+describe("review fixes", () => {
+  test("the same Approve sent twice (lost reply, double tap) is applied once", async () => {
+    const id = crypto.randomUUID();
+    const body = { id, kind: "in", lines: [{ qty: 5, brand: "Relaxo", article: "Flite", colour: "Blue", rate: 199 }] };
+    const a = await call("POST", "/api/v1/bills/apply", body);
+    const b = await call("POST", "/api/v1/bills/apply", body);
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200);
+    expect(b.data.replay).toBe(true);
+    expect(b.data.bill.id).toBe(id);
+    expect((await call("GET", "/api/v1/items/RELA-FLITE-BLU")).data.item.qty).toBe(5);
+  });
+
+  test("a photo already entered is caught even when the server no longer holds it", async () => {
+    const hash = "ab".repeat(32);
+    expect((await call("POST", "/api/v1/bills/apply", { kind: "in", photoId: hash, lines: [{ qty: 1, article: "Hash test" }] })).status).toBe(200);
+    const again = await call("POST", "/api/v1/bills/apply", { kind: "in", photoId: hash, lines: [{ qty: 1, article: "Hash test" }] });
+    expect(again.status).toBe(409);
+  });
+
+  test("brand, article and colour stay apart: different colours are different items", async () => {
+    const r = await call("POST", "/api/v1/bills/apply", { kind: "in", lines: [{ qty: 10, brand: "Bata", article: "Comfit", colour: "Black" }, { qty: 3, brand: "Bata", article: "Comfit", colour: "Brown" }] });
+    expect(r.data.items.map((i: any) => [i.sku, i.qty])).toEqual([["BATA-COMFIT-BLA", 10], ["BATA-COMFIT-BRO", 3]]);
+  });
+
+  test("a new name whose code clashes with a different item is refused, not merged", async () => {
+    const same = await call("POST", "/api/v1/bills/apply", { kind: "in", lines: [{ qty: 2, brand: "Bata", article: "Comfit!", colour: "Black" }] });
+    expect(same.status).toBe(200); // the same name apart from punctuation is the same item, topped up
+    expect((await call("POST", "/api/v1/bills/apply", { kind: "in", lines: [{ qty: 4, brand: "Bata", article: "Comfort Plus", colour: "Tan" }] })).status).toBe(200);
+    // "Comfort Pro" shares the first 8 letters, so it would get the same code BATA-COMFORTP-TAN
+    const clash = await call("POST", "/api/v1/bills/apply", { kind: "in", lines: [{ qty: 2, brand: "Bata", article: "Comfort Pro", colour: "Tan" }] });
+    expect(clash.status).toBe(409);
+    expect(clash.data.error).toContain("BATA-COMFORTP-TAN");
+    expect((await call("GET", "/api/v1/items/BATA-COMFORTP-TAN")).data.item.qty).toBe(4);
+    expect((await call("GET", "/api/v1/items/BATA-COMFIT-BLA")).data.item.qty).toBe(12);
+  });
+
+  test("a long sales sheet (150 rows) can be approved; over 500 rows is refused at read time", async () => {
+    await call("POST", "/api/v1/bills/apply", { kind: "in", lines: [{ qty: 200, sku: "RELA-FLITE-BLU" }] });
+    const r = await call("POST", "/api/v1/bills/apply", { kind: "out", source: "sheet", lines: Array.from({ length: 150 }, () => ({ qty: 1, sku: "RELA-FLITE-BLU" })) });
+    expect(r.status).toBe(200);
+    expect(r.data.bill.lines).toBe(150);
+    const read = await call("POST", "/api/v1/bills/read-sheet?format=csv", undefined, owner, { type: "text/csv", data: "item,qty\n" + "x,1\n".repeat(501) });
+    expect(read.status).toBe(400);
+    expect(read.data.error).toContain("more than 500 rows");
+  });
+
+  test("undoing a later delivery does not wipe an approved reorder off To order", async () => {
+    const add = await call("POST", "/api/v1/bills/apply", { kind: "in", lines: [{ qty: 6, article: "Kids sandal", rate: 150 }] });
+    const sku = add.data.items[0].sku;
+    await call("POST", "/api/v1/bills/apply", { kind: "out", lines: [{ qty: 6, sku }] });
+    await call("POST", `/api/v1/suggestions/${encodeURIComponent("reorder:" + sku)}`, { decision: "approve", qty: 12 });
+    await new Promise((r) => setTimeout(r, 5));
+    const oops = await call("POST", "/api/v1/bills/apply", { kind: "in", lines: [{ qty: 1, sku }] });
+    await call("POST", `/api/v1/bills/${oops.data.bill.id}/undo`);
+    const to = (await call("GET", "/api/v1/suggestions")).data.toOrder;
+    expect(to.find((o: any) => o.sku === sku)).toBeTruthy();
+  });
+});

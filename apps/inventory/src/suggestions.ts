@@ -68,13 +68,21 @@ export function toOrder(db: Database, items: ItemRow[], nowMs = Date.now()) {
   const rows = db
     .query<{ target: string; qty: number | null; at: string }, [string]>("SELECT target, qty, at FROM suggestions WHERE kind = 'reorder' AND status = 'approved' AND at >= ? ORDER BY at DESC")
     .all(new Date(nowMs - 30 * DAY).toISOString());
+  // Last real delivery per item: an undo is an adjustment and an undone bill never happened.
+  const lastIn = new Map(
+    db
+      .query<{ sku: string; at: string }, []>("SELECT sku, MAX(at) AS at FROM movements WHERE type IN ('in','new') AND (ref IS NULL OR ref NOT IN (SELECT id FROM bills WHERE status = 'undone')) GROUP BY sku")
+      .all()
+      .map((r) => [r.sku, r.at]),
+  );
   const seen = new Set<string>();
   const out: { sku: string; brand: string; article: string; colour: string; qty: number; approvedAt: string; inStock: number }[] = [];
   for (const r of rows) {
     const it = byKey.get(r.target);
     if (!it || seen.has(r.target)) continue;
     seen.add(r.target);
-    if (it.last_in && it.last_in > r.at) continue; // it came in after the approval
+    const came = lastIn.get(r.target);
+    if (came && came > r.at) continue; // it came in after the approval
     out.push({ sku: it.sku, brand: it.brand, article: it.article, colour: it.colour, qty: r.qty ?? 0, approvedAt: r.at, inStock: it.qty });
   }
   return out;

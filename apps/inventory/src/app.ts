@@ -173,12 +173,13 @@ export function createApp(opts: AppOptions): App {
   // AI bill reads cost money: per person, not per IP, so a shared shop Wi-Fi does not block everyone.
   const billReadLimit = new RateLimiter(opts.rateLimits?.billReads?.max ?? 100, opts.rateLimits?.billReads?.windowMs ?? 60 * 60 * 1000);
   // Photos read but not yet approved, so Approve does not upload the photo a second time. Small and short-lived.
-  const pendingPhotos = new Map<string, B.ImageInput & { hash: string; at: number }>();
-  function keepPhoto(p: B.ImageInput & { hash: string }) {
+  // Kept as bytes (not base64) and capped at 20, so at worst ~120 MB and normally a few MB.
+  const pendingPhotos = new Map<string, { mime: string; bytes: Uint8Array; at: number }>();
+  function keepPhoto(hash: string, image: B.ImageInput) {
     const cutoff = Date.now() - 2 * 3600 * 1000;
     for (const [k, v] of pendingPhotos) if (v.at < cutoff) pendingPhotos.delete(k);
-    while (pendingPhotos.size >= 40) pendingPhotos.delete(pendingPhotos.keys().next().value!);
-    pendingPhotos.set(p.hash, { ...p, at: Date.now() });
+    while (pendingPhotos.size >= 20) pendingPhotos.delete(pendingPhotos.keys().next().value!);
+    pendingPhotos.set(hash, { mime: image.mime, bytes: Buffer.from(image.base64, "base64"), at: Date.now() });
   }
   function limit(rl: RateLimiter, req: Request, name: string, message: string) {
     const wait = rl.hit(ip(req) ?? "unknown");
@@ -431,7 +432,7 @@ export function createApp(opts: AppOptions): App {
         try {
           const read = await B.readBillPhoto(db, opts.secret, image, items, opts.fetchImpl ?? fetch);
           M.inc("stockroom_bill_reads_total", { status: "ok" });
-          keepPhoto({ ...image, hash });
+          keepPhoto(hash, image);
           const dup = B.billByPhoto(db, hash);
           audit(db, { userId: session.userId, actor: session.name, action: "bill_read", detail: { rows: read.lines.length, model: read.model }, ip: ip(req) });
           return json({ ...read, photoId: hash, alreadyEntered: dup ? dup.at : null, lines: read.lines.map((l) => ({ ...l, candidates: B.candidatesFor(l, items) })) });
@@ -443,9 +444,11 @@ export function createApp(opts: AppOptions): App {
       if (r[1] === "read-sheet" && m === "POST") {
         const kind = url.searchParams.get("format") === "csv" ? "csv" : "xlsx";
         if (Number(req.headers.get("content-length") ?? 0) > 5 * 1024 * 1024) throw new HttpError(413, "File too large (max 5 MB)");
+        const buf = new Uint8Array(await req.arrayBuffer());
+        if (buf.byteLength > 5 * 1024 * 1024) throw new HttpError(413, "File too large (max 5 MB)");
         let table: string[][];
         try {
-          table = kind === "xlsx" ? readXlsx(new Uint8Array(await req.arrayBuffer())) : csvTable(await req.text());
+          table = kind === "xlsx" ? readXlsx(buf) : csvTable(new TextDecoder().decode(buf));
         } catch {
           throw new HttpError(400, "Could not read this file. Save it as .xlsx or .csv and try again.");
         }
@@ -459,13 +462,14 @@ export function createApp(opts: AppOptions): App {
         }) });
       }
       if (r[1] === "apply" && m === "POST") {
-        const b = await body<B.ApplyInput & { photoId?: string }>(req, 512 * 1024);
-        const photo = b.photoId ? pendingPhotos.get(String(b.photoId)) : undefined;
-        const res = B.applyBill(db, { kind: b.kind, supplier: b.supplier, billNo: b.billNo, date: b.date, total: b.total, source: b.source === "photo" || b.source === "sheet" ? b.source : "manual", force: Boolean(b.force), lines: b.lines, photo: photo ? { mime: photo.mime, base64: photo.base64, hash: photo.hash } : undefined }, actor);
-        if (photo) pendingPhotos.delete(photo.hash);
-        M.inc("stockroom_bills_applied_total", { kind: res.bill.kind });
-        audit(db, { userId: session.userId, actor: session.name, action: "bill_apply", target: res.bill.id, detail: { kind: res.bill.kind, rows: res.bill.lines, units: res.bill.units, source: res.bill.source }, ip: ip(req) });
-        return json({ bill: res.bill, results: res.results, items: res.results.map((x) => getItem(db, x.sku)).filter(Boolean).map((it) => publicItem(it!)) });
+        const b = await body<B.ApplyInput & { photoId?: string }>(req, 1024 * 1024);
+        const photoHash = typeof b.photoId === "string" && /^[0-9a-f]{64}$/.test(b.photoId) ? b.photoId : undefined;
+        const photo = photoHash ? pendingPhotos.get(photoHash) : undefined;
+        const res = B.applyBill(db, { id: typeof b.id === "string" ? b.id : undefined, kind: b.kind, supplier: b.supplier, billNo: b.billNo, date: b.date, total: b.total, source: b.source === "photo" || b.source === "sheet" ? b.source : "manual", force: Boolean(b.force), lines: b.lines, photoHash, photo: photo ? { mime: photo.mime, bytes: photo.bytes } : undefined }, actor);
+        if (photoHash && !res.replay) pendingPhotos.delete(photoHash);
+        if (!res.replay) M.inc("stockroom_bills_applied_total", { kind: res.bill.kind });
+        if (!res.replay) audit(db, { userId: session.userId, actor: session.name, action: "bill_apply", target: res.bill.id, detail: { kind: res.bill.kind, rows: res.bill.lines, units: res.bill.units, source: res.bill.source }, ip: ip(req) });
+        return json({ bill: res.bill, results: res.results, replay: Boolean(res.replay), items: res.results.map((x) => getItem(db, x.sku)).filter(Boolean).map((it) => publicItem(it!)) });
       }
       if (!r[1] && m === "GET") return json({ bills: B.listBills(db) });
       if (r[1] && r[2] === "photo" && m === "GET") {
