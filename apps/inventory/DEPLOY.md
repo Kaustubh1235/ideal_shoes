@@ -100,7 +100,7 @@ The app restarts by itself after a reboot or a crash. Logs are capped at 50 MB p
 
 On your phone or computer, open **https://stock.idealx.in** (use exactly this address: the first visit saves it as the address printed inside every QR label).
 
-The first screen is **Set up the Stock Room**: fill in the shop name, your name and a PIN of 4 to 8 digits (twice), and press **Create and open**. You are the admin.
+The first screen is **Set up the Stock Room**: fill in the shop name, your name and a PIN of 6 to 8 digits (twice), and press **Create and open**. You are the admin. If `SETUP_TOKEN` is set in `.env` (do set it), the screen also asks for that code, so nobody else can create the owner before you.
 
 Then go to **Admin → Settings** and check that *This app's address* shows `https://stock.idealx.in`. Fix it and press **Save settings** if not.
 

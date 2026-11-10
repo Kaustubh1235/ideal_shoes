@@ -130,7 +130,7 @@ def main() -> int:
     # ---- Stock Room: owner, stock, API key, then switch the link on -----------------------
     step("stock room: owner setup, stock by size run, API key")
     xr = {"x-requested-with": "StockRoom", "content-type": "application/json"}
-    s, h, _ = https("POST", f"{STOCK_BASE}/api/v1/auth/setup", json.dumps({"name": "Papa", "pin": "2468", "shop": "Ideal Shoes", "appUrl": STOCK_BASE}).encode(), xr)
+    s, h, _ = https("POST", f"{STOCK_BASE}/api/v1/auth/setup", json.dumps({"name": "Papa", "pin": "2468", "shop": "Ideal Shoes", "appUrl": STOCK_BASE, "setupCode": ENV.get("STOCK_SETUP_TOKEN", "")}).encode(), xr)
     if s not in (200, 201):  # a re-run: the owner exists, sign in instead
         users = json.loads(https("GET", f"{STOCK_BASE}/api/v1/auth/state")[2])["users"]
         papa = next(u for u in users if u["name"] == "Papa")

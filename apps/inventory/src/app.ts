@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { join, normalize, extname } from "node:path";
+import { timingSafeEqual } from "node:crypto";
 import {
   openDb,
   now,
@@ -46,6 +47,9 @@ export interface AppOptions {
   log?: (line: Record<string, unknown>) => void;
   /** Per-IP limits. Defaults: 20 login attempts / 10 min, 600 public API requests / min. */
   rateLimits?: { login?: { max: number; windowMs: number }; publicApi?: { max: number; windowMs: number }; billReads?: { max: number; windowMs: number } };
+  /** When set, the first-run owner setup needs this code (STOCK_SETUP_TOKEN in the server's .env), so nobody
+   * else can claim the owner account between the server starting and the owner opening it. */
+  setupToken?: string;
   /** For tests: the fetch used to call the AI provider. */
   fetchImpl?: typeof fetch;
 }
@@ -272,12 +276,18 @@ export function createApp(opts: AppOptions): App {
       if (r[1] === "state" && m === "GET") {
         const users = db.query<UserRow, []>("SELECT * FROM users WHERE active = 1 ORDER BY role DESC, name").all();
         const me = sessionFromRequest(db, opts.secret, req);
-        return json({ setupNeeded: users.length === 0, users: users.map((u) => ({ id: u.id, name: u.name, role: u.role })), me, shop: getSetting(db, "shop", "Ideal Shoes"), version });
+        return json({ setupNeeded: users.length === 0, setupCodeNeeded: users.length === 0 && Boolean(opts.setupToken), users: users.map((u) => ({ id: u.id, name: u.name, role: u.role })), me, shop: getSetting(db, "shop", "Ideal Shoes"), version });
       }
       if (r[1] === "setup" && m === "POST") {
         const count = db.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM users").get()!.n;
         if (count > 0) throw new HttpError(409, "Setup already done");
-        const b = await body<{ name?: string; pin?: string; appUrl?: string; shop?: string }>(req);
+        limit(loginLimit, req, "login", "Too many tries from this device. Wait a few minutes and try again.");
+        const b = await body<{ name?: string; pin?: string; appUrl?: string; shop?: string; setupCode?: string }>(req);
+        if (opts.setupToken) {
+          const given = Buffer.from(String(b.setupCode ?? "").trim());
+          const want = Buffer.from(opts.setupToken);
+          if (given.length !== want.length || !timingSafeEqual(given, want)) throw new HttpError(403, "Wrong setup code. It is STOCK_SETUP_TOKEN in the server's .env file.");
+        }
         const name = String(b.name ?? "").trim().slice(0, 40);
         if (!name) throw new HttpError(400, "Name is required");
         if (!validPin(b.pin)) throw new HttpError(400, "PIN must be 4 to 8 digits");
@@ -582,7 +592,7 @@ export function createApp(opts: AppOptions): App {
           if (b.role && b.role !== "admin" && u.id === session.userId) throw new HttpError(400, "You cannot demote yourself");
           if (b.pin !== undefined) {
             if (!validPin(b.pin)) throw new HttpError(400, "PIN must be 4 to 8 digits");
-            db.query("UPDATE users SET pin_hash = ?, failed_attempts = 0, locked_until = NULL WHERE id = ?").run(await hashPin(b.pin), u.id);
+            db.query("UPDATE users SET pin_hash = ?, failed_attempts = 0, locked_until = NULL, lockouts = 0 WHERE id = ?").run(await hashPin(b.pin), u.id);
           }
           if (b.active !== undefined) db.query("UPDATE users SET active = ? WHERE id = ?").run(b.active ? 1 : 0, u.id);
           if (b.role) db.query("UPDATE users SET role = ? WHERE id = ?").run(b.role === "admin" ? "admin" : "staff", u.id);

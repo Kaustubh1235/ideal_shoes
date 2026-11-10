@@ -23,6 +23,7 @@
       <div class="field"><label for="setupName">Your name</label><input id="setupName" placeholder="Papa"></div>
       <div class="field"><label for="setupPin">PIN (4–8 digits)</label><input id="setupPin" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password"></div>
       <div class="field"><label for="setupPin2">PIN again</label><input id="setupPin2" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password"></div>
+      <div class="field" id="setupCodeField" hidden><label for="setupCode">Setup code (STOCK_SETUP_TOKEN in the server's .env)</label><input id="setupCode" class="mono" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
       <div id="setupMsg" class="notice bad" hidden></div>
       <button type="button" class="btn primary" id="setupGo">Create and open</button>
     </div>

@@ -309,3 +309,34 @@ describe("backups", () => {
     expect(restored.query<{ n: number }, []>("SELECT SUM(qty) AS n FROM items").get()!.n).toBe(4);
   });
 });
+
+describe("first-run setup code", () => {
+  test("with SETUP_TOKEN set, setup needs the code; the state says so", async () => {
+    const a = createApp({ dbPath: ":memory:", secret: "test-secret-test-secret-test-secret-xx", publicDir: PUBLIC, version: "test", log: () => {}, setupToken: "s3tup-code-1234" });
+    const post = (b: unknown) => a.fetch(new Request("https://stock.test/api/v1/auth/setup", { method: "POST", headers: { "content-type": "application/json", "x-requested-with": "StockRoom" }, body: JSON.stringify(b) }));
+    const st = await (await a.fetch(new Request("https://stock.test/api/v1/auth/state"))).json();
+    expect(st.setupCodeNeeded).toBe(true);
+    expect((await post({ name: "Intruder", pin: "1111" })).status).toBe(403);
+    expect((await post({ name: "Intruder", pin: "1111", setupCode: "s3tup-code-123X" })).status).toBe(403);
+    expect((await post({ name: "Papa", pin: "2468", setupCode: "s3tup-code-1234" })).status).toBe(200);
+  });
+});
+
+describe("lockouts grow", () => {
+  test("each lockout in a row doubles the wait", async () => {
+    const a = createApp({ dbPath: ":memory:", secret: "test-secret-test-secret-test-secret-xx", publicDir: PUBLIC, version: "test", log: () => {}, rateLimits: { login: { max: 1000, windowMs: 60000 } } });
+    const r = await a.fetch(new Request("https://stock.test/api/v1/auth/setup", { method: "POST", headers: { "content-type": "application/json", "x-requested-with": "StockRoom" }, body: JSON.stringify({ name: "Papa", pin: "2468" }) }));
+    expect(r.status).toBe(200);
+    const id = a.db.query<{ id: string }, []>("SELECT id FROM users").get()!.id;
+    const login = (pin: string) => a.fetch(new Request("https://stock.test/api/v1/auth/login", { method: "POST", headers: { "content-type": "application/json", "x-requested-with": "StockRoom" }, body: JSON.stringify({ userId: id, pin }) }));
+    const lockMinutes = () => Math.round((Date.parse(a.db.query<{ locked_until: string }, []>("SELECT locked_until FROM users").get()!.locked_until) - Date.now()) / 60000);
+    for (let i = 0; i < 5; i++) await login("0000");
+    expect(lockMinutes()).toBe(10);
+    a.db.exec("UPDATE users SET locked_until = NULL");
+    for (let i = 0; i < 5; i++) await login("0000");
+    expect(lockMinutes()).toBe(20);
+    a.db.exec("UPDATE users SET locked_until = NULL");
+    expect((await login("2468")).status).toBe(200);
+    expect(a.db.query<{ lockouts: number }, []>("SELECT lockouts FROM users").get()!.lockouts).toBe(0);
+  });
+});

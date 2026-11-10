@@ -6,6 +6,8 @@ export const SESSION_COOKIE = "sr_session";
 const SESSION_DAYS = 30;
 const MAX_FAILS = 5;
 const LOCK_MINUTES = 10;
+/** Each lockout in a row doubles the wait, up to a day: guessing a 4-digit PIN from many IPs then takes months, not days. */
+const MAX_LOCK_MINUTES = 24 * 60;
 
 function b64url(buf: Buffer | string): string {
   return Buffer.from(buf).toString("base64url");
@@ -100,13 +102,14 @@ export async function attemptLogin(db: Database, userId: string, pin: string): P
   }
   const good = await verifyPin(pin, user.pin_hash);
   if (good) {
-    db.query("UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?").run(user.id);
+    db.query("UPDATE users SET failed_attempts = 0, locked_until = NULL, lockouts = 0 WHERE id = ?").run(user.id);
     return { ok: true, user };
   }
   const fails = user.failed_attempts + 1;
   if (fails >= MAX_FAILS) {
-    const until = new Date(Date.now() + LOCK_MINUTES * 60000).toISOString();
-    db.query("UPDATE users SET failed_attempts = 0, locked_until = ? WHERE id = ?").run(until, user.id);
+    const minutes = Math.min(MAX_LOCK_MINUTES, LOCK_MINUTES * 2 ** (user.lockouts ?? 0));
+    const until = new Date(Date.now() + minutes * 60000).toISOString();
+    db.query("UPDATE users SET failed_attempts = 0, locked_until = ?, lockouts = lockouts + 1 WHERE id = ?").run(until, user.id);
     return { ok: false, reason: "locked", lockedUntil: until };
   }
   db.query("UPDATE users SET failed_attempts = ? WHERE id = ?").run(fails, user.id);

@@ -35,6 +35,7 @@ const app = createApp({
   backupDir,
   version,
   metricsToken: process.env.METRICS_TOKEN,
+  setupToken: process.env.SETUP_TOKEN || undefined,
 });
 
 const port = Number(process.env.PORT ?? 8787);

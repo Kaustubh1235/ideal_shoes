@@ -87,7 +87,7 @@
       $("gate-wait").hidden = true;
       $("gateVer").textContent = st.version ? "v" + st.version : "";
       if (st.me) { S.me = st.me; await boot(); return; }
-      if (st.setupNeeded) { $("gate-setup").hidden = false; $("setupName").focus(); return; }
+      if (st.setupNeeded) { $("gate-setup").hidden = false; $("setupCodeField").hidden = !st.setupCodeNeeded; $("setupName").focus(); return; }
       $("loginShop").textContent = st.shop || "Ideal Shoes";
       $("people").innerHTML = st.users.map((u) => `<button type="button" data-id="${esc(u.id)}" data-name="${esc(u.name)}">${esc(u.name)}<small>${u.role === "admin" ? "admin" : "staff"}</small></button>`).join("");
       $("gate-login").hidden = false;
@@ -119,7 +119,7 @@
     if (!name) { msg.hidden = false; msg.textContent = "Enter your name."; return; }
     if (!/^[0-9]{4,8}$/.test(p1)) { msg.hidden = false; msg.textContent = "PIN must be 4 to 8 digits."; return; }
     if (p1 !== p2) { msg.hidden = false; msg.textContent = "The two PINs don't match."; return; }
-    try { const r = await api("POST", "/api/v1/auth/setup", { name, pin: p1, shop: $("setupShop").value.trim(), appUrl: location.origin }); S.me = r.me; await boot(); }
+    try { const r = await api("POST", "/api/v1/auth/setup", { name, pin: p1, shop: $("setupShop").value.trim(), appUrl: location.origin, setupCode: $("setupCode").value.trim() }); S.me = r.me; await boot(); }
     catch (e) { msg.hidden = false; msg.textContent = e.message; }
   });
   $("logoutBtn").addEventListener("click", async () => { try { await api("POST", "/api/v1/auth/logout"); } catch {} S.me = null; Scanner.stop(); showGate(); });

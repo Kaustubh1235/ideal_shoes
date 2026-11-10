@@ -10,6 +10,7 @@ export interface UserRow {
   active: number;
   failed_attempts: number;
   locked_until: string | null;
+  lockouts: number;
   created_at: string;
 }
 
@@ -54,6 +55,7 @@ CREATE TABLE IF NOT EXISTS users (
   active INTEGER NOT NULL DEFAULT 1,
   failed_attempts INTEGER NOT NULL DEFAULT 0,
   locked_until TEXT,
+  lockouts INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS items (
@@ -164,6 +166,9 @@ export function openDb(path: string): Database {
   db.exec("PRAGMA foreign_keys = ON;");
   db.exec("PRAGMA busy_timeout = 5000;");
   db.exec(SCHEMA);
+  // Columns added after the first release: add them to databases made before.
+  const userCols = new Set(db.query<{ name: string }, []>("PRAGMA table_info(users)").all().map((c) => c.name));
+  if (!userCols.has("lockouts")) db.exec("ALTER TABLE users ADD COLUMN lockouts INTEGER NOT NULL DEFAULT 0");
   return db;
 }
 
