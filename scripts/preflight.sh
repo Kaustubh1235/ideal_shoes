@@ -40,6 +40,7 @@ case "$site$stock" in
   *) ok "domains: $site, www.$site, $stock" ;;
 esac
 [ "$(env_get OTP_DEV_MODE)" = "true" ] && fail "OTP_DEV_MODE=true would show login codes on screen; remove it"
+[ "$(env_get LOCAL_MOCKS)" = "true" ] && fail "LOCAL_MOCKS=true is for a laptop test only (fake Pay button, admin codes on screen); remove it"
 [ -n "$(env_get SELLER_GSTIN)" ] || warn "SELLER_GSTIN is empty: invoices need the shop's GST identity (docs/DEPLOY.md step 4)"
 case "$(env_get RAZORPAY_KEY_ID)" in
   "") warn "Razorpay not set: online payment is off until you add keys (docs/GO-LIVE.md)" ;;

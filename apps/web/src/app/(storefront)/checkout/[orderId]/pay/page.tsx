@@ -1,13 +1,42 @@
-import { notFound } from "next/navigation";
+import { createHmac, randomUUID } from "node:crypto";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import env from "@/env";
+import { localMocks } from "@/lib/local-mocks";
 import { apiFetch } from "@/lib/api";
 import { auth } from "@/auth";
 import { inr } from "@/lib/money";
 import { PayButton } from "@/components/storefront/pay-button";
+import { Button } from "@bharatboot/ui";
 
 export const metadata = { title: "Payment", robots: { index: false } };
 
 export const dynamic = "force-dynamic";
+
+/** Local test only: do what Razorpay does after a payment, i.e. send the signed "payment.captured" webhook. */
+async function payLocally(formData: FormData) {
+  "use server";
+  if (!localMocks()) notFound();
+  const id = String(formData.get("orderId") ?? "");
+  const order = await prisma.order.findUnique({ where: { id } });
+  if (!order) notFound();
+  if (order.status === "draft" || order.status === "pending_payment") {
+    const gatewayOrderId = `order_LOCAL${randomUUID().replace(/-/g, "").slice(0, 10)}`;
+    await prisma.payment.create({ data: { orderId: id, gateway: "razorpay", gatewayOrderId, amount: order.grandTotal, currency: "INR", status: "created" } });
+    const event = JSON.stringify({
+      id: `evt_LOCAL${randomUUID().slice(0, 8)}`,
+      event: "payment.captured",
+      payload: { payment: { entity: { id: `pay_LOCAL${randomUUID().slice(0, 8)}`, order_id: gatewayOrderId, amount: order.grandTotal, method: "upi" } } },
+    });
+    const signature = createHmac("sha256", process.env.RAZORPAY_WEBHOOK_SECRET ?? "").update(event).digest("hex");
+    await fetch(`${env.INTERNAL_API_URL}/payments/razorpay/webhook`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-razorpay-signature": signature },
+      body: event,
+    });
+  }
+  redirect(`/checkout/${id}/pay?paid=1`);
+}
 
 export default async function PayPage(
   props: { params: Promise<{ orderId: string }>; searchParams: Promise<{ paid?: string }> }
@@ -82,6 +111,12 @@ export default async function PayPage(
           rzpOrderId={rzp.razorpay_order_id}
           keyId={rzp.key_id}
         />
+      ) : localMocks() ? (
+        <form action={payLocally} className="mt-6 space-y-2">
+          <input type="hidden" name="orderId" value={order.id} />
+          <Button type="submit" size="lg" className="w-full">Pay {inr(order.grandTotal)} (test)</Button>
+          <p className="text-xs text-ink/60">Local test: no money moves. Razorpay&apos;s &ldquo;payment captured&rdquo; message is simulated.</p>
+        </form>
       ) : (
         <div className="mt-6 rounded-md border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-900">
           <p className="font-medium">Online payment is not available yet.</p>

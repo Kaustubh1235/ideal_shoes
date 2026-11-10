@@ -3,6 +3,10 @@
 #   - Mailpit, a local mail catcher, so the order-confirmation email can be checked
 #     (set SMTP_HOST=mailpit SMTP_PORT=1025 SMTP_TLS=false in the test .env).
 services:
+  # Stock Room on https://localhost:8443 when STOCK_DOMAIN=localhost:8443 (plain localhost test).
+  caddy:
+    ports:
+      - "8443:8443"
   postgres:
     ports:
       - "127.0.0.1:55433:5432"
