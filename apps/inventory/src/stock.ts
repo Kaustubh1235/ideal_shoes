@@ -14,8 +14,34 @@ export class StockError extends Error {
   }
 }
 
+// Hindi names (रिलैक्सो फ्लाइट नीला) become Latin letters for the code (RILAIKSO, PHLAIT, NILA),
+// so a Devanagari name never turns into an empty code that every other Hindi item would share.
+const DEVA_V: Record<string, string> = { "अ": "A", "आ": "A", "इ": "I", "ई": "I", "उ": "U", "ऊ": "U", "ऋ": "RI", "ए": "E", "ऐ": "AI", "ओ": "O", "औ": "AU", "ऑ": "O" };
+const DEVA_M: Record<string, string> = { "ा": "A", "ि": "I", "ी": "I", "ु": "U", "ू": "U", "ृ": "RI", "े": "E", "ै": "AI", "ो": "O", "ौ": "AU", "ॅ": "E", "ॉ": "O", "ं": "N", "ँ": "N", "ः": "H", "्": "" };
+const DEVA_C: Record<string, string> = {
+  "क": "K", "ख": "KH", "ग": "G", "घ": "GH", "ङ": "N", "च": "CH", "छ": "CHH", "ज": "J", "झ": "JH", "ञ": "N", "ट": "T", "ठ": "TH", "ड": "D", "ढ": "DH", "ण": "N",
+  "त": "T", "थ": "TH", "द": "D", "ध": "DH", "न": "N", "प": "P", "फ": "PH", "ब": "B", "भ": "BH", "म": "M", "य": "Y", "र": "R", "ल": "L", "व": "V", "श": "SH", "ष": "SH", "स": "S", "ह": "H",
+};
+export function latin(s: string): string {
+  if (!/[\u0900-\u097F]/.test(s)) return s;
+  const ch = [...s.normalize("NFC").replace(/\u093C/g, "")]; // nukta dots are dropped: ड़ reads as D
+  let out = "";
+  for (let i = 0; i < ch.length; i++) {
+    const c = ch[i];
+    if (DEVA_C[c]) {
+      out += DEVA_C[c];
+      const next = ch[i + 1];
+      if (next && DEVA_C[next]) out += "A"; // the vowel a between two consonants; dropped at a word's end
+    } else if (DEVA_V[c]) out += DEVA_V[c];
+    else if (c in DEVA_M) out += DEVA_M[c];
+    else if (c >= "\u0966" && c <= "\u096F") out += String(c.charCodeAt(0) - 0x0966);
+    else out += c;
+  }
+  return out;
+}
+
 const code = (s: unknown, n: number) =>
-  String(s ?? "")
+  latin(String(s ?? ""))
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, "")
     .slice(0, n);

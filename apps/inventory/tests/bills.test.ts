@@ -386,3 +386,33 @@ describe("review fixes", () => {
     expect(to.find((o: any) => o.sku === sku)).toBeTruthy();
   });
 });
+
+describe("Hindi item names", () => {
+  test("two different Hindi items get their own readable codes instead of one empty code", async () => {
+    const r = await call("POST", "/api/v1/bills/apply", { kind: "in", lines: [{ qty: 24, article: "रिलैक्सो फ्लाइट", colour: "नीला", rate: 199 }, { qty: 12, brand: "बाटा", article: "चप्पल", colour: "काला", rate: 260 }] });
+    expect(r.status).toBe(200);
+    expect(r.data.items.map((i: any) => [i.sku, i.qty])).toEqual([["RILAIKSO-NIL", 24], ["BATA-CHAPPAL-KAL", 12]]);
+    expect(r.data.items[0].article).toBe("रिलैक्सो फ्लाइट"); // the name stays in Hindi; only the code is Latin
+  });
+  test("a Hindi row on a later bill matches the Hindi item", () => {
+    const it = { sku: "RILAIKSO-NIL", brand: "-", article: "रिलैक्सो फ्लाइट", colour: "नीला", size: "-", cat: "shoe", cost: 0, mrp: 0, qty: 24, loc: "", created_at: "", last_in: null, last_out: null, last_count: null, updated_at: "" } as ItemRow;
+    const c = candidatesFor({ text: "रिलैक्सो फ्लाइट नीला 10", qty: 10, brand: "", article: "रिलैक्सो फ्लाइट", colour: "नीला", size: "", rate: 199, amount: null }, [it]);
+    expect(c[0]?.sku).toBe("RILAIKSO-NIL");
+  });
+});
+
+describe("colour decides the match", () => {
+  const it = (colour: string, sku: string) => ({ sku, brand: "Paragon", article: "Slipper", colour, size: "-", cat: "shoe", cost: 0, mrp: 0, qty: 5, loc: "", created_at: "", last_in: null, last_out: null, last_count: null, updated_at: "" }) as ItemRow;
+  const stock = [it("Blue", "PARA-SLIPPER-BLU"), it("Black", "PARA-SLIPPER-BLA")];
+  const line = (colour: string) => ({ text: "", qty: 1, brand: "Paragon", article: "Slipper", colour, size: "", rate: null, amount: null });
+  test("Black on the bill ranks the Black item first, and the Blue one too low to be picked", () => {
+    const c = candidatesFor(line("Black"), stock);
+    expect(c[0].sku).toBe("PARA-SLIPPER-BLA");
+    expect(c.find((x) => x.sku === "PARA-SLIPPER-BLU")?.score ?? 0).toBeLessThan(0.6);
+  });
+  test("kala, काला and black are the same colour", () => {
+    expect(candidatesFor(line("kala"), stock)[0].sku).toBe("PARA-SLIPPER-BLA");
+    expect(candidatesFor(line("काला"), stock)[0].sku).toBe("PARA-SLIPPER-BLA");
+    expect(candidatesFor(line("neela"), stock)[0].sku).toBe("PARA-SLIPPER-BLU");
+  });
+});

@@ -642,7 +642,9 @@
     S.bill.lines = (r.lines || []).map((l) => {
       const cands = l.candidates || [];
       const best = cands[0];
-      const sure = best && (mode === "out" || best.score >= 0.6);
+      // Pick for the person only when one item clearly fits; two close matches (Blue and Black of one article) are theirs to choose.
+      const clear = best && (!cands[1] || cands[1].score < best.score - 0.1);
+      const sure = best && clear && (mode === "out" ? best.score >= 0.45 : best.score >= 0.6);
       return { text: l.text || "", qty: l.qty == null ? "" : l.qty, brand: l.brand || "", article: l.article || (l.brand || l.colour ? "" : l.text || ""), colour: l.colour || "", rate: l.rate == null ? "" : l.rate, mrp: "", sku: sure ? best.sku : "", candidates: cands, unclear: l.qty == null };
     });
     if (!S.bill.lines.length) S.bill.lines.push(blankLine(true));

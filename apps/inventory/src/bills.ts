@@ -38,6 +38,7 @@ Rules:
 - One entry in "lines" per item row. "text" is the row exactly as written. Skip signatures, stamps, crossed-out rows and printed headings.
 - qty is the number of pairs or pieces. rate is the price of one. amount is the row total. Use digits only, no commas or ₹.
 - Split the item into brand, article (model name or number) and colour when the row shows them; leave a part "" when it is not written. Use the shop's own names below when a row clearly means one of them.
+- Otherwise keep names in the script they are written in: Hindi stays in Devanagari, never translated or transliterated (नीला stays नीला, not Blue).
 - size: only when written for that row (e.g. "8", "6-10", "M"); otherwise "".
 - Dates are written day-month-year in India (21-7-26 is 2026-07-21).
 - Never guess a number you cannot read: use null and say what was unclear in "notes".`;
@@ -197,8 +198,26 @@ export async function readBillPhoto(
 // ---------------------------------------------------------------------------
 // Matching a read line to what the shop already has.
 
-const squash = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]+/g, "");
-const words = (s: string) => s.toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
+// Unicode letters, so Hindi names match and differ like English ones do.
+const squash = (s: string) => s.toUpperCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, "");
+const words = (s: string) => s.toUpperCase().split(/[^\p{L}\p{M}\p{N}]+/u).filter(Boolean);
+
+// Colour words as people write them on bills, in English, Hinglish and Hindi, mapped to one name.
+const COLOURS: Record<string, string> = {
+  BLACK: "BLACK", BLK: "BLACK", KALA: "BLACK", KAALA: "BLACK", "काला": "BLACK", "काली": "BLACK",
+  BLUE: "BLUE", NEELA: "BLUE", NILA: "BLUE", "नीला": "BLUE", "नीली": "BLUE", NAVY: "NAVY",
+  BROWN: "BROWN", BRN: "BROWN", BHURA: "BROWN", "भूरा": "BROWN", TAN: "TAN", CHERRY: "CHERRY",
+  WHITE: "WHITE", WHT: "WHITE", SAFED: "WHITE", SAFAID: "WHITE", "सफ़ेद": "WHITE", "सफेद": "WHITE",
+  RED: "RED", LAL: "RED", LAAL: "RED", "लाल": "RED", GREEN: "GREEN", HARA: "GREEN", "हरा": "GREEN",
+  GREY: "GREY", GRAY: "GREY", GOLD: "GOLD", GOLDEN: "GOLD", SUNEHRA: "GOLD", "सुनहरा": "GOLD",
+  YELLOW: "YELLOW", PEELA: "YELLOW", "पीला": "YELLOW", PINK: "PINK", GULABI: "PINK", "गुलाबी": "PINK",
+  OLIVE: "OLIVE", SILVER: "SILVER", MAROON: "MAROON",
+};
+export function colourKey(c: string): string {
+  const k = squash(c);
+  if (!k || k === "-") return "";
+  return COLOURS[k] ?? k;
+}
 
 /** How well a line's words match an item, 0..1. Brand and article count most; size only when both have one. */
 export function matchScore(line: Pick<BillLine, "brand" | "article" | "colour" | "size" | "text">, it: ItemRow): number {
@@ -215,8 +234,9 @@ export function matchScore(line: Pick<BillLine, "brand" | "article" | "colour" |
     s = b.length ? (0.6 * hit) / b.length : 0;
   }
   if (s === 0) return 0;
-  const colour = squash(line.colour);
-  if (colour && it.colour !== "-") s += squash(it.colour).startsWith(colour.slice(0, 3)) ? 0.1 : -0.15;
+  // A different colour is a different item: never good enough to be picked for the person.
+  const want_c = colourKey(line.colour), have_c = colourKey(it.colour);
+  if (want_c && have_c) s += want_c === have_c ? 0.1 : -0.45;
   if (line.size && it.size !== "-") s += squash(line.size) === squash(it.size) ? 0.1 : -0.3;
   return Math.max(0, Math.min(1, s));
 }
@@ -326,7 +346,7 @@ export interface ApplyOutcome {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const nameKey = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]+/g, "");
+const nameKey = (s: string) => s.toUpperCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, "");
 
 const PHOTO_DAYS = 180;
 
