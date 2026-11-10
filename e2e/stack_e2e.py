@@ -144,6 +144,24 @@ def main() -> int:
     key = json.loads(kb)["key"]
     s, _, xl = https("GET", f"{STOCK_BASE}/api/v1/export/stock.xlsx", headers={"cookie": cookie})
     assert s == 200 and xl[:2] == b"PK", "Stock Room Excel export through the proxy"
+
+    step("stock room: challan photo → AI (mock-ai container) → approve → undo, inside the real image")
+    ck = {**xr, "cookie": cookie}
+    llm = {"provider": "gemini", "baseUrl": "http://mock-ai:8080", "model": "gemini-2.5-flash", "apiKey": "AIza-stack-e2e"}
+    s, _, sb = https("PUT", f"{STOCK_BASE}/api/v1/admin/settings", json.dumps({"llm": llm}).encode(), ck)
+    assert s == 200 and b"AIza-stack-e2e" not in sb, "AI settings saved, key not echoed"
+    photo = "data:image/png;base64," + base64.b64encode(png(320, 480) + uuid.uuid4().bytes).decode()  # unique per run
+    s, _, rb = https("POST", f"{STOCK_BASE}/api/v1/bills/read", json.dumps({"photo": photo}).encode(), ck)
+    assert s == 200, (s, rb[:300])
+    read = json.loads(rb)
+    assert read["lines"][0]["qty"] == 48 and read["checks"] == [] and read["alreadyEntered"] is None, read
+    s, _, ab = https("POST", f"{STOCK_BASE}/api/v1/bills/apply", json.dumps({"kind": "in", "source": "photo", "photoId": read["photoId"], "supplier": "Meenu", "lines": [{"qty": 48, "article": "OP AirMix", "rate": 355}]}).encode(), ck)
+    assert s == 200, (s, ab[:300])
+    applied = json.loads(ab)
+    s, ph, _ = https("GET", f"{STOCK_BASE}/api/v1/bills/{applied['bill']['id']}/photo", headers={"cookie": cookie})
+    assert s == 200 and ph.get("Content-Type") == "image/png", (s, ph)
+    s, _, ub = https("POST", f"{STOCK_BASE}/api/v1/bills/{applied['bill']['id']}/undo", b"", ck)
+    assert s == 200 and json.loads(ub)["bill"]["status"] == "undone", (s, ub[:200])
     env_text = (ROOT / ".env").read_text()
     env_text = re.sub(r"^INVENTORY_API_KEY=.*$", f"INVENTORY_API_KEY={key}", env_text, flags=re.M)
     (ROOT / ".env").write_text(env_text)

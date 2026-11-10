@@ -11,3 +11,10 @@ services:
     ports:
       - "127.0.0.1:58025:8025"
     networks: [internal]
+  # A fake AI provider for Stock Room's bill-photo flow (Admin → AI provider → base URL http://mock-ai:8080).
+  mock-ai:
+    image: python:3.12-alpine
+    command: ["python", "/mock_ai.py"]
+    volumes:
+      - ../../e2e/mock_ai.py:/mock_ai.py:ro  # paths resolve from infra/docker, the first compose file
+    networks: [internal]
