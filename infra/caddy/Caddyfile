@@ -70,6 +70,12 @@ www.{$SITE_DOMAIN} {
 
 {$STOCK_DOMAIN} {
 	import common
+	# Bill photos are sent as up to ~9 MB of JSON; nothing in Stock Room needs more.
+	request_body {
+		max_size 12MB
+	}
+	# Prometheus numbers (stock value and the like) are for the server itself, not the internet.
+	respond /metrics 404
 	reverse_proxy inventory:8787 {
 		header_up X-Real-IP {remote_host}
 	}

@@ -24,6 +24,9 @@ const nextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // A starting policy that cannot break the shop: no plugins, no <base> hijack, no framing by other sites,
+          // forms only post back here. Scripts are not restricted yet (Razorpay Checkout and Next's inline runtime).
+          { key: "Content-Security-Policy", value: "object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'" },
         ],
       },
     ];

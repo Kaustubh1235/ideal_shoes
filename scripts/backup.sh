@@ -11,6 +11,8 @@
 # Then, if RCLONE_REMOTE is set (e.g. gdrive:IDEALX) and rclone is installed, copies them there.
 # Keeps the newest KEEP_DUMPS database dumps locally (default 14).
 set -eu
+# Dumps hold customer details, staff sign-in secrets and bill photos: readable by the owner only.
+umask 077
 cd "$(dirname "$0")/.."
 [ -f .env ] || { echo "No .env here; run from the repo root of a configured server." >&2; exit 1; }
 

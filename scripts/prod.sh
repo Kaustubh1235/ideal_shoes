@@ -17,6 +17,8 @@ if [ "${1:-}" = "init" ]; then
     -e "s|^S3_ACCESS_KEY=.*|S3_ACCESS_KEY=idealx$(rand 6)|" \
     -e "s|^S3_SECRET_KEY=.*|S3_SECRET_KEY=$(rand 24)|" \
     -e "s|^STOCK_APP_SECRET=.*|STOCK_APP_SECRET=$(rand 32)|" \
+    -e "s|^STOCK_METRICS_TOKEN=.*|STOCK_METRICS_TOKEN=$(rand 24)|" \
+    -e "s|^STOCK_SETUP_TOKEN=.*|STOCK_SETUP_TOKEN=$(rand 8)|" \
     .env.production.example > .env
   chmod 600 .env
   echo "Created .env with new secrets. Now set SITE_DOMAIN and STOCK_DOMAIN in it (nano .env)."
@@ -25,6 +27,10 @@ if [ "${1:-}" = "init" ]; then
 fi
 
 [ -f .env ] || { echo "No .env yet. Run: sh scripts/prod.sh init" >&2; exit 1; }
+# Starting or updating: check the settings, DNS and the machine first (SKIP_PREFLIGHT=1 skips it).
+if [ "${1:-}" = "up" ] && [ "${SKIP_PREFLIGHT:-}" != "1" ]; then
+  sh scripts/preflight.sh || { echo "Fix the FAIL lines above, then run this again." >&2; exit 1; }
+fi
 # Shown in Stock Room's header so the owner can tell which build a phone is running.
 APP_VERSION="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' apps/inventory/package.json | head -n 1)+$(git rev-parse --short HEAD 2>/dev/null || echo local)"
 export APP_VERSION

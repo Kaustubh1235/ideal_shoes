@@ -60,7 +60,10 @@ Ctrl+O, Enter, Ctrl+X. Leave everything marked optional blank for now.
 sh scripts/prod.sh up -d --build
 ```
 
-The first build takes 10–20 minutes. Then:
+It first runs a **pre-flight check** (`scripts/preflight.sh`): secrets present and strong, `.env`
+private, DNS for all three names pointing at this server, ports 80/443 free, enough disk and memory.
+Any **FAIL** stops the start and says what to fix; **WARN** lines (Razorpay in test mode, no
+off-site backup yet) are reminders. The first build takes 10–20 minutes. Then:
 
 ```bash
 sh scripts/prod.sh ps
@@ -90,8 +93,15 @@ from there, then `sh scripts/prod.sh up -d`.
 
 ## 7. Stock Room
 
-Open https://stock.idealx.in **on this exact address** (it becomes the address inside every QR
-label), create the owner with a 4–8 digit PIN, then add staff and print labels:
+Do this straight after step 5. Open https://stock.idealx.in **on this exact address** (it becomes
+the address inside every QR label). It asks for a **setup code**; read it on the server with
+
+```bash
+grep STOCK_SETUP_TOKEN .env
+```
+
+so only you can create the owner. Use a **6–8 digit PIN** for the owner (staff may use 4). Wrong PINs
+lock the account for 10 minutes, then 20, 40 … up to a day. Then add staff and print labels:
 [apps/inventory/DEPLOY.md](../apps/inventory/DEPLOY.md) steps 6–8 explain each screen.
 Its Excel buttons are under **Insights → Export** and **Admin → Import from Excel or CSV**.
 To enter stock from photos of challans and sale bills instead of labels, add a Gemini key under
@@ -139,9 +149,17 @@ sh scripts/backup.sh
 ```
 
 It writes the shop database, all photos and invoice PDFs, and a Stock Room snapshot under
-`backups/` and `apps/inventory/backups/`. To also copy them to Google Drive, set up rclone as in
-[apps/inventory/DEPLOY.md §10](../apps/inventory/DEPLOY.md#10-backups-off-the-machine)
-(remote name `gdrive`), add `RCLONE_REMOTE=gdrive:IDEALX` to `.env`, and schedule it nightly:
+`backups/` and `apps/inventory/backups/`, readable only by the server's owner account. They hold
+customer details, staff sign-in secrets and bill photos, so the copy that leaves the server is
+**encrypted**:
+
+1. Set up rclone with Google Drive as in
+   [apps/inventory/DEPLOY.md §10](../apps/inventory/DEPLOY.md#10-backups-off-the-machine) (remote name `gdrive`).
+2. Add an encrypted remote on top of it: `rclone config` → **n** (new) → name `gdrive-crypt` →
+   type **crypt** → remote `gdrive:IDEALX` → filename encryption **standard** → choose a strong
+   password and a second one (salt). **Save both passwords in your password manager**: without
+   them the off-site backups cannot be read by anyone, you included.
+3. Add `RCLONE_REMOTE=gdrive-crypt:` to `.env`, run `sh scripts/backup.sh` once, and schedule it nightly:
 
 ```bash
 crontab -e
