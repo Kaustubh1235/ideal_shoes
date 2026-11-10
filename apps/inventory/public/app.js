@@ -45,7 +45,7 @@
   function setOnline(on) {
     S.online = on;
     $("netDot").className = "dot " + (on ? "on" : "off");
-    $("netText").textContent = on ? "Live" : "Offline";
+    $("netText").textContent = I18N.t(on ? "net.live" : "net.off");
     $("offlineNotice").hidden = on;
   }
   window.addEventListener("online", () => { setOnline(true); flushQueue(); });
@@ -132,11 +132,12 @@
     $("gate").hidden = true; $("app").hidden = false;
     $("shopName").textContent = S.settings.shop; $("meName").textContent = S.me.name; $("appVer").textContent = b.version ? "v" + b.version : "";
     document.title = `${S.settings.shop} · Stock Room`;
-    $("tab-admin-li").hidden = S.me.role !== "admin";
+    $("tab-admin-li").hidden = S.me.role !== "admin"; $("more-admin").hidden = S.me.role !== "admin";
+    applyLang();
     fillCats();
     loadQueue();
     let v = null; try { v = localStorage.getItem("sr.view"); } catch {}
-    show(v && v !== "admin" ? v : "scan");
+    show(v && v !== "admin" ? v : "home");
     const h = (location.hash || "").slice(1);
     if (h) openCode(h);
     flushQueue();
@@ -150,24 +151,30 @@
   window.addEventListener("hashchange", () => { const h = (location.hash || "").slice(1); if (h && S.me) openCode(h); });
 
   // ---------- views ----------
-  const VIEWS = ["scan", "stock", "add", "labels", "dash", "admin"];
+  const VIEWS = ["home", "bill", "scan", "stock", "add", "labels", "dash", "admin"];
   function show(view) {
-    if (view === "admin" && (!S.me || S.me.role !== "admin")) view = "scan";
-    S.view = VIEWS.includes(view) ? view : "scan";
+    if (view === "admin" && (!S.me || S.me.role !== "admin")) view = "home";
+    S.view = VIEWS.includes(view) ? view : "home";
+    closeMore();
     VIEWS.forEach((v) => { $("view-" + v).hidden = v !== S.view; });
-    document.querySelectorAll("nav.tabs button").forEach((b) => { if (b.dataset.view === S.view) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+    document.querySelectorAll("nav.tabs button").forEach((b) => { if (b.dataset.view === S.view || (b.id === "tab-more" && ["scan", "add", "labels", "admin"].includes(S.view))) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
     try { localStorage.setItem("sr.view", S.view); } catch {}
     if (S.view !== "scan" && Scanner.active()) stopScan();
     render();
     if (S.view === "dash") loadDash();
     if (S.view === "admin") loadAdmin();
+    if (S.view === "home") loadHome();
+    if (S.view === "bill") loadBills();
     window.scrollTo({ top: 0 });
   }
   document.addEventListener("click", (e) => { const b = e.target.closest("[data-view]"); if (b && !b.closest("nav") && b.tagName === "BUTTON") show(b.dataset.view); });
+  function closeMore() { $("moreMenu").hidden = true; $("tab-more").setAttribute("aria-expanded", "false"); }
+  $("tab-more").addEventListener("click", (e) => { e.stopPropagation(); const open = $("moreMenu").hidden; $("moreMenu").hidden = !open; $("tab-more").setAttribute("aria-expanded", String(open)); });
+  document.addEventListener("click", (e) => { if (!$("moreMenu").hidden && !e.target.closest("#moreMenu")) closeMore(); });
   document.querySelectorAll("nav.tabs button[data-view]").forEach((b) => b.addEventListener("click", () => show(b.dataset.view)));
 
   const item = (sku) => S.items.get(sku) || null;
-  const itemName = (it) => [it.brand, it.article, it.colour].filter(Boolean).join(" · ");
+  const itemName = (it) => [it.brand, it.article, it.colour].filter((x) => x && x !== "-").join(" · ");
   const sizeText = (it) => (it.size && it.size !== "-" ? it.size : "—");
   const brands = () => [...new Set([...S.items.values()].map((i) => i.brand))].sort();
   const locs = () => [...new Set([...S.items.values()].map((i) => i.loc).filter(Boolean))].sort();
@@ -186,6 +193,7 @@
     renderMoves($("scanRecent"), S.moves.slice(0, 8), true);
     if (S.view === "stock") renderStock();
     if (S.view === "labels") renderLabels();
+    if (S.view === "home") renderHomeTiles();
     if (S.openSku) renderSheet();
   }
 
@@ -427,7 +435,7 @@
   $("askGo").addEventListener("click", async () => {
     const q = $("askQ").value.trim(); if (!q) return;
     $("askGo").disabled = true; $("askStatus").textContent = "Thinking…"; $("askAnswer").hidden = true;
-    try { const r = await api("POST", "/api/v1/insights/ask", { question: q }); $("askAnswer").hidden = false; $("askAnswer").textContent = r.answer; $("askStatus").textContent = r.model; const ins = await api("GET", "/api/v1/insights"); renderInsights(ins); }
+    try { const r = await api("POST", "/api/v1/insights/ask", { question: q, lang: I18N.lang }); $("askAnswer").hidden = false; $("askAnswer").textContent = r.answer; $("askStatus").textContent = r.model; const ins = await api("GET", "/api/v1/insights"); renderInsights(ins); }
     catch (e) { $("askStatus").textContent = ""; toast(e.message, 5000); }
     $("askGo").disabled = false;
   });
@@ -466,6 +474,8 @@
     const runs = {}; $("sRuns").value.split(/\n/).forEach((line) => { const i = line.indexOf(":"); if (i < 0) return; const k = line.slice(0, i).trim().toLowerCase(); const v = line.slice(i + 1).split(/[,\s]+/).map((x) => x.trim()).filter(Boolean); if (k && v.length) runs[k] = v; });
     try { const r = await api("PUT", "/api/v1/admin/settings", { shop: $("sShop").value.trim(), appUrl: $("sUrl").value.trim(), sizeRuns: runs }); renderSettings(r.settings); toast("Settings saved"); } catch (err) { toast(err.message); }
   });
+  // A different provider has its own address and model: clear them so its defaults apply.
+  $("llmProvider").addEventListener("change", () => { $("llmBase").value = ""; $("llmModel").value = ""; });
   $("llmForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const llm = { provider: $("llmProvider").value, model: $("llmModel").value.trim(), baseUrl: $("llmBase").value.trim(), maxTokens: +$("llmMax").value || 800 };
@@ -491,6 +501,264 @@
   function renderAudit(rows) {
     $("auditRows").innerHTML = rows.map((a) => `<tr><td class="small muted">${esc(fmtDate(a.at))} ${esc(fmtTime(a.at))}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td class="small muted wrap">${esc(a.target || "")} ${esc(a.detail ? String(a.detail).slice(0, 120) : "")}</td></tr>`).join("") || '<tr><td colspan="4" class="muted">Nothing yet</td></tr>';
   }
+
+
+  // ---------- language ----------
+  const t = (k, v) => I18N.t(k, v);
+  function applyLang() {
+    I18N.apply();
+    $("langBtn").querySelectorAll("span").forEach((x) => x.classList.toggle("on", x.dataset.l === I18N.lang));
+    setOnline(S.online);
+    setBillMode(S.bill.mode);
+    if (S.view === "home") { renderHomeTiles(); renderHome(); }
+    if (S.bill.lines && !$("billCheck").hidden) renderCheck();
+    if (S.bill.done && !$("billDone").hidden) renderDone();
+    if (S.view === "bill") renderBillList();
+  }
+  $("langBtn").addEventListener("click", () => { I18N.set(I18N.lang === "hi" ? "en" : "hi"); applyLang(); });
+
+  // ---------- home ----------
+  S.home = { suggestions: [], toOrder: [], bills: [] };
+  function renderHomeTiles() {
+    let units = 0, value = 0; const arts = new Set();
+    S.items.forEach((it) => { units += it.qty; value += it.qty * (it.cost || 0); if (it.qty > 0) arts.add(`${it.brand}|${it.article}|${it.colour}`); });
+    $("homeTiles").innerHTML = [
+      { l: t("home.pairs"), v: fmtN.format(units), sub: t("home.articles", { n: arts.size }) },
+      { l: t("home.value"), v: rupee(value), sub: t("home.atCost") },
+    ].map((x) => `<div class="tile"><div class="label">${esc(x.l)}</div><div class="v">${esc(x.v)}</div><div class="sub">${esc(x.sub)}</div></div>`).join("");
+  }
+  async function loadHome() {
+    renderHomeTiles();
+    try {
+      const [sg, bl] = await Promise.all([api("GET", "/api/v1/suggestions"), api("GET", "/api/v1/bills")]);
+      S.home.suggestions = sg.suggestions; S.home.toOrder = sg.toOrder; S.home.bills = bl.bills; S.bill.recent = bl.bills;
+      renderHome();
+    } catch (e) { if (!e.auth && !e.network) toast(e.message); }
+  }
+  const sugName = (x) => [x.brand, x.article, x.colour].filter((v) => v && v !== "-").join(" ");
+  function sugText(x) {
+    const name = `<b>${esc(sugName(x))}</b>`;
+    const v = { name, qty: x.qty, sold: x.sold30, sq: x.suggestQty, days: x.ageDays, value: esc(rupee(x.value)) };
+    // Only numbers and the escaped name go into the template, so it is safe as HTML.
+    return t("sug." + x.kind, v);
+  }
+  function renderHome() {
+    const list = S.home.suggestions;
+    $("sugList").innerHTML = list.length ? list.map((x, i) => `<div class="sug" data-i="${i}"><p>${sugText(x)}</p><div class="btn-row"><button type="button" class="btn primary" data-act="approve">${esc(t(x.kind === "count" ? "sug.enterCount" : "sug.approve"))}</button><button type="button" class="btn" data-act="dismiss">${esc(t("sug.notNow"))}</button></div></div>`).join("") : `<p class="muted small" style="margin:0">${esc(t("home.none"))}</p>`;
+    $("toOrderCard").hidden = !S.home.toOrder.length;
+    $("toOrderList").innerHTML = S.home.toOrder.map((o) => `<li><span class="mv">${o.qty || "?"}</span><span>${esc(sugName(o))}</span><span class="muted small">${esc(fmtDate(o.approvedAt))}</span></li>`).join("");
+    const today = new Date().toDateString();
+    const bills = S.home.bills.filter((b) => new Date(b.at).toDateString() === today);
+    $("homeToday").innerHTML = bills.length ? bills.map(billLi).join("") : `<li class="one muted small">${esc(t("home.noBills"))}</li>`;
+  }
+  $("sugList").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-act]"); if (!b) return;
+    const card = b.closest(".sug"); const x = S.home.suggestions[+card.dataset.i]; if (!x) return;
+    const decision = b.dataset.act;
+    try {
+      await api("POST", `/api/v1/suggestions/${encodeURIComponent(x.id)}`, { decision, qty: x.kind === "reorder" ? x.suggestQty : undefined });
+      S.home.suggestions = S.home.suggestions.filter((y) => y !== x);
+      if (decision === "approve" && x.kind === "count" && item(x.sku)) { openSheet(x.sku); $("shCount").click(); }
+      else toast(t("sug.done"));
+      loadHome();
+    } catch (err) { toast(err.message); }
+  });
+  $("homeIn").addEventListener("click", () => { setBillMode("in"); show("bill"); });
+  $("homeOut").addEventListener("click", () => { setBillMode("out"); show("bill"); });
+
+  // ---------- bill: photo or sheet → check → approve ----------
+  S.bill = { mode: "in", recent: [], lines: null, head: null, done: null };
+  function setBillMode(mode) {
+    S.bill.mode = mode === "out" ? "out" : "in";
+    $("billModeIn").setAttribute("aria-pressed", String(S.bill.mode === "in"));
+    $("billModeOut").setAttribute("aria-pressed", String(S.bill.mode === "out"));
+    $("billSheetBtn").hidden = S.bill.mode !== "out";
+    $("billHint").textContent = t(S.bill.mode === "in" ? "bill.hintIn" : "bill.hintOut");
+  }
+  $("billModeIn").addEventListener("click", () => setBillMode("in"));
+  $("billModeOut").addEventListener("click", () => setBillMode("out"));
+  function billStep(step) { $("billPick").hidden = step !== "pick"; $("billCheck").hidden = step !== "check"; $("billDone").hidden = step !== "done"; window.scrollTo({ top: 0 }); }
+  function billMsg(text, cls) { const m = $("billMsg"); m.hidden = !text; m.className = "notice " + (cls || ""); m.textContent = text || ""; }
+  async function loadBills() {
+    if (!S.bill.lines && !S.bill.done) billStep("pick");
+    try { const r = await api("GET", "/api/v1/bills"); S.bill.recent = r.bills; renderBillList(); } catch (e) { if (!e.auth && !e.network) toast(e.message); }
+  }
+  function billLi(b) {
+    const sign = b.kind === "in" ? "+" : "−";
+    const what = [b.supplier, b.bill_no && "#" + b.bill_no, b.source === "sheet" ? "Excel" : ""].filter(Boolean).join(" · ") || t(b.kind === "in" ? "bill.in" : "bill.out");
+    const photo = b.has_photo ? ` · <a href="/api/v1/bills/${esc(encodeURIComponent(b.id))}/photo" target="_blank" rel="noopener">${esc(t("bill.photoLink"))}</a>` : "";
+    const undone = b.status === "undone" ? ` <span class="muted">(${esc(t("bill.statusUndone"))})</span>` : "";
+    return `<li><span class="mv ${b.kind}">${sign}${b.units}</span><span><span class="${b.status === "undone" ? "undone" : ""}">${esc(what)}</span>${undone}<span class="muted small"> · ${esc(b.by_name || "")}${photo}</span></span><span class="muted small num">${esc(fmtDate(b.at))} ${esc(fmtTime(b.at))}</span></li>`;
+  }
+  function renderBillList() { $("billList").innerHTML = (S.bill.recent || []).length ? S.bill.recent.slice(0, 30).map(billLi).join("") : `<li class="one muted small">${esc(t("bill.noRecent"))}</li>`; }
+
+  /** Shrink a phone photo to about 1600 px JPEG before upload: faster, cheaper, and plenty for reading. */
+  async function shrinkPhoto(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("That file is not a photo.")); i.src = url; });
+      const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      return c.toDataURL("image/jpeg", 0.82);
+    } finally { URL.revokeObjectURL(url); }
+  }
+  function showReading() { billStep("check"); $("billCheck").innerHTML = `<div class="reading"><div class="spinner"></div><div>${esc(t("bill.reading"))}</div></div>`; }
+  async function readPhoto(file) {
+    if (!file) return;
+    if (!navigator.onLine) { billMsg(t("bill.offline"), "bad"); return; }
+    billMsg("");
+    showReading();
+    try {
+      const photo = await shrinkPhoto(file);
+      const r = await api("POST", "/api/v1/bills/read", { photo });
+      startCheck(r, "photo");
+    } catch (e) {
+      billStep("pick");
+      billMsg(e.network ? t("bill.offline") : /not set up/i.test(e.message) ? t("bill.notSetUp") : e.message, "bad");
+    }
+  }
+  ["billCamera", "billGallery"].forEach((id) => $(id).addEventListener("change", (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; readPhoto(f); }));
+  $("billSheet").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
+    billMsg(""); showReading();
+    try {
+      const xl = /\.xlsx$/i.test(f.name);
+      const r = await api("POST", `/api/v1/bills/read-sheet?format=${xl ? "xlsx" : "csv"}`, xl ? await f.arrayBuffer() : await f.text(), xl ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv");
+      setBillMode("out");
+      startCheck(r, "sheet");
+    } catch (err) { billStep("pick"); billMsg(err.message, "bad"); }
+  });
+
+  async function startCheck(r, source) {
+    // Items another phone added since our last refresh: fetch them so every match can be shown.
+    if ((r.lines || []).some((l) => (l.candidates || []).some((c) => !item(c.sku)))) await refresh();
+    // The person chose In or Sold; the AI's guess only fills in when it is sure and they did not pick.
+    const mode = S.bill.mode;
+    S.bill.head = { supplier: r.supplier || "", billNo: r.billNo || "", date: r.date || "", total: r.total, notes: r.notes || "", checks: r.checks || [], photoId: r.photoId || null, alreadyEntered: r.alreadyEntered || null, source, force: false };
+    S.bill.lines = (r.lines || []).map((l) => {
+      const cands = l.candidates || [];
+      const best = cands[0];
+      const sure = best && (mode === "out" || best.score >= 0.6);
+      return { text: l.text || "", qty: l.qty == null ? "" : l.qty, name: [l.brand, l.article, l.colour].filter(Boolean).join(" ").trim() || l.text || "", rate: l.rate == null ? "" : l.rate, mrp: "", sku: sure ? best.sku : "", candidates: cands, unclear: l.qty == null };
+    });
+    if (!S.bill.lines.length) S.bill.lines.push({ text: "", qty: "", name: "", rate: "", mrp: "", sku: "", candidates: [], unclear: true });
+    S.bill.done = null;
+    renderCheck();
+  }
+  function lineQty(l) { const n = parseInt(l.qty, 10); return n > 0 ? n : 0; }
+  function renderCheck() {
+    const h = S.bill.head, mode = S.bill.mode, lines = S.bill.lines;
+    const all = [...S.items.values()].sort((a, b) => itemName(a).localeCompare(itemName(b)));
+    const opt = (it, sel) => `<option value="${esc(it.sku)}" ${sel ? "selected" : ""}>${esc(itemName(it))}${it.size && it.size !== "-" ? " " + esc(it.size) : ""} · ${it.qty}</option>`;
+    const rows = lines.map((l, i) => {
+      const it = l.sku ? item(l.sku) : null;
+      const candSkus = new Set(l.candidates.map((c) => c.sku));
+      const options = (mode === "in" ? `<option value="">${esc(t("bill.new"))}</option>` : `<option value="">${esc(t("bill.pick"))}</option>`)
+        + l.candidates.map((c) => item(c.sku)).filter(Boolean).map((x) => opt(x, x.sku === l.sku)).join("")
+        + `<optgroup label="${esc(t("nav.stock"))}">${all.filter((x) => !candSkus.has(x.sku)).slice(0, 800).map((x) => opt(x, x.sku === l.sku)).join("")}</optgroup>`;
+      const q = lineQty(l);
+      const after = it ? `<div class="after">${esc(itemName(it))}: ${it.qty} → <b>${mode === "in" ? it.qty + q : Math.max(0, it.qty - q)}</b></div>` : "";
+      const nameField = mode === "in" && !l.sku ? `<div class="field"><label for="bl-name-${i}">${esc(t("bill.item"))}</label><input id="bl-name-${i}" data-i="${i}" data-f="name" value="${esc(l.name)}"></div>` : `<div class="field"><label for="bl-sku-${i}">${esc(t("bill.match"))}</label><select id="bl-sku-${i}" data-i="${i}" data-f="sku">${options}</select></div>`;
+      const matchField = mode === "in" && !l.sku ? `<div class="field"><label for="bl-sku-${i}">${esc(t("bill.match"))}</label><select id="bl-sku-${i}" data-i="${i}" data-f="sku">${options}</select></div>` : "";
+      return `<div class="bill-row ${l.unclear ? "warn" : ""}">
+        ${l.text ? `<div class="written">${esc(t("bill.written"))}: “${esc(l.text)}”</div>` : ""}
+        <div class="grid"><div class="field"><label for="bl-qty-${i}">${esc(t("bill.qty"))}</label><input id="bl-qty-${i}" class="qty" data-i="${i}" data-f="qty" inputmode="numeric" value="${esc(l.qty)}"></div>${nameField}</div>
+        ${matchField}
+        <div class="grid2c"><div class="field"><label for="bl-rate-${i}">${esc(t("bill.rate"))}</label><input id="bl-rate-${i}" data-i="${i}" data-f="rate" inputmode="numeric" value="${esc(l.rate)}"></div>${mode === "in" && !l.sku ? `<div class="field"><label for="bl-mrp-${i}">${esc(t("bill.mrp"))}</label><input id="bl-mrp-${i}" data-i="${i}" data-f="mrp" inputmode="numeric" placeholder="${esc(t("bill.optional"))}" value="${esc(l.mrp)}"></div>` : ""}</div>
+        ${after}
+        <div><button type="button" class="btn quiet" data-remove="${i}">${esc(t("bill.remove"))}</button></div>
+      </div>`;
+    }).join("");
+    const units = lines.reduce((a, l) => a + lineQty(l), 0);
+    const money = lines.reduce((a, l) => a + lineQty(l) * (parseFloat(l.rate) || 0), 0);
+    const notes = [];
+    if (h.alreadyEntered) notes.push(`<div class="notice bad">${esc(t("bill.dupe", { date: fmtDate(h.alreadyEntered) }))} <label class="small"><input type="checkbox" id="billForce" ${h.force ? "checked" : ""}> ${esc(t("bill.force"))}</label></div>`);
+    if (h.source === "photo") notes.push(`<div class="notice ${h.checks.length ? "" : "good"}">${esc(lines.length === 1 ? t("bill.row1") : t("bill.rows", { n: lines.length }))} ${h.checks.length ? "" : esc(t("bill.allOk"))}${h.checks.map((c) => `<br>• ${esc(c)}`).join("")}${h.notes ? `<br><span class="muted">${esc(h.notes)}</span>` : ""}</div>`);
+    else if (h.checks.length) notes.push(`<div class="notice">${h.checks.map((c) => esc(c)).join("<br>")}</div>`);
+    $("billCheck").innerHTML = `
+      <div class="btn-row" style="justify-content:space-between"><h3 style="margin:0">${esc(t("bill.check"))} · ${esc(t(mode === "in" ? "bill.in" : "bill.out"))}</h3><button type="button" class="btn quiet" id="billRestart">${esc(t("bill.retake"))}</button></div>
+      ${notes.join("")}
+      <div class="card bill-head">
+        <div class="field"><label for="bhSupplier">${esc(t("bill.supplier"))}</label><input id="bhSupplier" value="${esc(h.supplier)}"></div>
+        <div class="field"><label for="bhDate">${esc(t("bill.date"))}</label><input id="bhDate" type="date" value="${esc(h.date)}"></div>
+        <div class="field"><label for="bhNo">${esc(t("bill.no"))}</label><input id="bhNo" value="${esc(h.billNo)}"></div>
+      </div>
+      ${rows}
+      <div><button type="button" class="btn" id="billAddRow">${esc(t("bill.addRow"))}</button></div>
+      <div class="bill-total"><span>${esc(t("bill.total"))}</span><span class="mono">${esc(t("bill.pairs", { n: units }))}${money ? " · " + esc(rupee(money)) : ""}</span></div>
+      <div id="billErr" class="notice bad" hidden></div>
+      <div class="bill-approve"><button type="submit" class="btn primary" id="billApprove">${esc(t(mode === "in" ? "bill.approveIn" : "bill.approveOut", { n: units }))}</button><small>${esc(t("bill.nothingYet"))}</small></div>`;
+    billStep("check");
+  }
+  $("billCheck").addEventListener("input", (e) => {
+    const el = e.target; const i = el.dataset.i;
+    if (i !== undefined && el.dataset.f && el.dataset.f !== "sku") { S.bill.lines[+i][el.dataset.f] = el.value; if (el.dataset.f === "qty" || el.dataset.f === "rate") updateTotals(); return; }
+    if (el.id === "bhSupplier") S.bill.head.supplier = el.value;
+    if (el.id === "bhNo") S.bill.head.billNo = el.value;
+    if (el.id === "bhDate") S.bill.head.date = el.value;
+  });
+  $("billCheck").addEventListener("change", (e) => {
+    const el = e.target;
+    if (el.dataset.f === "sku") { S.bill.lines[+el.dataset.i].sku = el.value; renderCheck(); return; }
+    if (el.id === "billForce") S.bill.head.force = el.checked;
+  });
+  function updateTotals() {
+    // Re-render keeps the numbers and the button text in step; keep the caret where the person is typing.
+    const a = document.activeElement; const id = a && a.id; const pos = a && a.selectionStart;
+    renderCheck();
+    if (id && $(id)) { $(id).focus(); try { $(id).setSelectionRange(pos, pos); } catch {} }
+  }
+  $("billCheck").addEventListener("click", (e) => {
+    const rm = e.target.closest("[data-remove]");
+    if (rm) { S.bill.lines.splice(+rm.dataset.remove, 1); if (!S.bill.lines.length) S.bill.lines.push({ text: "", qty: "", name: "", rate: "", mrp: "", sku: "", candidates: [] }); renderCheck(); return; }
+    if (e.target.id === "billAddRow") { S.bill.lines.push({ text: "", qty: "", name: "", rate: "", mrp: "", sku: "", candidates: [] }); renderCheck(); return; }
+    if (e.target.id === "billRestart") { S.bill.lines = null; S.bill.head = null; billStep("pick"); }
+  });
+  $("billCheck").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const h = S.bill.head, mode = S.bill.mode;
+    const lines = S.bill.lines.filter((l) => lineQty(l) > 0);
+    const err = $("billErr"); err.hidden = true;
+    if (!lines.length) { err.hidden = false; err.textContent = t("bill.pairs", { n: 0 }); return; }
+    if (mode === "out" && lines.some((l) => !l.sku)) { err.hidden = false; err.textContent = t("bill.needItem"); return; }
+    if (mode === "in" && lines.some((l) => !l.sku && !l.name.trim())) { err.hidden = false; err.textContent = t("bill.needName"); return; }
+    const body = {
+      kind: mode, source: h.source, photoId: h.photoId, force: h.force, supplier: h.supplier, billNo: h.billNo, date: h.date, total: h.total,
+      lines: lines.map((l) => ({ qty: lineQty(l), sku: l.sku || undefined, article: l.sku ? undefined : l.name.trim(), rate: parseFloat(l.rate) || null, mrp: parseFloat(l.mrp) || null })),
+    };
+    $("billApprove").disabled = true;
+    try {
+      const r = await api("POST", "/api/v1/bills/apply", body);
+      r.items.forEach((it) => S.items.set(it.sku, it));
+      S.bill.done = { bill: r.bill, results: r.results };
+      S.bill.lines = null; S.bill.head = null;
+      renderDone(); refresh();
+    } catch (x) {
+      $("billApprove").disabled = false;
+      err.hidden = false; err.textContent = x.network ? t("bill.offline") : x.message;
+      if (x.status === 409) { h.alreadyEntered = h.alreadyEntered || new Date().toISOString(); renderCheck(); $("billErr").hidden = false; $("billErr").textContent = x.message; }
+    }
+  });
+  function renderDone() {
+    const d = S.bill.done; if (!d) return;
+    const rows = d.results.map((x) => { const it = item(x.sku); return `<li><span class="mv ${x.delta < 0 ? "out" : "in"}">${x.delta > 0 ? "+" : ""}${x.delta}</span><span>${esc(it ? itemName(it) : x.sku)}${x.short ? ` <span class="pill low">${esc(t("bill.short", { n: x.short }))}</span>` : ""}</span><span class="mono">${x.before} → ${x.after}</span></li>`; }).join("");
+    $("billDone").innerHTML = `<div class="done-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></div>
+      <h3 style="text-align:center;margin:0" id="billDoneTitle">${esc(t(d.bill.kind === "in" ? "bill.savedIn" : "bill.savedOut", { n: d.bill.units }))}</h3>
+      <div class="card"><ul class="movelist">${rows}</ul></div>
+      <div class="btn-row" style="justify-content:center"><button type="button" class="btn" id="billUndo">${esc(t("bill.undo"))}</button></div>
+      <div class="btn-row"><button type="button" class="btn primary" id="billNext" style="flex:1">${esc(t("bill.next"))}</button><button type="button" class="btn" id="billHome" style="flex:1">${esc(t("bill.home"))}</button></div>`;
+    billStep("done");
+  }
+  $("billDone").addEventListener("click", async (e) => {
+    if (e.target.id === "billNext") { S.bill.done = null; billStep("pick"); loadBills(); }
+    if (e.target.id === "billHome") { S.bill.done = null; show("home"); }
+    if (e.target.id === "billUndo") {
+      const id = S.bill.done.bill.id; e.target.disabled = true;
+      try { await api("POST", `/api/v1/bills/${encodeURIComponent(id)}/undo`); S.bill.done = null; toast(t("bill.undone"), 3000); await refresh(); billStep("pick"); loadBills(); }
+      catch (x) { e.target.disabled = false; toast(x.message, 4000); }
+    }
+  });
 
   // ---------- start ----------
   setOnline(navigator.onLine);

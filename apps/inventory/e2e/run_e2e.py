@@ -47,6 +47,47 @@ def wait_health(url: str, timeout: float = 20) -> None:
     raise RuntimeError("server did not become healthy")
 
 
+CHALLAN = {
+    "kind": "in", "supplier": "Meenu", "billNo": "", "date": "2026-07-21", "total": 17040, "notes": "",
+    "lines": [{"text": "48 OP AirMix 355 17040", "qty": 48, "brand": "OP", "article": "AirMix", "colour": "", "size": "", "rate": 355, "amount": 17040}],
+}
+
+
+def start_fake_ai() -> tuple[int, list]:
+    """A stand-in for Gemini's OpenAI-compatible endpoint: answers every photo with the real challan's rows."""
+    import http.server
+    import threading
+
+    seen: list = []
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):  # noqa: N802
+            body = json.loads(self.rfile.read(int(self.headers["content-length"])))
+            seen.append({"path": self.path, "auth": self.headers.get("authorization"), "body": body})
+            reply = json.dumps({"choices": [{"message": {"content": "```json\n" + json.dumps(CHALLAN) + "\n```"}}]}).encode()
+            self.send_response(200)
+            self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(reply)))
+            self.end_headers()
+            self.wfile.write(reply)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv.server_address[1], seen
+
+
+def go(page, view: str) -> None:
+    """Open a tab. On a phone Scan, Add, Labels and Admin sit under More."""
+    if page.locator(f"#tab-{view}").is_visible():
+        page.click(f"#tab-{view}")
+    else:
+        page.click("#tab-more")
+        page.click(f"#more-{view}")
+
+
 def main() -> int:
     bun = shutil.which("bun") or os.path.expanduser("~/.bun/bin/bun")
     if not bun or not os.path.exists(bun):
@@ -77,7 +118,8 @@ def main() -> int:
             page.click("#setupGo")
             expect(page.locator("#app")).to_be_visible()
             expect(page.locator("#meName")).to_have_text("Papa")
-            expect(page.locator("#tab-admin")).to_be_visible()
+            expect(page.locator("#view-home")).to_be_visible()  # Home is the start screen
+            assert page.evaluate("!document.getElementById('more-admin').hidden"), "owner sees Admin under More"
             expect(page.locator("#appVer")).to_have_text(re.compile(r"^v\S+$"))  # which build this phone runs
 
             # ---- installable as an app ------------------------------------------------
@@ -98,7 +140,7 @@ def main() -> int:
                     assert r.headers["content-type"].startswith("image/"), icon
 
             # ---- add an article with a size run --------------------------------
-            page.click("#tab-add")
+            go(page, "add")
             page.fill("#aBrand", "IDEALX")
             page.fill("#aArticle", "DMS Boot")
             page.fill("#aColour", "Black")
@@ -121,7 +163,7 @@ def main() -> int:
             page.fill("#q", "")
 
             # ---- open by typed code (what a scan does), sell, count ------------
-            page.click("#tab-scan")
+            go(page, "scan")
             page.fill("#codeInput", f"{base}/#IDEA-DMSBOOT-BLA-9")
             page.click("#codeGo")
             expect(page.locator("#sheet")).to_be_visible()
@@ -155,7 +197,7 @@ def main() -> int:
             page.keyboard.press("Enter")
             page.wait_for_timeout(300)
             expect(page.locator("#sheet")).to_be_hidden()
-            page.click("#tab-scan")
+            go(page, "scan")
 
             # ---- offline: a sale is queued and syncs on reconnect ----------------
             offline_from = len(errors)
@@ -176,7 +218,7 @@ def main() -> int:
                 assert json.load(r)["paths"]["/movements"], "openapi"
 
             # ---- labels --------------------------------------------------------
-            page.click("#tab-labels")
+            go(page, "labels")
             page.click("#lAll")
             expect(page.locator("#lCount")).to_contain_text("3 SKUs")
             expect(page.locator("#lPreview .lbl")).to_have_count(3)
@@ -195,7 +237,7 @@ def main() -> int:
             page.screenshot(path=str(ROOT / "e2e" / "last-phone-insights.png"), full_page=True)
 
             # ---- admin: staff user, API key, settings ---------------------------
-            page.click("#tab-admin")
+            go(page, "admin")
             page.fill("#uName", "Raju")
             page.fill("#uPin", "1234")
             page.click("#userForm button[type=submit]")
@@ -220,6 +262,91 @@ def main() -> int:
             with urllib.request.urlopen(req) as r:
                 assert json.load(r)["item"]["qty"] == 1
 
+
+            # ---- bill photo → AI reads → check → approve (fake Gemini) --------------
+            ai_port, ai_seen = start_fake_ai()
+            with page.expect_response(lambda r: r.url.endswith("/api/v1/admin/audit?limit=100")):
+                go(page, "admin")  # wait for the admin screen to finish loading before typing into it
+            page.wait_for_timeout(100)
+            page.select_option("#llmProvider", "gemini")
+            page.fill("#llmBase", f"http://127.0.0.1:{ai_port}")
+            page.fill("#llmKey", "AIza-e2e-key")
+            page.click("#llmForm button[type=submit]")
+            expect(page.locator("#llmKeyState")).to_contain_text("a key is saved")
+            assert page.locator("#llmKey").input_value() == "", "key field is cleared, never echoed back"
+            # a photo of a challan, drawn in the browser (the fake AI answers with the real challan's rows)
+            jpg = page.evaluate("""() => { const c = document.createElement("canvas"); c.width = 900; c.height = 1300;
+              const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, 900, 1300); g.fillStyle = "#1a5"; g.font = "48px sans-serif";
+              g.fillText("DELIVERY CHALLAN", 200, 120); g.fillStyle = "#24a"; g.fillText("48   OP AirMix   355   17040", 80, 400);
+              return c.toDataURL("image/jpeg", 0.9).split(",")[1]; }""")
+            challan = pathlib.Path(data) / "challan.jpg"
+            challan.write_bytes(base64.b64decode(jpg))
+            page.click("#tab-home")
+            page.click("#homeIn")
+            expect(page.locator("#billModeIn")).to_have_attribute("aria-pressed", "true")
+            page.set_input_files("#billGallery", str(challan))
+            expect(page.locator("#billCheck")).to_contain_text("AI read 1 row.", timeout=15000)
+            expect(page.locator("#billCheck")).to_contain_text("The sums match the bill")
+            assert page.input_value("#bl-qty-0") == "48"
+            assert page.input_value("#bl-name-0") == "OP AirMix"
+            assert page.input_value("#bl-rate-0") == "355"
+            assert page.input_value("#bhSupplier") == "Meenu"
+            expect(page.locator("#billApprove")).to_have_text("Approve · add 48 pairs")
+            sent = ai_seen[-1]
+            assert sent["path"] == "/chat/completions" and sent["auth"] == "Bearer AIza-e2e-key", sent["path"]
+            assert sent["body"]["messages"][0]["content"][1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+            page.screenshot(path=str(ROOT / "e2e" / "last-phone-bill.png"), full_page=True)
+            page.click("#billApprove")
+            expect(page.locator("#billDoneTitle")).to_have_text("48 pairs added")
+            expect(page.locator("#billDone")).to_contain_text("0 → 48")
+            # the same photo again is flagged before anything is saved
+            page.click("#billNext")
+            page.set_input_files("#billGallery", str(challan))
+            expect(page.locator("#billCheck")).to_contain_text("already entered", timeout=15000)
+            expect(page.locator("#bl-sku-0")).to_have_value("OPAIRMIX")  # matched to the item just made
+            page.click("#billRestart")
+            expect(page.locator("#billList li").first).to_contain_text("Meenu")
+
+            # ---- sale from a CSV, then undo --------------------------------------------
+            sales = pathlib.Path(data) / "sales.csv"
+            sales.write_text("item,qty,rate\nOP AirMix,3,650\n")
+            page.click("#billModeOut")
+            page.set_input_files("#billSheet", str(sales))
+            expect(page.locator("#bl-sku-0")).to_have_value("OPAIRMIX", timeout=10000)
+            expect(page.locator("#billCheck")).to_contain_text("48 → 45")
+            page.click("#billApprove")
+            expect(page.locator("#billDoneTitle")).to_have_text("3 pairs sold")
+            page.click("#billUndo")
+            expect(page.locator("#toast")).to_contain_text("Undone")
+            expect(page.locator("#billList li").first).to_contain_text("undone")
+            qty = page.evaluate("fetch('/api/v1/items/OPAIRMIX').then(r => r.json()).then(d => d.item.qty)")
+            assert qty == 48, qty
+
+            # ---- a fast seller running out is suggested; approving puts it on To order ----
+            gold = pathlib.Path(data) / "gold.csv"
+            page.evaluate("""() => fetch('/api/v1/bills/apply', { method: 'POST', headers: { 'content-type': 'application/json', 'x-requested-with': 'StockRoom' },
+              body: JSON.stringify({ kind: 'in', lines: [{ qty: 4, article: 'Gold sandal', rate: 310 }] }) }).then(r => r.status)""")
+            gold.write_text("item,qty\nGold sandal,4\n")
+            page.click("#billModeOut")
+            page.set_input_files("#billSheet", str(gold))
+            expect(page.locator("#billCheck")).to_contain_text("4 → 0", timeout=10000)
+            page.click("#billApprove")
+            expect(page.locator("#billDoneTitle")).to_have_text("4 pairs sold")
+            page.click("#billHome")
+            sug = page.locator("#sugList .sug", has_text="Gold sandal")
+            expect(sug).to_contain_text("Reorder 4?")
+            sug.locator("button[data-act=approve]").click()
+            expect(page.locator("#toOrderList")).to_contain_text("Gold sandal")
+
+            # ---- Hindi --------------------------------------------------------------------
+            page.click("#langBtn")
+            expect(page.locator("#tab-home")).to_contain_text("होम")
+            expect(page.locator("#homeIn b")).to_have_text("माल आया")
+            expect(page.locator("#netText")).to_have_text("चालू")
+            page.screenshot(path=str(ROOT / "e2e" / "last-phone-home-hindi.png"), full_page=True)
+            page.click("#langBtn")
+            expect(page.locator("#homeIn b")).to_have_text("Maal aaya")
+
             # ---- staff login on a second device: can sell, no admin tab ----------
             page.click("#logoutBtn")
             expect(page.locator("#gate-login")).to_be_visible()
@@ -228,6 +355,8 @@ def main() -> int:
                 page.click(f"#pinpad button[data-k='{d}']")
             expect(page.locator("#app")).to_be_visible(timeout=10000)
             expect(page.locator("#tab-admin")).to_be_hidden()
+            assert page.evaluate("document.getElementById('more-admin').hidden"), "staff has no Admin under More"
+            go(page, "scan")
             page.fill("#codeInput", "IDEA-DMSBOOT-BLA-10")
             page.click("#codeGo")
             expect(page.locator("#shQty")).to_have_text("1")
@@ -251,7 +380,7 @@ def main() -> int:
                 dpage.click(f"#pinpad button[data-k='{d}']")
             expect(dpage.locator("#app")).to_be_visible(timeout=10000)
             dpage.click("#tab-stock")
-            expect(dpage.locator("#stockRows tr")).to_have_count(3)
+            expect(dpage.locator("#stockRows tr")).to_have_count(5)  # 3 boots + OP AirMix + Gold sandal
             dpage.screenshot(path=str(ROOT / "e2e" / "last-desktop.png"))
             # ---- Excel: download the workbook, then import the shop's own sheet ----
             dpage.click("#tab-dash")
@@ -267,7 +396,7 @@ def main() -> int:
             dpage.set_input_files("#csvFile", str(ROOT / "tests" / "fixtures" / "register-openpyxl.xlsx"))
             expect(dpage.locator("#csvMsg")).to_have_text("3 rows: 3 new, 0 topped up.")
             dpage.click("#tab-stock")
-            expect(dpage.locator("#stockRows tr")).to_have_count(6)
+            expect(dpage.locator("#stockRows tr")).to_have_count(8)
             dpage.click("#tab-dash")
             expect(dpage.locator("#chTrend svg")).to_be_visible()
             dpage.screenshot(path=str(ROOT / "e2e" / "last-desktop-insights.png"), full_page=True)
@@ -296,6 +425,7 @@ def main() -> int:
             for d in "2468":
                 cpage.click(f"#pinpad button[data-k='{d}']")
             expect(cpage.locator("#app")).to_be_visible(timeout=10000)
+            go(cpage, "scan")
             cpage.click("#scanStart")
             expect(cpage.locator("#scanVideo")).to_be_visible()
             expect(cpage.locator("#sheet")).to_be_visible(timeout=15000)

@@ -1,6 +1,6 @@
 /* Stock Room service worker: cache the app shell so the app opens offline; API is always network-first. */
-const VERSION = "sr-v1";
-const SHELL = ["/", "/index.html", "/styles.css", "/app.js", "/scanner.js", "/charts.js", "/vendor/jsQR.js", "/vendor/qrcode.js", "/manifest.webmanifest", "/icons/icon.svg", "/icons/icon-192.png", "/icons/icon-512.png"];
+const VERSION = "sr-v2";
+const SHELL = ["/", "/index.html", "/styles.css", "/app.js", "/i18n.js", "/scanner.js", "/charts.js", "/vendor/jsQR.js", "/vendor/qrcode.js", "/manifest.webmanifest", "/icons/icon.svg", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

@@ -51,6 +51,7 @@
   <header class="topbar">
     <div class="brand"><h1 id="shopName">Ideal Shoes</h1><span class="hi">Stock Room · माल रजिस्टर</span><span class="ver" id="appVer" title="App version"></span></div>
     <div class="status">
+      <button type="button" id="langBtn" class="lang" aria-label="Language / भाषा"><span data-l="en">EN</span><span data-l="hi">हिं</span></button>
       <span id="queueBadge" class="badge-q" hidden title="Changes waiting to sync">0</span>
       <span class="dot" id="netDot"></span><span id="netText">…</span>
       <span class="who"><button type="button" id="logoutBtn" title="Sign out"><span id="meName">—</span> · out</button></span>
@@ -59,19 +60,78 @@
   <div class="shell">
     <nav class="tabs" aria-label="Sections">
       <ul>
-        <li><button type="button" data-view="scan" id="tab-scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/></svg>Scan</button></li>
-        <li><button type="button" data-view="stock" id="tab-stock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-5 9 5v10l-9 5-9-5zM3 9l9 5 9-5M12 14v10"/></svg>Stock</button></li>
-        <li><button type="button" data-view="add" id="tab-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Add</button></li>
-        <li><button type="button" data-view="labels" id="tab-labels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM18 18h3v3h-3zM14 21h1M21 14h-1"/></svg>Labels</button></li>
-        <li><button type="button" data-view="dash" id="tab-dash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Insights</button></li>
-        <li id="tab-admin-li" hidden><button type="button" data-view="admin" id="tab-admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Admin</button></li>
+        <li><button type="button" data-view="home" id="tab-home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.home">Home</span></button></li>
+        <li><button type="button" data-view="bill" id="tab-bill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg><span data-i18n="nav.bill">Bill</span></button></li>
+        <li><button type="button" data-view="stock" id="tab-stock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-5 9 5v10l-9 5-9-5zM3 9l9 5 9-5M12 14v10"/></svg><span data-i18n="nav.stock">Stock</span></button></li>
+        <li><button type="button" data-view="dash" id="tab-dash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span data-i18n="nav.dash">Hisaab</span></button></li>
+        <li class="nav-extra"><button type="button" data-view="scan" id="tab-scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/></svg><span data-i18n="nav.scan">Scan</span></button></li>
+        <li class="nav-extra"><button type="button" data-view="add" id="tab-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="nav.add">Add</span></button></li>
+        <li class="nav-extra"><button type="button" data-view="labels" id="tab-labels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM18 18h3v3h-3zM14 21h1M21 14h-1"/></svg><span data-i18n="nav.labels">Labels</span></button></li>
+        <li class="nav-extra" id="tab-admin-li" hidden><button type="button" data-view="admin" id="tab-admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span data-i18n="nav.admin">Admin</span></button></li>
+        <li class="nav-more"><button type="button" id="tab-more" aria-expanded="false" aria-controls="moreMenu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><span data-i18n="nav.more">More</span></button></li>
       </ul>
     </nav>
+    <div id="moreMenu" class="more-menu" hidden>
+      <button type="button" data-view="scan" id="more-scan" data-i18n="nav.scan">Scan</button>
+      <button type="button" data-view="add" id="more-add" data-i18n="nav.add">Add</button>
+      <button type="button" data-view="labels" id="more-labels" data-i18n="nav.labels">Labels</button>
+      <button type="button" data-view="admin" id="more-admin" data-i18n="nav.admin" hidden>Admin</button>
+    </div>
     <main>
       <div id="offlineNotice" class="notice" hidden>You're offline. Scans and changes are saved on this phone and will sync when the network is back.</div>
 
+      <!-- HOME -->
+      <section class="view" id="view-home">
+        <div class="tiles two" id="homeTiles"></div>
+        <div class="bigactions">
+          <button type="button" class="bigaction primary" id="homeIn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="4"/></svg><span><b data-i18n="home.in">Maal aaya</b><small data-i18n="home.inSub">Photo of the challan · stock in</small></span></button>
+          <button type="button" class="bigaction" id="homeOut"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg><span><b data-i18n="home.out">Maal bika</b><small data-i18n="home.outSub">Photo of sale bill, or Excel · stock out</small></span></button>
+        </div>
+        <div class="card stack">
+          <div class="label" data-i18n="home.ask">Suggested · you decide</div>
+          <div class="sug-list" id="sugList"></div>
+        </div>
+        <div class="card stack" id="toOrderCard" hidden>
+          <div class="label" data-i18n="home.toOrder">To order</div>
+          <ul class="movelist" id="toOrderList"></ul>
+        </div>
+        <div class="card">
+          <div class="label" data-i18n="home.today">Today</div>
+          <ul class="movelist" id="homeToday"></ul>
+        </div>
+      </section>
+
+      <!-- BILL: photo or sheet → check → approve -->
+      <section class="view" id="view-bill" hidden>
+        <div class="view-head"><h2 data-i18n="bill.title">Bill</h2></div>
+        <div id="billPick" class="view-part">
+          <div class="seg" role="group" aria-label="Stock in or sold">
+            <button type="button" id="billModeIn" aria-pressed="true" data-i18n="bill.in">Stock in</button>
+            <button type="button" id="billModeOut" aria-pressed="false" data-i18n="bill.out">Sold</button>
+          </div>
+          <div class="card stack">
+            <p class="muted small" id="billHint" style="margin:0"></p>
+            <div class="btn-row">
+              <label class="btn primary big" for="billCamera"><span data-i18n="bill.photo">Take photo</span></label>
+              <input type="file" id="billCamera" accept="image/*" capture="environment" hidden>
+              <label class="btn big" for="billGallery"><span data-i18n="bill.gallery">Pick photo</span></label>
+              <input type="file" id="billGallery" accept="image/jpeg,image/png,image/webp" hidden>
+              <label class="btn" for="billSheet" id="billSheetBtn" hidden><span data-i18n="bill.excel">Excel or CSV of sales</span></label>
+              <input type="file" id="billSheet" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+            </div>
+            <div id="billMsg" class="notice" hidden></div>
+          </div>
+          <div class="card">
+            <div class="label" data-i18n="bill.recent">Recent bills</div>
+            <ul class="movelist bills" id="billList"></ul>
+          </div>
+        </div>
+        <form id="billCheck" class="view-part" hidden novalidate></form>
+        <div id="billDone" class="view-part" hidden></div>
+      </section>
+
       <!-- SCAN -->
-      <section class="view" id="view-scan">
+      <section class="view" id="view-scan" hidden>
         <div class="view-head"><h2>Scan a box</h2><span class="muted small" id="scanCount"></span></div>
         <div class="card stack">
           <div class="scanner" id="scanner">
@@ -105,7 +165,7 @@
 
       <!-- STOCK -->
       <section class="view" id="view-stock" hidden>
-        <div class="view-head"><h2>Stock</h2><span class="muted small" id="stockSummary"></span></div>
+        <div class="view-head"><h2 data-i18n="stock.title">Stock</h2><span class="muted small" id="stockSummary"></span></div>
         <div class="searchbar">
           <input type="search" id="q" placeholder="Search brand, article, colour, SKU, rack…" autocomplete="off">
           <select id="fBrand"><option value="">All brands</option></select>
@@ -175,7 +235,7 @@
 
       <!-- INSIGHTS / DASHBOARD -->
       <section class="view" id="view-dash" hidden>
-        <div class="view-head"><h2>Insights</h2><div class="btn-row"><select id="dashDays"><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="180">Last 180 days</option></select><span class="muted small" id="dashAsOf"></span></div></div>
+        <div class="view-head"><h2 data-i18n="dash.title">Hisaab</h2><div class="btn-row"><select id="dashDays"><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="180">Last 180 days</option></select><span class="muted small" id="dashAsOf"></span></div></div>
         <div class="tiles" id="dashTiles"></div>
         <div class="grid2">
           <div class="card"><div class="label" style="margin-bottom:8px">Sold vs received per day</div><div id="chTrend"></div><div class="legend"><span><i style="background:var(--accent)"></i>Sold</span><span><i style="background:var(--good)"></i>Received</span></div></div>
@@ -190,7 +250,7 @@
           <div class="card"><div class="label" style="margin-bottom:8px">Dead stock · 180+ days, nothing sold</div><div class="table-wrap flat"><table><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Days</th><th class="r">Value</th></tr></thead><tbody id="dashDead"></tbody></table></div></div>
         </div>
         <div class="card ask">
-          <div class="label">Ask about the stock · AI</div>
+          <div class="label" data-i18n="ask.title">Ask about the stock · AI</div>
           <div id="askUnset" class="notice" hidden>Not set up yet. Admin → Settings → Insights: choose a provider and paste an API key.</div>
           <div class="chips" id="askChips"></div>
           <textarea id="askQ" placeholder="e.g. Which articles should we reorder before the wedding season? What should go on the clearance rack?"></textarea>
@@ -230,11 +290,11 @@
         </div>
         <div class="card stack">
           <div class="label">Insights · AI provider</div>
-          <p class="muted small" style="margin:0">The key is stored encrypted on this server and never sent to the browser. The AI only ever sees the stock digest, never customer data.</p>
+          <p class="muted small" style="margin:0">Reads bill photos and answers stock questions. The key is stored encrypted on this server and never sent to the browser. The AI sees the stock digest and the bill photos you take, never customer data. A Gemini key comes from aistudio.google.com → Get API key.</p>
           <form class="form-grid" id="llmForm">
-            <div class="field"><label for="llmProvider">Provider</label><select id="llmProvider"><option value="none">Off</option><option value="anthropic">Anthropic (Claude)</option><option value="openai">OpenAI-compatible</option></select></div>
-            <div class="field"><label for="llmModel">Model</label><input id="llmModel" placeholder="claude-sonnet-4-5"></div>
-            <div class="field"><label for="llmBase">Base URL</label><input id="llmBase" class="mono" placeholder="https://api.anthropic.com"></div>
+            <div class="field"><label for="llmProvider">Provider</label><select id="llmProvider"><option value="none">Off</option><option value="gemini">Google Gemini (reads Hindi best)</option><option value="anthropic">Anthropic (Claude)</option><option value="openai">OpenAI-compatible</option></select></div>
+            <div class="field"><label for="llmModel">Model</label><input id="llmModel" placeholder="gemini-2.5-flash"></div>
+            <div class="field"><label for="llmBase">Base URL</label><input id="llmBase" class="mono" placeholder="leave blank for the default"></div>
             <div class="field span2"><label for="llmKey">API key <span id="llmKeyState" class="muted"></span></label><input id="llmKey" type="password" autocomplete="off" placeholder="paste to set or replace"></div>
             <div class="field"><label for="llmMax">Max answer tokens</label><input id="llmMax" type="number" min="100" max="4000" step="50" value="800"></div>
             <div class="span3 btn-row"><button type="submit" class="btn primary">Save AI settings</button><button type="button" class="btn danger" id="llmClear">Remove key</button></div>
@@ -273,7 +333,7 @@
     <div><div class="sku" id="shSku">—</div><div class="name" id="shName">—</div><div class="muted small" id="shMeta"></div></div>
     <button type="button" class="x" id="shClose" aria-label="Close">×</button>
   </div>
-  <div class="qty-big"><div><div class="label">In stock · स्टॉक</div><div class="q" id="shQty">0</div></div><div class="muted small" id="shLoc"></div></div>
+  <div class="qty-big"><div><div class="label"><span data-i18n="sheet.inStock">In stock</span> · स्टॉक</div><div class="q" id="shQty">0</div></div><div class="muted small" id="shLoc"></div></div>
   <div class="actions3">
     <button type="button" class="btn big" id="shOut">Sold −1<small>बिक्री</small></button>
     <button type="button" class="btn big" id="shIn">In +1<small>आमद</small></button>
@@ -322,6 +382,7 @@
 <script src="/vendor/jsQR.js"></script>
 <script src="/charts.js"></script>
 <script src="/scanner.js"></script>
+<script src="/i18n.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

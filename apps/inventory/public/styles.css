@@ -223,3 +223,64 @@ details summary { cursor: pointer; font-family: var(--font-display); font-weight
 .keybox { font-family: var(--font-mono); background: var(--bg); padding: 10px 12px; border-radius: var(--radius); word-break: break-all; font-size: 0.9rem; }
 @media (prefers-reduced-motion: no-preference) { .sheet { animation: up 160ms ease-out; } @keyframes up { from { transform: translateY(12px); opacity: 0 } to { transform: none; opacity: 1 } } }
 @media (prefers-reduced-motion: no-preference) and (min-width: 900px) { .sheet { animation: none; } }
+
+/* ---------- tabs: phone shows Home, Bill, Stock, Hisaab, More; desktop rail shows everything ---------- */
+nav.tabs .nav-extra { display: none; }
+.more-menu { position: fixed; z-index: 15; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(var(--nav-h) + 10px + env(safe-area-inset-bottom, 0px));
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 28px rgba(20, 12, 10, 0.18); display: grid; min-width: 180px; overflow: hidden; }
+.more-menu button { min-height: 48px; padding: 0 18px; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); font-family: var(--font-display); font-weight: 600; }
+.more-menu button:last-child { border-bottom: 0; }
+@media (min-width: 900px) {
+  nav.tabs .nav-extra { display: block; }
+  nav.tabs .nav-more, .more-menu { display: none; }
+}
+
+/* ---------- language switch ---------- */
+.lang { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--surface); padding: 0; font-size: 0.82rem; }
+.lang span { padding: 4px 10px; color: var(--muted); }
+.lang span.on { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+
+/* ---------- home ---------- */
+.tiles.two { grid-template-columns: repeat(2, 1fr); }
+.bigactions { display: grid; gap: 10px; }
+@media (min-width: 640px) { .bigactions { grid-template-columns: 1fr 1fr; } }
+.bigaction { display: flex; align-items: center; gap: 14px; padding: 16px 18px; min-height: 76px; border-radius: 12px; border: 2px solid var(--accent); background: var(--surface); color: var(--accent); text-align: left; }
+.bigaction svg { width: 32px; height: 32px; flex: none; }
+.bigaction span { display: grid; gap: 2px; }
+.bigaction b { font-family: var(--font-display); font-size: 1.25rem; }
+.bigaction small { color: var(--muted); font-size: 0.88rem; }
+.bigaction.primary { background: var(--accent); color: var(--accent-fg); }
+.bigaction.primary small { color: var(--accent-fg); opacity: 0.88; }
+.sug-list { display: grid; gap: 10px; }
+.sug { display: grid; gap: 8px; padding: 12px; border-radius: var(--radius); background: var(--accent-soft); }
+.sug p { margin: 0; }
+.sug .btn-row .btn { flex: 1 1 120px; }
+
+/* ---------- bill ---------- */
+.view-part { display: grid; gap: 14px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.seg button { min-height: 46px; border: 0; background: none; font-family: var(--font-display); font-weight: 600; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+.bill-head { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 640px) { .bill-head { grid-template-columns: 2fr 1fr 1fr; } }
+.bill-row { display: grid; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+.bill-row.warn { border-color: var(--warn); }
+.bill-row .written { font-size: 0.85rem; color: var(--muted); font-family: var(--font-mono); overflow-wrap: anywhere; }
+.bill-row .grid { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 10px; }
+.bill-row .grid2c { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.bill-row input.qty { font-family: var(--font-mono); font-size: 1.15rem; }
+.bill-row .after { font-size: 0.9rem; padding: 8px 10px; border-radius: 6px; background: var(--accent-soft); }
+.bill-total { display: flex; justify-content: space-between; gap: 12px; font-size: 1rem; padding: 0 4px; font-variant-numeric: tabular-nums; }
+.bill-approve { position: sticky; bottom: calc(var(--nav-h) + 8px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 6px; padding: 10px; background: var(--bg); border-radius: 12px; }
+@media (min-width: 900px) { .bill-approve { bottom: 12px; } }
+.bill-approve .btn { min-height: 56px; font-size: 1.1rem; }
+.bill-approve small { text-align: center; color: var(--muted); }
+.reading { display: grid; justify-items: center; gap: 12px; padding: 40px 16px; color: var(--muted); }
+.spinner { width: 36px; height: 36px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+.done-mark { width: 72px; height: 72px; border-radius: 50%; background: var(--good); color: #fff; display: grid; place-items: center; justify-self: center; }
+.done-mark svg { width: 38px; height: 38px; }
+.movelist.bills li { grid-template-columns: 56px 1fr auto; }
+.movelist .undone { text-decoration: line-through; color: var(--muted); }
+.movelist a { color: var(--accent); }
