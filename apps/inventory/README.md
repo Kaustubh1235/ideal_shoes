@@ -10,13 +10,16 @@ The stock system for Ideal Shoes / IDEALX: every box gets a QR label, every sale
 
 | Area | Details |
 | --- | --- |
+| Bill photo | **Home → Maal aaya / Maal bika.** Photograph a challan or a sale bill; the AI (Gemini by default) reads it into rows, checks qty × rate = amount and the total, and matches each row to stock. Nothing changes until someone taps **Approve**. Sales can also come from an Excel/CSV sheet (columns `item` or `sku`, and `qty`). Each bill keeps its photo for 180 days, the same photo twice is caught, and **Undo** puts stock back. No sizes needed: a challan line becomes one article. |
+| Suggestions | Home lists reorder (fast seller running low), put on sale (dead stock) and count (busy item not counted in 30 days). Picked by plain rules, each needs Approve or Not now; approved reorders form the **To order** list and sheet in the Excel export. |
+| Hindi | The EN · हिं switch in the top bar turns Home, Bill and the tabs into Hindi, and the AI answers stock questions in Hindi. Saved per phone. |
 | Sign-in | Owner sets up on first visit. Staff get a name + PIN. Five wrong PINs lock the account for 10 minutes. Admin can deactivate anyone instantly. |
 | Add stock | One article at a time with its whole size run (sizes come from Settings). Existing SKUs are topped up, never duplicated. SKU is generated: `BRAN-ARTICLE-COL-SIZE`. |
 | Labels | Select items → Print. A4 sheet of 36 labels (46 × 30 mm) with QR, brand, article, colour, size. The QR holds the app address + SKU, so even the phone's own camera app opens the item. |
 | Scan | Live camera scanning (jsQR), photo fallback, or type the code. Opens the item: Sold −1, In +1, Count, other change, edit details (admin). |
 | Offline | Sales and counts made without network are queued on the phone and synced when it reconnects, each with an idempotency id so nothing is applied twice. |
 | Insights | Units, value at cost, sold vs received per day, ageing buckets, dead stock (180+ days, nothing sold), top sellers, broken size runs, by brand. |
-| Ask AI | Configurable provider (Anthropic or any OpenAI-compatible endpoint). The key is stored encrypted on the server; the model only ever sees the stock digest. |
+| Ask AI | Configurable provider: Google Gemini (recommended, reads Hindi handwriting best), Anthropic, or any OpenAI-compatible endpoint. The key is stored encrypted on the server and never sent to the browser; the model sees the stock digest and the bill photos you take, never customer data. |
 | Public API | `X-API-Key` keys with `read` or `read+write` scope. OpenAPI spec at `/api/v1/public/openapi.json`. Used by the IDEALX website (stock sync, web-order deduction) and by any LLM agent you point at it. |
 | Ops | `/healthz`, Prometheus `/metrics`, JSON request logs, audit log of every admin action and API-key movement, nightly `VACUUM INTO` backups (keeps 14), one-click backup download. |
 | Security | HTTPS via Caddy (automatic certificates), HttpOnly/Secure/SameSite cookies, CSRF header on every write, argon2id PINs, hashed API keys shown once, strict CSP, no third-party scripts or CDNs. |
@@ -47,6 +50,10 @@ Point the domain's DNS A record at the machine, open `https://stock.idealx.in`, 
 What is tested automatically (`e2e/run_e2e.py`): Chrome's installability check and the manifest/icons, and live scanning from a camera stream showing a printed label's QR. What is **not** tested automatically: the installed (standalone) app on a real Android phone or iPhone. Check that once on each kind of phone the shop uses: install, sign in, *Start camera*, scan a label.
 
 ## Everyday use
+
+**Without labels (most shops):** goods come in → **Home → Maal aaya → Take photo** of the challan → check the rows → **Approve**. Sold → **Maal bika** → photo of the sale bill, or the day's sales as an Excel/CSV → **Approve**. Once a week do the count the Home screen asks for. Stock left = what came in − what was sold.
+
+**With labels (boxes by size):**
 
 1. **Count a room**: open the app on the phone, Add each article with its sizes from the register (or import the register as an Excel or CSV sheet under Admin; **Blank Excel template** shows the columns). Print labels. Stick one on every box.
 2. **Sale**: scan the box → Sold −1. Delivery: scan → In +1 (or "Other change" with the carton quantity).

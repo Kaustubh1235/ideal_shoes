@@ -126,6 +126,16 @@ Staff can scan, sell, count and add stock. Only admins see Admin and can change 
 
 The phone notes in [README.md](README.md#phones-installing-and-the-camera) explain the camera on iPhone and Android, and what happens offline.
 
+## 8a. Bill photos: switch on the AI (about 5 minutes)
+
+Stock can come in and go out from photos of challans and sale bills, with no labels. That needs an AI key:
+
+1. On a computer open **aistudio.google.com**, sign in with the shop's Google account, click **Get API key → Create API key**, and copy it. Gemini Flash has a free tier; for a shop's few bills a day it costs little or nothing beyond it. Check the current price on Google's pricing page.
+2. In Stock Room: **Admin → Insights · AI provider**: choose **Google Gemini**, leave Model and Base URL empty (the defaults are filled in), paste the key, **Save AI settings**. The page then says "a key is saved"; the key itself is never shown again.
+3. On a phone: **Home → Maal aaya → Take photo** of a real challan. Check every row it read (quantity, item, rate) against the paper, fix anything wrong, and tap **Approve**. If a row is wrong often for one supplier, tell whoever maintains the app; Claude or OpenAI can be chosen instead in the same place.
+
+If Google ever retires the model name, type the current Flash model name (for example from aistudio.google.com) into **Model**.
+
 ## 9. Link the website
 
 1. **Admin → API keys · for the website and AI agents**: name it `Website`, Access **Read + write**, press **Create key**.

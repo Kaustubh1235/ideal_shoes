@@ -94,6 +94,8 @@ Open https://stock.idealx.in **on this exact address** (it becomes the address i
 label), create the owner with a 4–8 digit PIN, then add staff and print labels:
 [apps/inventory/DEPLOY.md](../apps/inventory/DEPLOY.md) steps 6–8 explain each screen.
 Its Excel buttons are under **Insights → Export** and **Admin → Import from Excel or CSV**.
+To enter stock from photos of challans and sale bills instead of labels, add a Gemini key under
+**Admin → Insights · AI provider**: [apps/inventory/DEPLOY.md §8a](../apps/inventory/DEPLOY.md#8a-bill-photos-switch-on-the-ai-about-5-minutes).
 
 ## 8. Link the shop to Stock Room
 
