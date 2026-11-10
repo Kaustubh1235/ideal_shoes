@@ -27,7 +27,7 @@ const Schema = z.object({
 export async function dealerApplyAction(formData: FormData) {
   const parsed = Schema.parse(Object.fromEntries(formData.entries()));
   // Public form that creates an account: 5 applications an hour per address is plenty.
-  const ip = clientIp(new Request("http://x", { headers: headers() }));
+  const ip = clientIp(new Request("http://x", { headers: await headers() }));
   if (!(await hit(`dealer-apply:${ip}`, 5, 3600))) redirect("/dealer-application?error=busy");
 
   const taken = await prisma.user.findFirst({

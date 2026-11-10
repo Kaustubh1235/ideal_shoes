@@ -3,7 +3,8 @@ import { dealerApplyAction } from "@/app/actions/dealer";
 
 export const metadata = { title: "Become a dealer", description: "Stock IDEALX boots and formal shoes: apply for a dealer account with your GSTIN for wholesale prices and GST invoices." };
 
-export default function DealerApplicationPage({ searchParams }: { searchParams: { error?: string } }) {
+export default async function DealerApplicationPage(props: { searchParams: Promise<{ error?: string }> }) {
+  const searchParams = await props.searchParams;
   return (
     <div className="container py-12 max-w-2xl">
       <h1 className="font-display text-3xl">Become a Dealer</h1>

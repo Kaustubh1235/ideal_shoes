@@ -9,7 +9,11 @@ export const metadata = { title: "Payment", robots: { index: false } };
 
 export const dynamic = "force-dynamic";
 
-export default async function PayPage({ params, searchParams }: { params: { orderId: string }; searchParams: { paid?: string } }) {
+export default async function PayPage(
+  props: { params: Promise<{ orderId: string }>; searchParams: Promise<{ paid?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const order = await prisma.order.findUnique({
     where: { id: params.orderId },
     include: { items: true, invoices: { take: 1, select: { id: true } } },

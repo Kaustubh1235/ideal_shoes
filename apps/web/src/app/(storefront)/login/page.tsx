@@ -9,7 +9,8 @@ function safeFrom(from: string | undefined): string {
   return from && /^\/(?![\/\\])/.test(from) ? from : "/";
 }
 
-export default function LoginPage({ searchParams }: { searchParams: { from?: string; error?: string } }) {
+export default async function LoginPage(props: { searchParams: Promise<{ from?: string; error?: string }> }) {
+  const searchParams = await props.searchParams;
   return (
     <div className="container py-16 max-w-md">
       <h1 className="font-display text-3xl">Sign In</h1>

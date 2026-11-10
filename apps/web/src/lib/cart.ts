@@ -12,14 +12,14 @@ const COOKIE = "bb_cart";
 const TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
 /** The visitor's cart id, or null before their first add-to-cart. Safe in pages (read-only). */
-export function getCartId(): string | null {
-  return cookies().get(COOKIE)?.value ?? null;
+export async function getCartId(): Promise<string | null> {
+  return (await cookies()).get(COOKIE)?.value ?? null;
 }
 
 /** Creates the cart cookie if needed. Only in server actions and route handlers: Next does not
  * allow setting cookies while rendering a page. */
 export async function getOrCreateCartId(): Promise<string> {
-  const jar = cookies();
+  const jar = await cookies();
   let id = jar.get(COOKIE)?.value;
   if (!id) {
     id = nanoid(24);

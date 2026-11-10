@@ -13,7 +13,7 @@ export const metadata = { title: "Cart", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 export default async function CartPage() {
-  const cartId = getCartId();
+  const cartId = await getCartId();
   const items = await getCart(cartId);
 
   if (items.length === 0) {

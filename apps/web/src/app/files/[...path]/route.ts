@@ -14,7 +14,8 @@ const ALLOWED = [
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request, { params }: { params: { path: string[] } }) {
+export async function GET(req: Request, props: { params: Promise<{ path: string[] }> }) {
+  const params = await props.params;
   const path = params.path.join("/");
   // Guest orders: the unguessable order id is the buyer's key (as on the pay page), so the
   // invoice is fetched with the web service token after checking the order has no account.

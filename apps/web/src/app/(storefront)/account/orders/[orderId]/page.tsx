@@ -9,7 +9,8 @@ export const metadata = { title: "Order", robots: { index: false } };
 
 export const dynamic = "force-dynamic";
 
-export default async function OrderDetailPage({ params }: { params: { orderId: string } }) {
+export default async function OrderDetailPage(props: { params: Promise<{ orderId: string }> }) {
+  const params = await props.params;
   const session = await auth();
   const order = await prisma.order.findFirst({
     where: { id: params.orderId, userId: session!.user.id },

@@ -6,7 +6,8 @@ import { CATEGORY_LABELS } from "@/lib/nav";
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ searchParams }: { searchParams: { category?: string; q?: string } }) {
+export async function generateMetadata(props: { searchParams: Promise<{ category?: string; q?: string }> }) {
+  const searchParams = await props.searchParams;
   const label = searchParams.category ? (CATEGORY_LABELS as Record<string, string>)[searchParams.category] : undefined;
   return {
     title: label ?? "All products",
@@ -18,11 +19,12 @@ export async function generateMetadata({ searchParams }: { searchParams: { categ
   };
 }
 
-export default async function ProductsListPage({
-  searchParams,
-}: {
-  searchParams: { category?: string; q?: string };
-}) {
+export default async function ProductsListPage(
+  props: {
+    searchParams: Promise<{ category?: string; q?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const category = searchParams.category;
   const q = searchParams.q;
 

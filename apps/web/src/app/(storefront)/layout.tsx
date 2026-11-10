@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function StorefrontLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  const cartId = getCartId();
+  const cartId = await getCartId();
   const count = await cartCount(cartId);
   const phone = process.env.SELLER_PHONE;
 

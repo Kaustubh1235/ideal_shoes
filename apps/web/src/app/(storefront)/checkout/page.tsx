@@ -13,7 +13,7 @@ export const metadata = { title: "Checkout", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 export default async function CheckoutPage() {
-  const cartId = getCartId();
+  const cartId = await getCartId();
   const items = await getCart(cartId);
   if (items.length === 0) redirect("/cart");
 

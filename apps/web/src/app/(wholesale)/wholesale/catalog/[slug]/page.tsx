@@ -7,7 +7,8 @@ import { WholesaleAddToCart } from "@/components/wholesale/add-to-cart";
 
 export const dynamic = "force-dynamic";
 
-export default async function WholesaleProductPage({ params }: { params: { slug: string } }) {
+export default async function WholesaleProductPage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const session = await auth();
   const dealer = await prisma.dealerProfile.findUnique({ where: { userId: session!.user.id } });
   const tier = dealer?.priceTier ?? "tier_b";

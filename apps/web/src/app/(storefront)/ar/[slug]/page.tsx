@@ -8,7 +8,8 @@ export const metadata = { title: "View in 3D", robots: { index: false } };
 
 export const dynamic = "force-dynamic";
 
-export default async function ARPage({ params }: { params: { slug: string } }) {
+export default async function ARPage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const product = await prisma.product.findUnique({
     where: { slug: params.slug },
     select: { id: true, name: true, slug: true, arEnabled: true, arModelUrl: true },

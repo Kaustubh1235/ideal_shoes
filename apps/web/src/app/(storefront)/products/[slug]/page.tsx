@@ -9,7 +9,8 @@ import { seller } from "@/lib/seller";
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: { params: { slug: string } }) {
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const p = await prisma.product.findUnique({
     where: { slug: params.slug },
     include: { images: { orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }], take: 1 } },
@@ -24,7 +25,8 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default async function ProductDetailPage({ params }: { params: { slug: string } }) {
+export default async function ProductDetailPage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const product = await prisma.product.findUnique({
     where: { slug: params.slug },
     include: {

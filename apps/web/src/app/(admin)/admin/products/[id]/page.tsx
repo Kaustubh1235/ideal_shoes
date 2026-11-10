@@ -6,7 +6,8 @@ import { addVariantAction, toggleStatusAction, setVariantBarcodeAction, uploadIm
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminProductDetail({ params }: { params: { id: string } }) {
+export default async function AdminProductDetail(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const product = await prisma.product.findUnique({
     where: { id: params.id },
     include: { variants: { orderBy: { size: "asc" } }, images: { orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }] }, category: true },
