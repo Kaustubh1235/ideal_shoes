@@ -27,11 +27,13 @@ import {
   type Scope,
   type ApiKeyRow,
 } from "./auth";
-import { addStock, applyMovement, updateItemDetails, deleteItem, parseCsv, parseTable, StockError, normalizeSku, CATEGORIES } from "./stock";
+import { addStock, applyMovement, updateItemDetails, deleteItem, parseCsv, parseTable, csvTable, StockError, normalizeSku, CATEGORIES } from "./stock";
 import { writeXlsx, readXlsx, XLSX_TYPE } from "./xlsx";
 import * as R from "./reports";
 import { askLlm, getLlmConfig, setLlmConfig } from "./insights";
 import * as M from "./metrics";
+import * as B from "./bills";
+import { computeSuggestions, decideSuggestion, toOrder } from "./suggestions";
 
 export interface AppOptions {
   dbPath: string;
@@ -43,7 +45,9 @@ export interface AppOptions {
   metricsToken?: string;
   log?: (line: Record<string, unknown>) => void;
   /** Per-IP limits. Defaults: 20 login attempts / 10 min, 600 public API requests / min. */
-  rateLimits?: { login?: { max: number; windowMs: number }; publicApi?: { max: number; windowMs: number } };
+  rateLimits?: { login?: { max: number; windowMs: number }; publicApi?: { max: number; windowMs: number }; billReads?: { max: number; windowMs: number } };
+  /** For tests: the fetch used to call the AI provider. */
+  fetchImpl?: typeof fetch;
 }
 
 export interface App {
@@ -109,9 +113,16 @@ const json = (data: unknown, status = 200, headers: Record<string, string> = {})
 const text = (body: string, status = 200, type = "text/plain; charset=utf-8", headers: Record<string, string> = {}) =>
   new Response(body, { status, headers: { "content-type": type, ...headers } });
 
-async function body<T = Record<string, unknown>>(req: Request): Promise<T> {
+async function body<T = Record<string, unknown>>(req: Request, maxBytes = 1024 * 1024): Promise<T> {
+  if (Number(req.headers.get("content-length") ?? 0) > maxBytes) throw new HttpError(413, "Request too large");
+  let t: string;
   try {
-    const t = await req.text();
+    t = await req.text();
+  } catch {
+    throw new HttpError(400, "Could not read the request");
+  }
+  if (t.length > maxBytes) throw new HttpError(413, "Request too large");
+  try {
     if (!t) return {} as T;
     return JSON.parse(t) as T;
   } catch {
@@ -159,6 +170,16 @@ export function createApp(opts: AppOptions): App {
   const ip = (req: Request) => req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for")?.split(",")[0].trim() || null;
   const loginLimit = new RateLimiter(opts.rateLimits?.login?.max ?? 20, opts.rateLimits?.login?.windowMs ?? 10 * 60 * 1000);
   const publicLimit = new RateLimiter(opts.rateLimits?.publicApi?.max ?? 600, opts.rateLimits?.publicApi?.windowMs ?? 60 * 1000);
+  // AI bill reads cost money: per person, not per IP, so a shared shop Wi-Fi does not block everyone.
+  const billReadLimit = new RateLimiter(opts.rateLimits?.billReads?.max ?? 100, opts.rateLimits?.billReads?.windowMs ?? 60 * 60 * 1000);
+  // Photos read but not yet approved, so Approve does not upload the photo a second time. Small and short-lived.
+  const pendingPhotos = new Map<string, B.ImageInput & { hash: string; at: number }>();
+  function keepPhoto(p: B.ImageInput & { hash: string }) {
+    const cutoff = Date.now() - 2 * 3600 * 1000;
+    for (const [k, v] of pendingPhotos) if (v.at < cutoff) pendingPhotos.delete(k);
+    while (pendingPhotos.size >= 40) pendingPhotos.delete(pendingPhotos.keys().next().value!);
+    pendingPhotos.set(p.hash, { ...p, at: Date.now() });
+  }
   function limit(rl: RateLimiter, req: Request, name: string, message: string) {
     const wait = rl.hit(ip(req) ?? "unknown");
     if (!wait) return;
@@ -192,8 +213,8 @@ export function createApp(opts: AppOptions): App {
   function dashboard(days: number) {
     const items = allItems(db);
     const since = new Date(Date.now() - days * 86400000).toISOString();
-    const moves = movementsSince(db, since);
-    const moves30 = movementsSince(db, new Date(Date.now() - 30 * 86400000).toISOString());
+    const moves = B.withoutUndone(db, movementsSince(db, since));
+    const moves30 = B.withoutUndone(db, movementsSince(db, new Date(Date.now() - 30 * 86400000).toISOString()));
     return {
       asOf: now(),
       days,
@@ -209,7 +230,7 @@ export function createApp(opts: AppOptions): App {
   }
   function digest() {
     const items = allItems(db);
-    const moves30 = movementsSince(db, new Date(Date.now() - 30 * 86400000).toISOString());
+    const moves30 = B.withoutUndone(db, movementsSince(db, new Date(Date.now() - 30 * 86400000).toISOString()));
     return R.digest(items, moves30, sizeRun());
   }
 
@@ -379,11 +400,11 @@ export function createApp(opts: AppOptions): App {
         return json({ insights: rows, llm: getLlmConfig(db) });
       }
       if (r[1] === "ask" && m === "POST") {
-        const b = await body<{ question?: string }>(req);
+        const b = await body<{ question?: string; lang?: string }>(req);
         const q = String(b.question ?? "").trim().slice(0, 1000);
         if (!q) throw new HttpError(400, "Ask a question");
         try {
-          const { answer, model } = await askLlm(db, opts.secret, q, digest());
+          const { answer, model } = await askLlm(db, opts.secret, q, digest(), opts.fetchImpl ?? fetch, b.lang === "hi" ? "hi" : "en");
           const id = crypto.randomUUID();
           db.query("INSERT INTO insights (id, at, user_id, question, answer, model) VALUES (?,?,?,?,?,?)").run(id, now(), session.userId, q, answer, model);
           M.inc("stockroom_llm_calls_total", { status: "ok" });
@@ -392,6 +413,89 @@ export function createApp(opts: AppOptions): App {
           M.inc("stockroom_llm_calls_total", { status: "error" });
           throw new HttpError(502, (e as Error).message);
         }
+      }
+    }
+
+    if (r[0] === "bills") {
+      const actor = { userId: session.userId, source: "bill" as const };
+      if (r[1] === "read" && m === "POST") {
+        const wait = billReadLimit.hit(session.userId);
+        if (wait) {
+          M.inc("stockroom_rate_limited_total", { limit: "bill_read" });
+          throw new HttpError(429, "Too many photos this hour. Try again later.", { "retry-after": String(wait) });
+        }
+        const b = await body<{ photo?: string }>(req, 9 * 1024 * 1024);
+        const image = B.parseDataUrl(b.photo);
+        const hash = await B.sha256Hex(image.base64);
+        const items = allItems(db);
+        try {
+          const read = await B.readBillPhoto(db, opts.secret, image, items, opts.fetchImpl ?? fetch);
+          M.inc("stockroom_bill_reads_total", { status: "ok" });
+          keepPhoto({ ...image, hash });
+          const dup = B.billByPhoto(db, hash);
+          audit(db, { userId: session.userId, actor: session.name, action: "bill_read", detail: { rows: read.lines.length, model: read.model }, ip: ip(req) });
+          return json({ ...read, photoId: hash, alreadyEntered: dup ? dup.at : null, lines: read.lines.map((l) => ({ ...l, candidates: B.candidatesFor(l, items) })) });
+        } catch (e) {
+          M.inc("stockroom_bill_reads_total", { status: "error" });
+          throw e;
+        }
+      }
+      if (r[1] === "read-sheet" && m === "POST") {
+        const kind = url.searchParams.get("format") === "csv" ? "csv" : "xlsx";
+        if (Number(req.headers.get("content-length") ?? 0) > 5 * 1024 * 1024) throw new HttpError(413, "File too large (max 5 MB)");
+        let table: string[][];
+        try {
+          table = kind === "xlsx" ? readXlsx(new Uint8Array(await req.arrayBuffer())) : csvTable(await req.text());
+        } catch {
+          throw new HttpError(400, "Could not read this file. Save it as .xlsx or .csv and try again.");
+        }
+        const lines = B.salesFromTable(table);
+        if (!lines.length) throw new HttpError(400, "No rows with a quantity in the file");
+        const items = allItems(db);
+        return json({ kind: "out", supplier: "", billNo: "", date: "", total: null, notes: "", checks: B.checkSums({ lines, total: null }), lines: lines.map((l) => {
+          const exact = l.sku ? getItem(db, normalizeSku(l.sku)) : null;
+          const candidates = exact ? [{ sku: exact.sku, brand: exact.brand, article: exact.article, colour: exact.colour, size: exact.size, qty: exact.qty, score: 1 }] : B.candidatesFor(l, items);
+          return { ...l, candidates };
+        }) });
+      }
+      if (r[1] === "apply" && m === "POST") {
+        const b = await body<B.ApplyInput & { photoId?: string }>(req, 512 * 1024);
+        const photo = b.photoId ? pendingPhotos.get(String(b.photoId)) : undefined;
+        const res = B.applyBill(db, { kind: b.kind, supplier: b.supplier, billNo: b.billNo, date: b.date, total: b.total, source: b.source === "photo" || b.source === "sheet" ? b.source : "manual", force: Boolean(b.force), lines: b.lines, photo: photo ? { mime: photo.mime, base64: photo.base64, hash: photo.hash } : undefined }, actor);
+        if (photo) pendingPhotos.delete(photo.hash);
+        M.inc("stockroom_bills_applied_total", { kind: res.bill.kind });
+        audit(db, { userId: session.userId, actor: session.name, action: "bill_apply", target: res.bill.id, detail: { kind: res.bill.kind, rows: res.bill.lines, units: res.bill.units, source: res.bill.source }, ip: ip(req) });
+        return json({ bill: res.bill, results: res.results, items: res.results.map((x) => getItem(db, x.sku)).filter(Boolean).map((it) => publicItem(it!)) });
+      }
+      if (!r[1] && m === "GET") return json({ bills: B.listBills(db) });
+      if (r[1] && r[2] === "photo" && m === "GET") {
+        const ph = B.billPhoto(db, r[1]);
+        if (!ph) throw new HttpError(404, "No photo for this bill");
+        return new Response(ph.data, { headers: { "content-type": ph.mime, "cache-control": "private, max-age=86400" } });
+      }
+      if (r[1] && r[2] === "undo" && m === "POST") {
+        const bill = B.getBill(db, r[1]);
+        if (!bill) throw new HttpError(404, "Bill not found");
+        const own = bill.user_id === session.userId && Date.now() - Date.parse(bill.at) < 24 * 3600 * 1000;
+        if (session.role !== "admin" && !own) throw new HttpError(403, "Only the owner can undo this bill");
+        const undone = B.undoBill(db, bill.id, actor);
+        audit(db, { userId: session.userId, actor: session.name, action: "bill_undo", target: bill.id, ip: ip(req) });
+        return json({ bill: undone, items: allItems(db).map(publicItem) });
+      }
+    }
+
+    if (r[0] === "suggestions") {
+      const items = allItems(db);
+      if (!r[1] && m === "GET") {
+        const moves30 = B.withoutUndone(db, movementsSince(db, new Date(Date.now() - 30 * 86400000).toISOString()));
+        return json({ suggestions: computeSuggestions(db, items, moves30), toOrder: toOrder(db, items) });
+      }
+      if (r[1] && m === "POST") {
+        const b = await body<{ decision?: string; qty?: number }>(req);
+        const id = decodeURIComponent(r[1]);
+        decideSuggestion(db, id, b.decision as "approve" | "dismiss", session.userId, b.qty);
+        audit(db, { userId: session.userId, actor: session.name, action: `suggestion_${b.decision}`, target: id, detail: b.qty ? { qty: b.qty } : undefined, ip: ip(req) });
+        return json({ ok: true });
       }
     }
 
@@ -432,6 +536,9 @@ export function createApp(opts: AppOptions): App {
           { name: "By article", rows: articles, cols: [
             { key: "brand", label: "brand", width: 12 }, { key: "article", label: "article", width: 18 }, { key: "colour", label: "colour", width: 10 }, { key: "cat", label: "cat" },
             { key: "sizes", label: "sizes in stock (size×pairs)", width: 40 }, { key: "units", label: "units" }, { key: "valueAtCost", label: "value at cost", width: 14 }, { key: "valueAtMrp", label: "value at MRP", width: 14 },
+          ] },
+          { name: "To order", rows: toOrder(db, items).map((o) => ({ ...o, approvedAt: o.approvedAt.slice(0, 10) })), cols: [
+            { key: "brand", label: "brand", width: 12 }, { key: "article", label: "article", width: 18 }, { key: "colour", label: "colour", width: 10 }, { key: "qty", label: "order qty" }, { key: "inStock", label: "in stock now" }, { key: "approvedAt", label: "approved", width: 12 }, { key: "sku", label: "sku", width: 26 },
           ] },
           { name: "Movements", rows: moves, cols: [
             { key: "at", label: "at", width: 22 }, { key: "sku", label: "sku", width: 26 }, { key: "type", label: "type" }, { key: "delta", label: "delta" }, { key: "before", label: "before" }, { key: "after", label: "after" },

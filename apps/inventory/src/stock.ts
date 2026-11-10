@@ -58,7 +58,7 @@ function int(v: unknown, fallback = 0): number {
 
 export interface Actor {
   userId?: string | null;
-  source: "app" | "api" | "import";
+  source: "app" | "api" | "import" | "bill";
 }
 
 export interface ApplyResult {
@@ -73,8 +73,8 @@ function insertMovement(db: Database, m: MovementRow) {
   ).run(m.id, m.sku, m.type, m.delta, m.before_qty, m.after_qty, m.note, m.by_user, m.source, m.ref, m.at);
 }
 
-/** Create a SKU or top it up. Returns one result per input row. */
-export function addStock(db: Database, rows: NewItemInput[], actor: Actor): ApplyResult[] {
+/** Create a SKU or top it up. Returns one result per input row. `opts` labels the movements (a bill sets its note and id). */
+export function addStock(db: Database, rows: NewItemInput[], actor: Actor, opts: { note?: string; ref?: string | null } = {}): ApplyResult[] {
   if (!Array.isArray(rows) || rows.length === 0) throw new StockError(400, "No rows");
   if (rows.length > 500) throw new StockError(400, "Too many rows at once (max 500)");
   const results: ApplyResult[] = [];
@@ -96,14 +96,14 @@ export function addStock(db: Database, rows: NewItemInput[], actor: Actor): Appl
         db.query(
           "UPDATE items SET qty = ?, last_in = CASE WHEN ? > 0 THEN ? ELSE last_in END, cost = CASE WHEN ? > 0 THEN ? ELSE cost END, mrp = CASE WHEN ? > 0 THEN ? ELSE mrp END, loc = CASE WHEN ? != '' THEN ? ELSE loc END, updated_at = ? WHERE sku = ?",
         ).run(after, qty, t, int(r.cost), int(r.cost), int(r.mrp), int(r.mrp), clean(r.loc), clean(r.loc), t, sku);
-        const m: MovementRow = { id: crypto.randomUUID(), sku, type: "in", delta: qty, before_qty: existing.qty, after_qty: after, note: "Added from register", by_user: actor.userId ?? null, source: actor.source, ref: null, at: t };
+        const m: MovementRow = { id: crypto.randomUUID(), sku, type: "in", delta: qty, before_qty: existing.qty, after_qty: after, note: opts.note || "Added from register", by_user: actor.userId ?? null, source: actor.source, ref: opts.ref ?? null, at: t };
         if (qty > 0) insertMovement(db, m);
         results.push({ item: getItem(db, sku)!, movement: m });
       } else {
         db.query(
           "INSERT INTO items (sku, brand, article, colour, size, cat, cost, mrp, qty, loc, created_at, last_in, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         ).run(sku, brand, article, colour, size, cat, int(r.cost), int(r.mrp), qty, clean(r.loc), t, t, t);
-        const m: MovementRow = { id: crypto.randomUUID(), sku, type: "new", delta: qty, before_qty: 0, after_qty: qty, note: "New SKU", by_user: actor.userId ?? null, source: actor.source, ref: null, at: t };
+        const m: MovementRow = { id: crypto.randomUUID(), sku, type: "new", delta: qty, before_qty: 0, after_qty: qty, note: opts.note || "New SKU", by_user: actor.userId ?? null, source: actor.source, ref: opts.ref ?? null, at: t };
         insertMovement(db, m);
         results.push({ item: getItem(db, sku)!, movement: m });
       }
@@ -208,6 +208,11 @@ export function deleteItem(db: Database, sku: string, actor: Actor): void {
 
 /** Parse the Stock Book / generic CSV export into NewItemInput rows. */
 export function parseCsv(text: string): NewItemInput[] {
+  return parseTable(csvTable(text));
+}
+
+/** Split CSV text into rows of cells (quoted fields, doubled quotes). */
+export function csvTable(text: string): string[][] {
   const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter((l) => l.trim().length);
   const parseLine = (line: string): string[] => {
     const out: string[] = [];
@@ -230,7 +235,7 @@ export function parseCsv(text: string): NewItemInput[] {
     out.push(cur);
     return out;
   };
-  return parseTable(lines.map(parseLine));
+  return lines.map(parseLine);
 }
 
 /** Rows from a CSV or an Excel sheet: the first non-empty row is the header. */

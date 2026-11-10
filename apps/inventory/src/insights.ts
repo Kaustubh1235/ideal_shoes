@@ -3,7 +3,7 @@ import { getSetting, setSetting } from "./db";
 import { decryptSecret, encryptSecret } from "./auth";
 
 export interface LlmConfig {
-  provider: "anthropic" | "openai" | "none";
+  provider: "anthropic" | "openai" | "gemini" | "none";
   baseUrl: string;
   model: string;
   hasKey: boolean;
@@ -13,6 +13,8 @@ export interface LlmConfig {
 const DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
   anthropic: { baseUrl: "https://api.anthropic.com", model: "claude-sonnet-4-5" },
   openai: { baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+  // Google's OpenAI-compatible endpoint; reads Hindi handwriting best of the three in published tests.
+  gemini: { baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.5-flash" },
 };
 
 export function getLlmConfig(db: Database): LlmConfig {
@@ -35,7 +37,7 @@ export async function setLlmConfig(
 ): Promise<LlmConfig> {
   const cur = getSetting<Record<string, unknown>>(db, "llm", {});
   const next: Record<string, unknown> = { ...cur };
-  if (patch.provider && ["anthropic", "openai", "none"].includes(patch.provider)) next.provider = patch.provider;
+  if (patch.provider && ["anthropic", "openai", "gemini", "none"].includes(patch.provider)) next.provider = patch.provider;
   if (patch.baseUrl !== undefined) next.baseUrl = String(patch.baseUrl).trim().replace(/\/+$/, "");
   if (patch.model !== undefined) next.model = String(patch.model).trim();
   if (patch.maxTokens) next.maxTokens = Math.min(4000, Math.max(100, Number(patch.maxTokens) | 0));
@@ -54,12 +56,14 @@ export async function askLlm(
   question: string,
   digest: unknown,
   fetchImpl: typeof fetch = fetch,
+  lang: "en" | "hi" = "en",
 ): Promise<{ answer: string; model: string }> {
   const cfg = getLlmConfig(db);
   if (cfg.provider === "none" || !cfg.hasKey) throw new Error("LLM is not configured. Admin → Settings → Insights.");
   const stored = getSetting<{ keyEnc?: string }>(db, "llm", {});
   const apiKey = await decryptSecret(secret, stored.keyEnc!);
-  const user = `Stock digest (JSON):\n${JSON.stringify(digest)}\n\nQuestion: ${question}`;
+  const answerIn = lang === "hi" ? "\n\nAnswer in simple Hindi (Devanagari script); keep article names and numbers as they are." : "";
+  const user = `Stock digest (JSON):\n${JSON.stringify(digest)}\n\nQuestion: ${question}${answerIn}`;
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 60000);
   try {

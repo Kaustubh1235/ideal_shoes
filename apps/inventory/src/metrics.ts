@@ -49,6 +49,8 @@ export function routeLabel(method: string, path: string): string {
     .replace(/\/api\/v1\/public\/items\/[^/]+/, "/api/v1/public/items/:sku")
     .replace(/\/api\/v1\/admin\/users\/[^/]+/, "/api/v1/admin/users/:id")
     .replace(/\/api\/v1\/admin\/api-keys\/[^/]+/, "/api/v1/admin/api-keys/:id")
-    .replace(/\/api\/v1\/movements\/[^/]+/, "/api/v1/movements/:id");
+    .replace(/\/api\/v1\/movements\/[^/]+/, "/api/v1/movements/:id")
+    .replace(/\/api\/v1\/bills\/(?!read$|read-sheet$|apply$)[^/]+/, "/api/v1/bills/:id")
+    .replace(/\/api\/v1\/suggestions\/[^/]+/, "/api/v1/suggestions/:id");
   return `${method} ${p.startsWith("/api/") ? p : "static"}`;
 }

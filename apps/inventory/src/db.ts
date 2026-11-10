@@ -122,6 +122,40 @@ CREATE TABLE IF NOT EXISTS insights (
   answer TEXT NOT NULL,
   model TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS bills (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('in','out')),
+  at TEXT NOT NULL,
+  user_id TEXT,
+  supplier TEXT NOT NULL DEFAULT '',
+  bill_no TEXT NOT NULL DEFAULT '',
+  bill_date TEXT NOT NULL DEFAULT '',
+  total INTEGER,
+  units INTEGER NOT NULL,
+  lines INTEGER NOT NULL,
+  photo_hash TEXT,
+  source TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'done' CHECK (status IN ('done','undone')),
+  undone_at TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_bills_at ON bills(at);
+CREATE INDEX IF NOT EXISTS ix_bills_photo ON bills(photo_hash);
+CREATE TABLE IF NOT EXISTS bill_photos (
+  bill_id TEXT PRIMARY KEY,
+  mime TEXT NOT NULL,
+  data BLOB NOT NULL,
+  at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS suggestions (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  target TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('approved','dismissed')),
+  qty INTEGER,
+  at TEXT NOT NULL,
+  user_id TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_suggestions_target ON suggestions(kind, target, at);
 `;
 
 export function openDb(path: string): Database {
