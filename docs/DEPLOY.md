@@ -190,6 +190,51 @@ sh scripts/prod.sh up -d --build
 
 Migrations run by themselves before the API starts. Data is kept.
 
+## Automatic deploys (GitHub Actions)
+
+Once the server runs (steps 1–7), every change merged into `main` goes live by itself: CI tests
+it, then `.github/workflows/deploy.yml` connects to the server and runs `scripts/deploy.sh`,
+which pulls `main`, rebuilds, waits until the shop, the API and Stock Room answer, and **rolls
+back to the previous version** if they don't. A run can also be started by hand: GitHub →
+Actions → Deploy → Run workflow.
+
+GitHub gets its own SSH key that can do exactly one thing on the server, run the deploy script:
+no shell, no file copy, no port forwarding. Set it up once:
+
+1. On your Mac, make the key:
+
+   ```bash
+   ssh-keygen -t ed25519 -f ~/.ssh/idealx_deploy -N "" -C github-deploy
+   cat ~/.ssh/idealx_deploy.pub
+   ```
+
+2. On the server, as the `ubuntu` user (not root), allow that key to run only the deploy script.
+   Paste the whole `ssh-ed25519 …` line from step 1 where it says `<public key>`:
+
+   ```bash
+   echo 'command="sudo -n sh /opt/ideal_shoes/scripts/deploy.sh",restrict <public key>' >> ~/.ssh/authorized_keys
+   ```
+
+3. Give GitHub the key, the address and the server's fingerprint (from the Mac, in the repo folder):
+
+   ```bash
+   gh secret set DEPLOY_SSH_KEY < ~/.ssh/idealx_deploy
+   gh secret set DEPLOY_HOST --body <server IP>
+   gh secret set DEPLOY_USER --body ubuntu
+   ssh-keyscan -t ed25519 <server IP> | gh secret set DEPLOY_KNOWN_HOSTS
+   gh variable set SITE_DOMAIN --body idealx.store
+   rm ~/.ssh/idealx_deploy        # GitHub has it now; nobody else needs it
+   ```
+
+4. Protect `main` (GitHub → Settings → Branches → Add rule for `main`): require a pull request
+   and the CI checks to pass. Whatever lands on `main` runs on the server, so only reviewed,
+   tested code should get there.
+
+5. Try it: Actions → Deploy → Run workflow. The log ends with `deploy: healthy at <commit>`.
+
+Until the secrets exist the Deploy workflow does nothing and says so. To deploy by hand instead:
+`sudo sh scripts/deploy.sh` on the server.
+
 ## Certificates
 
 Caddy gets and renews HTTPS certificates for all three names by itself. If a browser says the

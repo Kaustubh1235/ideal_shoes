@@ -1,0 +1,64 @@
+name: Deploy
+
+# After CI passes on main, update the server (Oracle Cloud) to that commit. The server builds and
+# restarts the stack itself and rolls back if the new version is not healthy (scripts/deploy.sh).
+# Also runs by hand: Actions → Deploy → Run workflow.
+#
+# Needs, under Settings → Secrets and variables → Actions (docs/DEPLOY.md, "Automatic deploys"):
+#   secrets   DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS
+#   variable  SITE_DOMAIN (e.g. idealx.store), for the check from outside
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - name: Connect to the server
+        id: ssh
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          if [ -z "$DEPLOY_SSH_KEY" ] || [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_KNOWN_HOSTS" ]; then
+            echo "::notice::No server connected yet (DEPLOY_* secrets are empty); nothing deployed."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          # The server's own key, pinned: a different machine answering at that address is refused.
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy (build, restart, health check, roll back on failure)
+        if: steps.ssh.outputs.ready == 'true'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        # The key may only run scripts/deploy.sh on the server; the command sent here is ignored.
+        run: ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=yes -o BatchMode=yes -o ServerAliveInterval=30 "${DEPLOY_USER:-ubuntu}@$DEPLOY_HOST" deploy
+
+      - name: Check from outside
+        if: steps.ssh.outputs.ready == 'true' && vars.SITE_DOMAIN != ''
+        env:
+          SITE: ${{ vars.SITE_DOMAIN }}
+        run: |
+          curl -fsS --retry 5 --retry-delay 10 "https://$SITE/api/v1/healthz"
+          curl -fsS --retry 5 --retry-delay 10 -o /dev/null "https://$SITE/"
+          curl -fsS --retry 5 --retry-delay 10 "https://stock.$SITE/healthz"
