@@ -1,0 +1,850 @@
+/* Stock Room client. Plain JS, no build step. Talks to /api/v1, works offline for scans. */
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const fmtN = new Intl.NumberFormat("en-IN");
+  const rupee = (n) => "₹" + fmtN.format(Math.round(n || 0));
+  const DAY = 86400000;
+  const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" }) : "—");
+  const fmtTime = (iso) => (iso ? new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }) : "");
+  const ageDays = (it) => Math.max(0, Math.floor((Date.now() - Date.parse(it.lastIn || it.createdAt)) / DAY));
+  const isDead = (it) => it.qty > 0 && ageDays(it) >= 180 && (!it.lastOut || (Date.now() - Date.parse(it.lastOut)) / DAY >= 180);
+  const CATS = ["boot", "shoe", "jacket", "bag", "belt", "other"];
+  const catName = (c) => (CATS.includes(c) ? I18N.t("cat." + c) : c);
+  const SIZED = ["boot", "shoe", "jacket", "belt"];
+  const code = (s, n) => String(s || "").toUpperCase().replace(/[^A-Z0-9]+/g, "").slice(0, n);
+  const skuPrefix = (b, a, c) => [code(b, 4), code(a, 8), code(c, 3)].filter(Boolean).join("-");
+  const normalizeSku = (t) => { t = String(t || "").trim(); const i = t.lastIndexOf("#"); if (i >= 0) t = t.slice(i + 1); return t.toUpperCase().replace(/[^A-Z0-9-]/g, ""); };
+
+  const S = { me: null, settings: { shop: "Ideal Shoes", appUrl: "", sizeRuns: {}, categories: ["boot", "shoe", "jacket", "bag", "belt", "other"], llm: { provider: "none" } }, items: new Map(), moves: [], view: "scan", openSku: null, selected: new Set(), dash: null, online: navigator.onLine, pending: [], fromScan: false };
+
+  // ---------- toast ----------
+  let toastT;
+  function toast(msg, ms = 2200, action) {
+    const el = $("toast"); el.textContent = msg; el.hidden = false; clearTimeout(toastT);
+    if (action) {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = action.label;
+      b.addEventListener("click", () => { el.hidden = true; action.fn(); }); el.append(" ", b); ms = Math.max(ms, 6000);
+    }
+    toastT = setTimeout(() => { el.hidden = true; }, ms);
+  }
+
+  // ---------- api ----------
+  async function api(method, path, body, raw) {
+    const headers = { "x-requested-with": "StockRoom" };
+    if (body !== undefined && !raw) headers["content-type"] = "application/json";
+    if (raw) headers["content-type"] = raw;
+    let res;
+    try {
+      res = await fetch(path, { method, headers, body: body === undefined ? undefined : raw ? body : JSON.stringify(body), credentials: "same-origin" });
+    } catch (e) {
+      const err = new Error("No connection"); err.network = true; throw err;
+    }
+    setOnline(true);
+    if (res.status === 401 && !path.startsWith("/api/v1/auth/")) { showGate(); const err = new Error("Please sign in again"); err.auth = true; throw err; }
+    let data = null;
+    const text = await res.text();
+    try { data = text ? JSON.parse(text) : null; } catch { data = { error: text }; }
+    if (!res.ok) { const err = new Error((data && data.error) || `Error ${res.status}`); err.status = res.status; throw err; }
+    return data;
+  }
+
+  function setOnline(on) {
+    S.online = on;
+    $("netDot").className = "dot " + (on ? "on" : "off");
+    $("netText").textContent = I18N.t(on ? "net.live" : "net.off");
+    $("offlineNotice").hidden = on;
+  }
+  window.addEventListener("online", () => { setOnline(true); flushQueue(); });
+  window.addEventListener("offline", () => setOnline(false));
+
+  // ---------- offline queue ----------
+  function loadQueue() { try { S.pending = JSON.parse(localStorage.getItem("sr.queue") || "[]"); } catch { S.pending = []; } renderQueue(); }
+  function saveQueue() { try { localStorage.setItem("sr.queue", JSON.stringify(S.pending)); } catch {} renderQueue(); }
+  function renderQueue() { const b = $("queueBadge"); b.hidden = S.pending.length === 0; b.textContent = String(S.pending.length); }
+  let flushing = false;
+  async function flushQueue() {
+    if (flushing || !S.pending.length) return;
+    flushing = true;
+    try {
+      while (S.pending.length) {
+        const m = S.pending[0];
+        try {
+          await api("POST", "/api/v1/movements", m);
+          S.pending.shift(); saveQueue();
+        } catch (e) {
+          if (e.network) break;
+          // Server rejected it (e.g. SKU deleted). Drop it and tell the user.
+          S.pending.shift(); saveQueue();
+          toast("Couldn't sync one change: " + e.message, 4000);
+        }
+      }
+      if (!S.pending.length) await refresh();
+    } finally { flushing = false; }
+  }
+
+  // ---------- gate ----------
+  let pinUser = null, pin = "";
+  async function showGate() {
+    $("app").hidden = true; $("gate").hidden = false;
+    ["gate-setup", "gate-login", "gate-pin"].forEach((id) => { $(id).hidden = true; });
+    $("gate-wait").hidden = false;
+    applyGateLang();
+    try {
+      const st = await api("GET", "/api/v1/auth/state");
+      $("gate-wait").hidden = true;
+      $("gateVer").textContent = st.version ? "v" + st.version : "";
+      if (st.me) { S.me = st.me; await boot(); return; }
+      if (st.setupNeeded) { $("gate-setup").hidden = false; $("setupCodeField").hidden = !st.setupCodeNeeded; $("setupName").focus(); return; }
+      $("loginShop").textContent = st.shop || "Ideal Shoes";
+      $("people").innerHTML = st.users.map((u) => `<button type="button" data-id="${esc(u.id)}" data-name="${esc(u.name)}">${esc(u.name)}<small>${esc(I18N.t(u.role === "admin" ? "role.admin" : "role.staff"))}</small></button>`).join("");
+      $("gate-login").hidden = false;
+    } catch (e) {
+      $("gate-wait").hidden = false; $("gate-wait").innerHTML = `<p class="muted">${esc(I18N.t("gate.noServer"))} ${esc(e.message)}</p><button type="button" class="btn" id="retryGate">${esc(I18N.t("gate.retry"))}</button>`;
+      $("retryGate").addEventListener("click", showGate);
+    }
+  }
+  $("people").addEventListener("click", (e) => { const b = e.target.closest("button[data-id]"); if (!b) return; pinUser = { id: b.dataset.id, name: b.dataset.name }; pin = ""; $("pinWho").textContent = pinUser.name; $("pinMsg").hidden = true; $("gate-login").hidden = true; $("gate-pin").hidden = false; renderPin(); });
+  $("pinBack").addEventListener("click", () => { $("gate-pin").hidden = true; $("gate-login").hidden = false; });
+  function renderPin() { $("pindots").innerHTML = Array.from({ length: Math.max(4, pin.length) }, (_, i) => `<i class="${i < pin.length ? "on" : ""}"></i>`).join(""); }
+  (function buildPad() { const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "OK"]; $("pinpad").innerHTML = keys.map((k) => `<button type="button" data-k="${k}" class="${k === "⌫" || k === "OK" ? "alt" : ""}">${k}</button>`).join(""); })();
+  $("pinpad").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-k]"); if (!b) return; const k = b.dataset.k;
+    if (k === "⌫") pin = pin.slice(0, -1); else if (k === "OK") { await submitPin(); return; } else if (pin.length < 8) { pin += k; $("pinMsg").hidden = true; }
+    renderPin(); // PINs are 4 to 8 digits, so nothing is sent until OK (or Enter)
+  });
+  document.addEventListener("keydown", (e) => { if ($("gate-pin").hidden || $("gate").hidden) return; if (/^[0-9]$/.test(e.key) && pin.length < 8) { pin += e.key; $("pinMsg").hidden = true; renderPin(); } else if (e.key === "Backspace") { pin = pin.slice(0, -1); renderPin(); } else if (e.key === "Enter") submitPin(); });
+  async function submitPin() {
+    if (!pinUser || pin.length < 4) return;
+    try { const r = await api("POST", "/api/v1/auth/login", { userId: pinUser.id, pin }); S.me = r.me; pin = ""; await boot(); }
+    catch (e) {
+      pin = ""; renderPin(); $("pinMsg").hidden = false;
+      const at = /after (.+)\.$/.exec(e.message);
+      $("pinMsg").textContent = e.status === 401 ? I18N.t("pin.wrong") : e.status === 423 && at ? I18N.t("pin.locked", { time: at[1] }) : e.message;
+      if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+    }
+  }
+  $("setupGo").addEventListener("click", async () => {
+    const name = $("setupName").value.trim(), p1 = $("setupPin").value.trim(), p2 = $("setupPin2").value.trim();
+    const msg = $("setupMsg"); msg.hidden = true;
+    if (!name) { msg.hidden = false; msg.textContent = I18N.t("setup.needName"); return; }
+    if (!/^[0-9]{4,8}$/.test(p1)) { msg.hidden = false; msg.textContent = I18N.t("setup.badPin"); return; }
+    if (p1 !== p2) { msg.hidden = false; msg.textContent = I18N.t("setup.noMatch"); return; }
+    try { const r = await api("POST", "/api/v1/auth/setup", { name, pin: p1, shop: $("setupShop").value.trim(), appUrl: location.origin, setupCode: $("setupCode").value.trim() }); S.me = r.me; await boot(); }
+    catch (e) { msg.hidden = false; msg.textContent = e.status === 403 ? I18N.t("setup.badCode") : e.message; }
+  });
+  function applyGateLang() { I18N.apply($("gate")); $("gateLang").querySelectorAll("span").forEach((x) => x.classList.toggle("on", x.dataset.l === I18N.lang)); }
+  $("gateLang").addEventListener("click", () => { I18N.set(I18N.lang === "hi" ? "en" : "hi"); applyGateLang(); });
+  $("logoutBtn").addEventListener("click", async () => { try { await api("POST", "/api/v1/auth/logout"); } catch {} S.me = null; Scanner.stop(); showGate(); });
+
+  // ---------- boot ----------
+  async function boot() {
+    const b = await api("GET", "/api/v1/bootstrap");
+    S.me = b.me; S.settings = b.settings;
+    S.items = new Map(b.items.map((i) => [i.sku, i])); S.moves = b.movements;
+    $("gate").hidden = true; $("app").hidden = false;
+    $("shopName").textContent = S.settings.shop; $("meName").textContent = S.me.name; $("appVer").textContent = b.version ? "v" + b.version : "";
+    document.title = `${S.settings.shop} · Stock Room`;
+    $("tab-admin-li").hidden = S.me.role !== "admin"; $("more-admin").hidden = S.me.role !== "admin";
+    applyLang();
+    fillCats();
+    loadQueue();
+    let v = null; try { v = localStorage.getItem("sr.view"); } catch {}
+    show(v && v !== "admin" ? v : "home");
+    const h = (location.hash || "").slice(1);
+    if (h) openCode(h);
+    flushQueue();
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }
+  async function refresh() {
+    try { const b = await api("GET", "/api/v1/bootstrap"); S.settings = b.settings; S.items = new Map(b.items.map((i) => [i.sku, i])); S.moves = b.movements; render(); } catch (e) { if (e.network) setOnline(false); }
+  }
+  setInterval(() => { if (!document.hidden && S.me && !$("app").hidden && S.view !== "dash") refresh(); }, 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && S.me) { refresh(); flushQueue(); } });
+  window.addEventListener("hashchange", () => { const h = (location.hash || "").slice(1); if (h && S.me) openCode(h); });
+
+  // ---------- views ----------
+  const VIEWS = ["home", "bill", "scan", "stock", "add", "labels", "dash", "admin"];
+  function show(view) {
+    if (view === "admin" && (!S.me || S.me.role !== "admin")) view = "home";
+    S.view = VIEWS.includes(view) ? view : "home";
+    closeMore();
+    VIEWS.forEach((v) => { $("view-" + v).hidden = v !== S.view; });
+    document.querySelectorAll("nav.tabs button").forEach((b) => { if (b.dataset.view === S.view || (b.id === "tab-more" && ["scan", "add", "labels", "admin"].includes(S.view))) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+    try { localStorage.setItem("sr.view", S.view); } catch {}
+    if (S.view !== "scan" && Scanner.active()) stopScan();
+    render();
+    if (S.view === "dash") loadDash();
+    if (S.view === "admin") loadAdmin();
+    if (S.view === "home") loadHome();
+    if (S.view === "bill") loadBills();
+    window.scrollTo({ top: 0 });
+  }
+  document.addEventListener("click", (e) => { const b = e.target.closest("[data-view]"); if (b && !b.closest("nav") && b.tagName === "BUTTON") show(b.dataset.view); });
+  function closeMore() { $("moreMenu").hidden = true; $("tab-more").setAttribute("aria-expanded", "false"); }
+  $("tab-more").addEventListener("click", (e) => { e.stopPropagation(); const open = $("moreMenu").hidden; $("moreMenu").hidden = !open; $("tab-more").setAttribute("aria-expanded", String(open)); });
+  document.addEventListener("click", (e) => { if (!$("moreMenu").hidden && !e.target.closest("#moreMenu")) closeMore(); });
+  document.querySelectorAll("nav.tabs button[data-view]").forEach((b) => b.addEventListener("click", () => show(b.dataset.view)));
+
+  const item = (sku) => S.items.get(sku) || null;
+  const itemName = (it) => [it.brand, it.article, it.colour].filter((x) => x && x !== "-").join(" · ");
+  const sizeText = (it) => (it.size && it.size !== "-" ? it.size : "—");
+  const brands = () => [...new Set([...S.items.values()].map((i) => i.brand))].sort();
+  const locs = () => [...new Set([...S.items.values()].map((i) => i.loc).filter(Boolean))].sort();
+  function fillSelect(sel, values, first) { const cur = sel.value; sel.innerHTML = first + values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join(""); sel.value = values.includes(cur) ? cur : ""; }
+  function fillCats() {
+    const cats = S.settings.categories || CATS;
+    const cur = $("fCat").value;
+    $("aCat").innerHTML = cats.map((c) => `<option value="${esc(c)}">${esc(catName(c))}</option>`).join("");
+    $("fCat").innerHTML = `<option value="">${esc(t("stock.allTypes"))}</option>` + cats.map((c) => `<option value="${esc(c)}">${esc(catName(c))}</option>`).join("");
+    $("fCat").value = cur;
+    onCatChange();
+  }
+  function render() {
+    const bs = brands();
+    const allBrands = `<option value="">${esc(t("stock.allBrands"))}</option>`;
+    fillSelect($("fBrand"), bs, allBrands); fillSelect($("lBrand"), bs, allBrands);
+    $("brandList").innerHTML = bs.map((b) => `<option value="${esc(b)}">`).join(""); $("locList").innerHTML = locs().map((l) => `<option value="${esc(l)}">`).join("");
+    $("scanCount").textContent = S.items.size ? `${S.items.size} SKUs on file` : "";
+    renderMoves($("scanRecent"), S.moves.slice(0, 8), true);
+    if (S.view === "stock") renderStock();
+    if (S.view === "labels") renderLabels();
+    if (S.view === "home") renderHomeTiles();
+    if (S.openSku) renderSheet();
+  }
+
+  // ---------- movements ----------
+  function applyLocal(m) {
+    const it = item(m.sku); if (!it) return null;
+    const before = it.qty; let after;
+    if (m.type === "count") after = Math.max(0, m.counted | 0);
+    else { let d = m.delta | 0; if (m.type === "out" && d > 0) d = -d; if (m.type === "in" && d < 0) d = -d; after = Math.max(0, before + d); }
+    const delta = after - before; const t = new Date().toISOString();
+    const next = { ...it, qty: after, updatedAt: t };
+    if (m.type === "count") next.lastCount = t; else if (delta > 0) next.lastIn = t; else if (delta < 0) next.lastOut = t;
+    S.items.set(m.sku, next);
+    const mv = { id: m.id, sku: m.sku, type: m.type, delta, before, after, note: m.note || (m.type === "count" ? "Count" : m.type === "out" ? "Sold" : "Stock in"), by: S.me && S.me.userId, at: t, pending: true };
+    S.moves.unshift(mv);
+    if (S.sheetMoves && S.openSku === m.sku) S.sheetMoves.unshift(mv);
+    return next;
+  }
+  function replaceMove(id, real) {
+    for (const list of [S.moves, S.sheetMoves]) { if (!list) continue; const i = list.findIndex((x) => x.id === id); if (i >= 0) list[i] = real; }
+  }
+  async function move(input, isUndo) {
+    const it = item(input.sku); if (!it) { toast("Unknown item"); return; }
+    if (input.type === "out" && it.qty <= 0) { toast(t("move.zero")); return; }
+    const m = { id: crypto.randomUUID(), ...input };
+    const before = it.qty;
+    applyLocal(m); render();
+    try {
+      const r = await api("POST", "/api/v1/movements", m);
+      S.items.set(r.item.sku, r.item);
+      replaceMove(m.id, r.movement);
+      render();
+      // One tap on the item sheet changes stock at once, so it can be taken back just as fast.
+      const back = m.type === "count" ? { sku: m.sku, type: "count", counted: before, note: t("move.undo") } : { sku: m.sku, type: r.movement.delta > 0 ? "out" : "in", delta: -r.movement.delta, note: t("move.undo") };
+      const what = t(m.type === "out" ? "move.sold" : m.type === "in" ? "move.in" : "move.counted");
+      if (isUndo || !r.movement.delta) toast(`${what} · ${itemName(r.item)} → ${r.item.qty}`);
+      else toast(`${what} · ${itemName(r.item)} → ${r.item.qty}`, 6000, { label: t("move.undo"), fn: () => move(back, true) });
+    } catch (e) {
+      if (e.network) { S.pending.push(m); saveQueue(); setOnline(false); toast(t("move.queued"), 3000); }
+      else if (!e.auth) { toast(e.message, 3500); await refresh(); }
+    }
+  }
+
+  // ---------- scan ----------
+  async function startScan() {
+    try {
+      $("scanIdle").hidden = true; $("scanVideo").hidden = false; $("scanReticle").hidden = false; $("scanHint").hidden = false; $("scanStop").hidden = false;
+      await Scanner.start($("scanVideo"), (text) => { Scanner.pause(); S.fromScan = true; openCode(text); });
+    } catch (e) {
+      stopScan();
+      const msg = $("scanMsg"); msg.hidden = false; msg.className = "notice bad";
+      msg.textContent = /denied|permission/i.test(e.message) ? "Camera permission was refused. Allow camera for this site in the browser settings, or use 'Photo of label'." : e.message;
+    }
+  }
+  function stopScan() { Scanner.stop(); $("scanIdle").hidden = false; $("scanVideo").hidden = true; $("scanReticle").hidden = true; $("scanHint").hidden = true; $("scanStop").hidden = true; }
+  $("scanStart").addEventListener("click", startScan);
+  $("scanStop").addEventListener("click", stopScan);
+  $("scanFile").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
+    const msg = $("scanMsg"); msg.hidden = false; msg.className = "notice"; msg.textContent = "Reading the code…";
+    try { const text = await Scanner.decodeFile(f); if (!text) { msg.textContent = "Couldn't read a QR code in that photo. Fill the frame with the label in good light, or type the code."; return; } msg.hidden = true; openCode(text); }
+    catch { msg.textContent = "Couldn't read that photo."; }
+  });
+  function openCode(text) {
+    const sku = normalizeSku(text); if (!sku) return;
+    if (item(sku)) { $("scanMsg").hidden = true; openSheet(sku); return; }
+    if (S.view !== "scan") { toast(`No item with code ${sku}`, 3500); return; }
+    const msg = $("scanMsg"); msg.hidden = false; msg.className = "notice"; msg.textContent = `No item with code ${sku}. Add it under Add, then print its label.`;
+    $("codeInput").value = sku; if (Scanner.active()) Scanner.resume();
+  }
+  $("codeGo").addEventListener("click", () => openCode($("codeInput").value));
+  $("codeInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); openCode($("codeInput").value); } });
+
+  // ---------- counter barcode scanner ----------
+  // A USB "keyboard wedge" scanner types the code a few ms per key and ends with Enter.
+  // When no field has focus, collect those fast keys and open the item. People type far slower, so they never trigger it.
+  let wedge = "", wedgeAt = 0;
+  document.addEventListener("keydown", (e) => {
+    if (!S.me || $("app").hidden || e.ctrlKey || e.metaKey || e.altKey) return;
+    const a = document.activeElement;
+    if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;
+    if (e.timeStamp - wedgeAt > 60) wedge = "";
+    if (e.key === "Enter") {
+      if (wedge.length >= 3) { e.preventDefault(); const c = wedge; wedge = ""; openCode(c); }
+      wedge = ""; return;
+    }
+    if (e.key.length !== 1) return; // Shift and friends
+    wedge += e.key; wedgeAt = e.timeStamp;
+  });
+
+  // ---------- sheet ----------
+  function openSheet(sku) {
+    S.openSku = sku; $("sheet").hidden = false; $("sheetBackdrop").hidden = false;
+    ["shCountBox", "shMoreBox", "shEditBox", "delConfirm"].forEach((id) => { $(id).hidden = true; }); $("delRow").hidden = false;
+    $("shNext").hidden = !S.fromScan;
+    renderSheet();
+    api("GET", `/api/v1/items/${encodeURIComponent(sku)}`).then((r) => { if (S.openSku === sku) { S.items.set(sku, r.item); S.sheetMoves = r.movements; renderSheet(); } }).catch(() => {});
+  }
+  function closeSheet() { S.openSku = null; S.sheetMoves = null; $("sheet").hidden = true; $("sheetBackdrop").hidden = true; if (S.fromScan && Scanner.active()) Scanner.resume(); S.fromScan = false; }
+  $("shClose").addEventListener("click", closeSheet); $("sheetBackdrop").addEventListener("click", closeSheet); $("shNext").addEventListener("click", closeSheet);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && S.openSku) closeSheet(); });
+  $("shOut").addEventListener("click", () => move({ sku: S.openSku, type: "out", delta: -1, note: "Sold" }));
+  $("shIn").addEventListener("click", () => move({ sku: S.openSku, type: "in", delta: 1, note: "Stock in" }));
+  $("shCount").addEventListener("click", () => { const it = item(S.openSku); $("shCountVal").value = it ? it.qty : 0; $("shCountBox").hidden = false; $("shCountVal").focus(); $("shCountVal").select(); });
+  $("shCountCancel").addEventListener("click", () => { $("shCountBox").hidden = true; });
+  $("shCountSave").addEventListener("click", async () => { const v = parseInt($("shCountVal").value, 10); if (isNaN(v) || v < 0) { toast(t("move.needNum")); return; } $("shCountBox").hidden = true; await move({ sku: S.openSku, type: "count", counted: v }); });
+  $("shMore").addEventListener("click", () => { $("shMoreBox").hidden = !$("shMoreBox").hidden; $("shEditBox").hidden = true; });
+  $("shDeltaSave").addEventListener("click", async () => { const d = parseInt($("shDelta").value, 10); if (!d) { toast(t("move.needDelta")); return; } const note = $("shNote").value.trim(); $("shDelta").value = ""; $("shNote").value = ""; $("shMoreBox").hidden = true; await move({ sku: S.openSku, type: d > 0 ? "in" : "out", delta: d, note }); });
+  $("shEdit").addEventListener("click", () => { const it = item(S.openSku); if (!it) return; $("eCost").value = it.cost || ""; $("eMrp").value = it.mrp || ""; $("eLoc").value = it.loc || ""; $("shEditBox").hidden = !$("shEditBox").hidden; $("shMoreBox").hidden = true; });
+  $("eSave").addEventListener("click", async () => { try { const r = await api("PATCH", `/api/v1/items/${encodeURIComponent(S.openSku)}`, { cost: +$("eCost").value || 0, mrp: +$("eMrp").value || 0, loc: $("eLoc").value.trim() }); S.items.set(r.item.sku, r.item); $("shEditBox").hidden = true; toast(t("move.saved")); render(); } catch (e) { toast(e.message); } });
+  $("eDelete").addEventListener("click", () => { $("delRow").hidden = true; $("delConfirm").hidden = false; });
+  $("eDeleteNo").addEventListener("click", () => { $("delRow").hidden = false; $("delConfirm").hidden = true; });
+  $("eDeleteYes").addEventListener("click", async () => { const sku = S.openSku; try { await api("DELETE", `/api/v1/items/${encodeURIComponent(sku)}`); S.items.delete(sku); closeSheet(); toast("Deleted " + sku); await refresh(); } catch (e) { toast(e.message); } });
+  function renderSheet() {
+    const it = item(S.openSku); if (!it) { closeSheet(); return; }
+    $("shSku").textContent = it.sku; $("shName").textContent = itemName(it);
+    $("shMeta").textContent = [catName(it.cat), it.size && it.size !== "-" ? t("sheet.size", { s: it.size }) : "", t("sheet.days", { n: ageDays(it) })].filter(Boolean).join(" · ");
+    $("shQty").textContent = it.qty; $("shLoc").textContent = it.loc ? t("sheet.rackIs", { r: it.loc }) : "";
+    $("shPrice").textContent = `${it.cost ? rupee(it.cost) : "—"} / ${it.mrp ? rupee(it.mrp) : "—"}`;
+    $("shLastIn").textContent = fmtDate(it.lastIn || it.createdAt); $("shLastOut").textContent = fmtDate(it.lastOut); $("shLastCount").textContent = fmtDate(it.lastCount);
+    const admin = S.me && S.me.role === "admin"; $("shEdit").hidden = !admin;
+    renderMoves($("shMoves"), (S.sheetMoves || S.moves.filter((m) => m.sku === it.sku)).slice(0, 20), false);
+  }
+  function renderMoves(ul, moves, withSku) {
+    if (!moves.length) { ul.innerHTML = `<li class="one muted small">${esc(t("moves.none"))}</li>`; return; }
+    ul.innerHTML = moves.map((m) => `<li><span class="mv ${m.type === "count" ? "count" : m.delta < 0 ? "out" : "in"}">${m.type === "count" ? "count" : (m.delta > 0 ? "+" : "") + m.delta}</span><span>${withSku ? `<span class="mono small">${esc(m.sku)}</span> ` : ""}${esc(m.note || m.type)}${m.pending ? ` <span class="muted">· ${esc(t("moves.waiting"))}</span>` : ""}</span><span class="muted small num">${esc(fmtDate(m.at))} ${esc(fmtTime(m.at))}</span></li>`).join("");
+  }
+  $("scanRecent").addEventListener("click", (e) => { const li = e.target.closest("li"); if (!li) return; const m = S.moves.slice(0, 8)[[...li.parentNode.children].indexOf(li)]; if (m && item(m.sku)) openSheet(m.sku); });
+
+  // ---------- stock ----------
+  function filteredItems() {
+    const q = $("q").value.trim().toLowerCase(), b = $("fBrand").value, c = $("fCat").value, sort = $("fSort").value;
+    const arr = [...S.items.values()].filter((it) => (!b || it.brand === b) && (!c || it.cat === c) && (!q || `${it.sku} ${itemName(it)} ${it.loc || ""}`.toLowerCase().includes(q)));
+    const sz = (it) => parseFloat(it.size) || 0;
+    if (sort === "qtyAsc") arr.sort((a, b2) => a.qty - b2.qty || a.sku.localeCompare(b2.sku));
+    else if (sort === "ageDesc") arr.sort((a, b2) => ageDays(b2) - ageDays(a));
+    else if (sort === "valueDesc") arr.sort((a, b2) => b2.qty * b2.cost - a.qty * a.cost);
+    else arr.sort((a, b2) => a.brand.localeCompare(b2.brand) || a.article.localeCompare(b2.article) || a.colour.localeCompare(b2.colour) || sz(a) - sz(b2) || a.sku.localeCompare(b2.sku));
+    return arr;
+  }
+  ["q", "fBrand", "fCat", "fSort"].forEach((id) => $(id).addEventListener("input", renderStock));
+  const qtyPill = (it) => `<span class="pill ${it.qty === 0 ? "zero" : it.qty <= 1 ? "low" : "ok"}">${it.qty}</span>`;
+  function renderStock() {
+    const arr = filteredItems();
+    $("stockEmpty").hidden = S.items.size > 0; $("stockTable").hidden = S.items.size === 0;
+    let units = 0, value = 0; arr.forEach((it) => { units += it.qty; value += it.qty * (it.cost || 0); });
+    // Same count as Home: articles that have pairs on the rack.
+    const articles = new Set(arr.filter((it) => it.qty > 0).map((it) => `${it.brand}|${it.article}|${it.colour}`)).size;
+    $("stockSummary").textContent = t("stock.summary", { n: articles, units: fmtN.format(units), value: rupee(value) });
+    // Stock is kept by article: the size column and the type filter only show when the shop uses them.
+    const all = [...S.items.values()];
+    $("stockTable").classList.toggle("nosize", !all.some((it) => it.size && it.size !== "-"));
+    $("fCat").hidden = new Set(all.map((it) => it.cat)).size < 2;
+    const dead = esc(t("stock.dead"));
+    $("stockRows").innerHTML = arr.slice(0, 800).map((it) => `<tr class="row" data-sku="${esc(it.sku)}"><td class="mono small w">${esc(it.sku)}</td><td class="wrap">${esc(itemName(it))}${isDead(it) ? ` <span class="pill dead">${dead}</span>` : ""}</td><td class="w sz">${esc(sizeText(it))}</td><td class="r">${qtyPill(it)}</td><td class="r w">${ageDays(it)}</td><td class="r">${it.cost ? rupee(it.qty * it.cost) : "—"}</td><td class="w">${esc(it.loc || "")}</td></tr>`).join("");
+  }
+  $("stockRows").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-sku]"); if (tr) openSheet(tr.dataset.sku); });
+  $("stockEmptyGo").addEventListener("click", () => newBill("in"));
+
+  // ---------- add ----------
+  function runFor(cat) { return (S.settings.sizeRuns && S.settings.sizeRuns[cat]) || []; }
+  function onCatChange() { const cat = $("aCat").value; const sized = SIZED.includes(cat) && runFor(cat).length; $("sizeBlock").hidden = !sized; $("qtyBlock").hidden = !!sized; if (sized) buildSizes(runFor(cat)); previewAdd(); }
+  function buildSizes(list) { $("sizerun").innerHTML = list.map((s) => `<label class="s"><b>${esc(s)}</b><input type="number" min="0" step="1" inputmode="numeric" data-size="${esc(s)}" placeholder="0"></label>`).join(""); }
+  $("aCat").addEventListener("change", onCatChange);
+  $("sizesClear").addEventListener("click", () => { $("sizerun").querySelectorAll("input").forEach((i) => { i.value = ""; }); previewAdd(); });
+  ["aBrand", "aArticle", "aColour", "aQty"].forEach((id) => $(id).addEventListener("input", previewAdd));
+  $("sizerun").addEventListener("input", previewAdd);
+  function addRows() {
+    const base = { brand: $("aBrand").value.trim(), article: $("aArticle").value.trim(), colour: $("aColour").value.trim(), cat: $("aCat").value, cost: +$("aCost").value || 0, mrp: +$("aMrp").value || 0, loc: $("aLoc").value.trim() };
+    const rows = [];
+    if (!$("sizeBlock").hidden) $("sizerun").querySelectorAll("input").forEach((i) => { const q = parseInt(i.value, 10); if (q > 0) rows.push({ ...base, size: i.dataset.size, qty: q }); });
+    else { const q = parseInt($("aQty").value, 10); if (!isNaN(q) && q >= 0) rows.push({ ...base, size: "-", qty: q }); }
+    return rows;
+  }
+  function previewAdd() { $("aSkuPrefix").value = skuPrefix($("aBrand").value, $("aArticle").value, $("aColour").value); const rows = addRows(); const units = rows.reduce((a, r) => a + r.qty, 0); $("addPreview").textContent = rows.length ? `${rows.length} SKU${rows.length > 1 ? "s" : ""}, ${units} units` : ""; }
+  $("addForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const rows = addRows(); if (!rows.length) { toast("Enter at least one quantity"); return; }
+    $("addSubmit").disabled = true;
+    try {
+      const r = await api("POST", "/api/v1/items", { rows });
+      r.results.forEach((x) => { S.items.set(x.item.sku, x.item); S.moves.unshift(x.movement); });
+      const added = r.results.filter((x) => x.movement.type === "new").length;
+      toast(`${added ? added + " new" : ""}${added && r.results.length - added ? ", " : ""}${r.results.length - added ? r.results.length - added + " topped up" : ""}`);
+      ["aArticle", "aColour", "aCost", "aMrp"].forEach((id) => { $(id).value = ""; }); $("sizerun").querySelectorAll("input").forEach((i) => { i.value = ""; }); $("aQty").value = "1"; previewAdd(); $("aArticle").focus();
+      render();
+    } catch (err) { toast(err.network ? "No connection. Adding new stock needs the server; try again when online." : err.message, 3500); }
+    $("addSubmit").disabled = false;
+  });
+
+  // ---------- labels ----------
+  const labelItems = () => { const b = $("lBrand").value, q = $("lq").value.trim().toLowerCase(); return [...S.items.values()].filter((it) => (!b || it.brand === b) && (!q || itemName(it).toLowerCase().includes(q))).sort((a, c) => a.sku.localeCompare(c.sku)); };
+  const copiesFor = (it) => { const m = $("lCopies").value; return m === "qty" ? Math.max(0, it.qty) : parseInt(m, 10); };
+  const qrText = (sku) => (S.settings.appUrl ? S.settings.appUrl.replace(/#.*$/, "").replace(/\/+$/, "") + "/#" + sku : sku);
+  function qrSvg(text) { try { const qr = window.qrcode(0, "M"); qr.addData(text); qr.make(); return qr.createSvgTag({ cellSize: 2, margin: 0, scalable: true }); } catch { return ""; } }
+  const labelHtml = (it, cls) => `<div class="${cls}">${qrSvg(qrText(it.sku))}<div><div class="b">${esc(it.brand)}</div><div class="a">${esc(it.article)} · ${esc(it.colour)}</div><div class="z">${esc(it.size && it.size !== "-" ? it.size : catName(it.cat))}</div><div class="k">${esc(it.sku)}</div></div></div>`;
+  ["lBrand", "lq", "lCopies"].forEach((id) => $(id).addEventListener("input", renderLabels));
+  $("lAll").addEventListener("click", () => { labelItems().forEach((it) => S.selected.add(it.sku)); renderLabels(); });
+  $("lNone").addEventListener("click", () => { S.selected.clear(); renderLabels(); });
+  $("lRows").addEventListener("change", (e) => { const cb = e.target.closest("input[data-sku]"); if (!cb) return; if (cb.checked) S.selected.add(cb.dataset.sku); else S.selected.delete(cb.dataset.sku); renderLabels(); });
+  function renderLabels() {
+    const arr = labelItems();
+    $("lRows").innerHTML = arr.slice(0, 600).map((it) => `<tr><td><input type="checkbox" data-sku="${esc(it.sku)}" ${S.selected.has(it.sku) ? "checked" : ""} aria-label="Select ${esc(it.sku)}"></td><td class="mono small">${esc(it.sku)}</td><td>${esc(itemName(it))}</td><td>${esc(sizeText(it))}</td><td class="r">${it.qty}</td></tr>`).join("") || '<tr><td colspan="5" class="muted">No items match</td></tr>';
+    const sel = [...S.selected].map(item).filter(Boolean); const total = sel.reduce((a, it) => a + copiesFor(it), 0);
+    $("lCount").textContent = sel.length ? `${sel.length} SKUs · ${total} labels · ${Math.ceil(total / 36)} sheet${total > 36 ? "s" : ""}` : "Nothing selected";
+    $("lPreview").innerHTML = sel.slice(0, 12).map((it) => labelHtml(it, "lbl")).join("") || '<p class="muted small" style="margin:0">Tick items above to preview their labels.</p>';
+    const msg = $("lMsg"); if (!S.settings.appUrl) { msg.hidden = false; msg.textContent = "Tip: set this app's address in Admin → Settings so the phone's own camera app can open an item from its label."; } else msg.hidden = true;
+  }
+  $("lPrint").addEventListener("click", () => {
+    const sel = [...S.selected].map(item).filter(Boolean); if (!sel.length) { toast("Select items first"); return; }
+    const labels = []; sel.forEach((it) => { for (let i = 0; i < copiesFor(it); i++) labels.push(it); });
+    if (!labels.length) { toast("Selected items have 0 stock. Choose '1 label per SKU'."); return; }
+    if (labels.length > 1080) { toast("Max 1,080 labels (30 sheets) at once."); return; }
+    $("print-sheet").innerHTML = labels.map((it) => labelHtml(it, "plbl")).join("");
+    setTimeout(() => window.print(), 50);
+  });
+
+  // ---------- dashboard ----------
+  $("dashDays").addEventListener("change", loadDash);
+  async function loadDash() {
+    try {
+      const d = await api("GET", `/api/v1/reports/dashboard?days=${$("dashDays").value}`); S.dash = d; renderDash(d);
+      const ins = await api("GET", "/api/v1/insights"); renderInsights(ins);
+      api("GET", "/api/v1/reports/digest").then((dg) => { $("digestPre").textContent = JSON.stringify(dg, null, 2); }).catch(() => {});
+    } catch (e) { if (!e.auth) toast(e.message); }
+  }
+  function renderDash(d) {
+    const s = d.summary;
+    $("dashAsOf").textContent = t("dash.asOf", { t: fmtTime(d.asOf) + ", " + fmtDate(d.asOf) });
+    const empty = (n, key) => `<tr><td colspan="${n}" class="muted">${esc(t(key))}</td></tr>`;
+    $("dashTiles").innerHTML = [
+      { l: t("dash.units"), v: fmtN.format(s.units), sub: t("dash.unitsSub", { n: s.skus }) },
+      { l: t("dash.cost"), v: rupee(s.valueAtCost), sub: s.retailValue ? t("dash.retail", { v: rupee(s.retailValue) }) : "" },
+      { l: t("dash.sold", { n: d.days }), v: fmtN.format(d.trend.reduce((a, x) => a + x.sold, 0)), sub: t("dash.received", { n: fmtN.format(d.trend.reduce((a, x) => a + x.received, 0)) }) },
+      { l: t("dash.dead"), v: rupee(s.deadValue), sub: t("dash.deadSub", { n: fmtN.format(s.deadUnits), z: s.zeroStockSkus }), alert: s.deadValue > 0 },
+    ].map((x) => `<div class="tile ${x.alert ? "alert" : ""}"><div class="label">${esc(x.l)}</div><div class="v">${esc(x.v)}</div><div class="sub">${esc(x.sub)}</div></div>`).join("");
+    $("chTrend").innerHTML = Charts.dailyBars(d.trend);
+    $("chAge").innerHTML = Charts.hBars(d.ageing.map((b, i) => ({ name: t("age." + i), value: b.value, sub: t("dash.pairsN", { n: fmtN.format(b.units) }) })), { money: true });
+    $("dashMovers").innerHTML = d.topMovers.map((m) => `<tr class="row" data-sku="${esc(m.sku)}"><td class="wrap">${esc(item(m.sku) ? itemName(item(m.sku)) : m.name)}</td><td class="r">${m.sold}</td><td class="r">${m.qty === 0 ? '<span class="pill zero">0</span>' : m.qty}</td></tr>`).join("") || empty(3, "dash.noneSold");
+    // Shops that keep stock by article have no size runs to break: the card only shows when there is a gap.
+    $("dashGapsCard").hidden = !d.sizeGaps.length;
+    $("dashGaps").innerHTML = d.sizeGaps.map((g) => `<tr><td class="wrap">${esc(g.brand)} ${esc(g.article)} · ${esc(g.colour)}</td><td class="wrap">${g.missing.map((x) => `<span class="pill zero">${esc(x)}</span>`).join(" ")}</td><td class="r">${g.sold30}</td></tr>`).join("");
+    $("dashBrands").innerHTML = d.byBrand.map((b) => `<tr><td>${esc(b.brand)}</td><td class="r">${b.skus}</td><td class="r">${fmtN.format(b.units)}</td><td class="r">${rupee(b.value)}</td><td class="r">${b.deadValue ? rupee(b.deadValue) : "—"}</td></tr>`).join("") || empty(5, "dash.noStock");
+    $("dashDead").innerHTML = d.dead.map((it) => `<tr class="row" data-sku="${esc(it.sku)}"><td class="wrap">${esc(itemName(it))} ${it.size && it.size !== "-" ? esc(it.size) : ""}</td><td class="r">${it.qty}</td><td class="r">${it.ageDays}</td><td class="r">${rupee(it.value)}</td></tr>`).join("") || empty(4, "dash.noDead");
+  }
+  document.querySelectorAll("#dashMovers, #dashDead").forEach((el) => el.addEventListener("click", (e) => { const tr = e.target.closest("tr[data-sku]"); if (tr && item(tr.dataset.sku)) openSheet(tr.dataset.sku); }));
+  function renderChips() { $("askChips").innerHTML = ["chip.1", "chip.2", "chip.3"].map((k) => `<button type="button">${esc(t(k))}</button>`).join(""); }
+  $("askChips").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { $("askQ").value = b.textContent; $("askQ").focus(); } });
+  function renderInsights(ins) {
+    const off = !ins.llm || ins.llm.provider === "none" || !ins.llm.hasKey;
+    $("askUnset").hidden = !off; $("askGo").disabled = off;
+    $("askHistory").innerHTML = ins.insights.map((i) => `<li class="one"><div class="small"><b>${esc(i.question)}</b> <span class="muted">· ${esc(fmtDate(i.at))}</span></div><div class="answer small" style="margin-top:4px">${esc(i.answer)}</div></li>`).join("") || `<li class="one muted small">${esc(t("ask.none"))}</li>`;
+  }
+  $("askGo").addEventListener("click", async () => {
+    const q = $("askQ").value.trim(); if (!q) return;
+    $("askGo").disabled = true; $("askStatus").textContent = t("ask.thinking"); $("askAnswer").hidden = true;
+    try { const r = await api("POST", "/api/v1/insights/ask", { question: q, lang: I18N.lang }); $("askAnswer").hidden = false; $("askAnswer").textContent = r.answer; $("askStatus").textContent = r.model; const ins = await api("GET", "/api/v1/insights"); renderInsights(ins); }
+    catch (e) { $("askStatus").textContent = ""; toast(e.message, 5000); }
+    $("askGo").disabled = false;
+  });
+
+  // ---------- admin ----------
+  async function loadAdmin() {
+    if (!S.me || S.me.role !== "admin") return;
+    try {
+      const [u, k, s, a] = await Promise.all([api("GET", "/api/v1/admin/users"), api("GET", "/api/v1/admin/api-keys"), api("GET", "/api/v1/admin/settings"), api("GET", "/api/v1/admin/audit?limit=100")]);
+      renderUsers(u.users); renderKeys(k.keys); renderSettings(s.settings); renderAudit(a.audit);
+    } catch (e) { if (!e.auth) toast(e.message); }
+  }
+  function renderUsers(users) {
+    $("userRows").innerHTML = users.map((u) => `<li><div><b>${esc(u.name)}</b>${u.id === S.me.userId ? ` <span class="muted small">${esc(t("admin.you"))}</span>` : ""} <span class="pill role ${esc(u.role)}">${esc(t(u.role === "admin" ? "role.admin" : "role.staff"))}</span> ${u.active ? `<span class="small">${esc(t("admin.active"))}</span>` : `<span class="muted small">${esc(t("admin.off"))}</span>`}${u.lockedUntil && Date.parse(u.lockedUntil) > Date.now() ? ` <span class="pill low">${esc(t("admin.locked"))}</span>` : ""}</div><div class="btn-row"><button type="button" class="btn" data-act="pin" data-id="${esc(u.id)}">${esc(t("admin.newPin"))}</button>${u.id !== S.me.userId ? `<button type="button" class="btn ${u.active ? "danger" : ""}" data-act="toggle" data-id="${esc(u.id)}" data-active="${u.active ? 1 : 0}">${esc(t(u.active ? "admin.deactivate" : "admin.reactivate"))}</button>` : ""}</div></li>`).join("");
+  }
+  $("userRows").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-act]"); if (!b) return;
+    try {
+      if (b.dataset.act === "toggle") { await api("PATCH", `/api/v1/admin/users/${b.dataset.id}`, { active: b.dataset.active !== "1" }); }
+      else { const newPin = askPin(); if (!newPin) return; await api("PATCH", `/api/v1/admin/users/${b.dataset.id}`, { pin: newPin }); toast(t("admin.pinChanged")); }
+      loadAdmin();
+    } catch (err) { toast(err.message); }
+  });
+  function askPin() { const v = window.prompt(t("admin.askPin")); if (v == null) return null; const p = v.trim(); if (/^[0-9]{4,8}$/.test(p)) return p; toast(t("setup.badPin")); return null; }
+  $("userForm").addEventListener("submit", async (e) => { e.preventDefault(); try { await api("POST", "/api/v1/admin/users", { name: $("uName").value.trim(), pin: $("uPin").value.trim(), role: $("uRole").value }); $("uName").value = ""; $("uPin").value = ""; toast(t("admin.added")); loadAdmin(); } catch (err) { toast(err.message); } });
+  function renderSettings(s) {
+    S.settings = s; $("shopName").textContent = s.shop;
+    $("sShop").value = s.shop; $("sUrl").value = s.appUrl || "";
+    $("sRuns").value = Object.entries(s.sizeRuns || {}).map(([k, v]) => `${k}: ${v.join(", ")}`).join("\n");
+    $("llmProvider").value = s.llm.provider; $("llmModel").value = s.llm.model || ""; $("llmBase").value = s.llm.baseUrl || ""; $("llmMax").value = s.llm.maxTokens || 800; $("llmKey").value = "";
+    $("llmKeyState").textContent = t(s.llm.hasKey ? "admin.keySaved" : "admin.noKey");
+    fillCats();
+  }
+  $("settingsForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const runs = {}; $("sRuns").value.split(/\n/).forEach((line) => { const i = line.indexOf(":"); if (i < 0) return; const k = line.slice(0, i).trim().toLowerCase(); const v = line.slice(i + 1).split(/[,\s]+/).map((x) => x.trim()).filter(Boolean); if (k && v.length) runs[k] = v; });
+    try { const r = await api("PUT", "/api/v1/admin/settings", { shop: $("sShop").value.trim(), appUrl: $("sUrl").value.trim(), sizeRuns: runs }); renderSettings(r.settings); toast(t("admin.saved")); } catch (err) { toast(err.message); }
+  });
+  // A different provider has its own address and model: clear them so its defaults apply.
+  $("llmProvider").addEventListener("change", () => { $("llmBase").value = ""; $("llmModel").value = ""; });
+  $("llmForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const llm = { provider: $("llmProvider").value, model: $("llmModel").value.trim(), baseUrl: $("llmBase").value.trim(), maxTokens: +$("llmMax").value || 800 };
+    if ($("llmKey").value.trim()) llm.apiKey = $("llmKey").value.trim();
+    try { const r = await api("PUT", "/api/v1/admin/settings", { llm }); renderSettings(r.settings); toast(t("admin.aiSaved")); } catch (err) { toast(err.message); }
+  });
+  $("llmClear").addEventListener("click", async () => { try { const r = await api("PUT", "/api/v1/admin/settings", { llm: { clearKey: true, provider: "none" } }); renderSettings(r.settings); toast(t("admin.keyRemoved")); } catch (err) { toast(err.message); } });
+  function renderKeys(keys) {
+    $("keyRows").innerHTML = keys.map((k) => `<tr><td>${esc(k.name)}${k.revokedAt ? ' <span class="muted small">(revoked)</span>' : ""}</td><td class="mono small">idx_${esc(k.prefix)}_…</td><td>${k.scopes.join(" + ")}</td><td class="small muted">${k.lastUsedAt ? fmtDate(k.lastUsedAt) + " " + fmtTime(k.lastUsedAt) : "never"}</td><td style="text-align:right">${k.revokedAt ? "" : `<button type="button" class="btn danger" data-revoke="${k.id}">Revoke</button>`}</td></tr>`).join("") || '<tr><td colspan="5" class="muted">No keys yet</td></tr>';
+  }
+  $("keyRows").addEventListener("click", async (e) => { const b = e.target.closest("button[data-revoke]"); if (!b) return; try { await api("DELETE", `/api/v1/admin/api-keys/${b.dataset.revoke}`); toast("Revoked"); loadAdmin(); } catch (err) { toast(err.message); } });
+  $("keyForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try { const r = await api("POST", "/api/v1/admin/api-keys", { name: $("kName").value.trim(), scopes: $("kScope").value === "write" ? ["read", "write"] : ["read"] }); $("keyShow").hidden = false; $("keyValue").textContent = r.key; $("kName").value = ""; loadAdmin(); } catch (err) { toast(err.message); }
+  });
+  $("keyCopy").addEventListener("click", async () => { try { await navigator.clipboard.writeText($("keyValue").textContent); toast("Copied"); } catch { const r = document.createRange(); r.selectNodeContents($("keyValue")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Select and copy the key"); } });
+  $("csvFile").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
+    $("csvMsg").textContent = "Importing…";
+    try { const xl = /\.xlsx$/i.test(f.name); const r = xl ? await api("POST", "/api/v1/admin/import/xlsx", await f.arrayBuffer(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") : await api("POST", "/api/v1/admin/import/csv", await f.text(), "text/csv"); $("csvMsg").textContent = `${r.rows} rows: ${r.added} new, ${r.merged} topped up.`; await refresh(); loadAdmin(); }
+    catch (err) { $("csvMsg").textContent = err.message; }
+  });
+  function renderAudit(rows) {
+    $("auditRows").innerHTML = rows.map((a) => `<tr><td class="small muted">${esc(fmtDate(a.at))} ${esc(fmtTime(a.at))}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td class="small muted wrap">${esc(a.target || "")} ${esc(a.detail ? String(a.detail).slice(0, 120) : "")}</td></tr>`).join("") || `<tr><td colspan="4" class="muted">${esc(t("admin.nothing"))}</td></tr>`;
+  }
+
+
+  // ---------- language ----------
+  const t = (k, v) => I18N.t(k, v);
+  function applyLang() {
+    I18N.apply();
+    $("langBtn").querySelectorAll("span").forEach((x) => x.classList.toggle("on", x.dataset.l === I18N.lang));
+    setOnline(S.online);
+    setBillMode(S.bill.mode);
+    renderChips(); fillCats(); render();
+    if (S.view === "home") renderHome();
+    if (S.view === "dash" && S.dash) renderDash(S.dash);
+    if (S.view === "admin") loadAdmin();
+    if (S.bill.lines && !$("billCheck").hidden) renderCheck();
+    if (S.bill.done && !$("billDone").hidden) renderDone();
+    if (S.view === "bill") renderBillList();
+  }
+  $("langBtn").addEventListener("click", () => { I18N.set(I18N.lang === "hi" ? "en" : "hi"); applyLang(); });
+
+  // ---------- home ----------
+  S.home = { suggestions: [], toOrder: [], bills: [] };
+  function renderHomeTiles() {
+    let units = 0, value = 0; const arts = new Set();
+    S.items.forEach((it) => { units += it.qty; value += it.qty * (it.cost || 0); if (it.qty > 0) arts.add(`${it.brand}|${it.article}|${it.colour}`); });
+    $("homeTiles").innerHTML = [
+      { l: t("home.pairs"), v: fmtN.format(units), sub: t("home.articles", { n: arts.size }) },
+      { l: t("home.value"), v: rupee(value), sub: t("home.atCost") },
+    ].map((x) => `<div class="tile"><div class="label">${esc(x.l)}</div><div class="v">${esc(x.v)}</div><div class="sub">${esc(x.sub)}</div></div>`).join("");
+  }
+  async function loadHome() {
+    renderHomeTiles();
+    try {
+      const [sg, bl] = await Promise.all([api("GET", "/api/v1/suggestions"), api("GET", "/api/v1/bills")]);
+      S.home.suggestions = sg.suggestions; S.home.toOrder = sg.toOrder; S.home.bills = bl.bills; S.bill.recent = bl.bills;
+      renderHome();
+    } catch (e) { if (!e.auth && !e.network) toast(e.message); }
+  }
+  const sugName = (x) => [x.brand, x.article, x.colour].filter((v) => v && v !== "-").join(" ");
+  function sugText(x) {
+    const name = `<b>${esc(sugName(x))}</b>`;
+    const v = { name, qty: x.qty, sold: x.sold30, sq: x.suggestQty, days: x.ageDays, value: esc(rupee(x.value)) };
+    // Only numbers and the escaped name go into the template, so it is safe as HTML.
+    return t("sug." + x.kind, v);
+  }
+  function renderHome() {
+    const list = S.home.suggestions;
+    $("sugList").innerHTML = list.length ? list.map((x, i) => `<div class="sug" data-i="${i}"><p>${sugText(x)}</p><div class="btn-row"><button type="button" class="btn primary" data-act="approve">${esc(t(x.kind === "count" ? "sug.enterCount" : "sug.approve"))}</button><button type="button" class="btn" data-act="dismiss">${esc(t("sug.notNow"))}</button></div></div>`).join("") : `<p class="muted small" style="margin:0">${esc(t("home.none"))}</p>`;
+    $("toOrderCard").hidden = !S.home.toOrder.length;
+    $("toOrderList").innerHTML = S.home.toOrder.map((o) => `<li><span class="mv">${o.qty || "?"}</span><span>${esc(sugName(o))}</span><span class="muted small">${esc(fmtDate(o.approvedAt))}</span></li>`).join("");
+    const today = new Date().toDateString();
+    const bills = S.home.bills.filter((b) => new Date(b.at).toDateString() === today);
+    $("homeToday").innerHTML = bills.length ? bills.map(billLi).join("") : `<li class="one muted small">${esc(t("home.noBills"))}</li>`;
+  }
+  $("sugList").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-act]"); if (!b) return;
+    const card = b.closest(".sug"); const x = S.home.suggestions[+card.dataset.i]; if (!x) return;
+    const decision = b.dataset.act;
+    try {
+      await api("POST", `/api/v1/suggestions/${encodeURIComponent(x.id)}`, { decision, qty: x.kind === "reorder" ? x.suggestQty : undefined });
+      S.home.suggestions = S.home.suggestions.filter((y) => y !== x);
+      if (decision === "approve" && x.kind === "count" && item(x.sku)) { openSheet(x.sku); $("shCount").click(); }
+      else toast(t("sug.done"));
+      loadHome();
+    } catch (err) { toast(err.message); }
+  });
+  // The Home buttons always start a new bill: a half-checked draft from the other mode must never be approved as this one.
+  function newBill(mode) { S.bill.lines = null; S.bill.head = null; S.bill.done = null; setBillMode(mode); show("bill"); billStep("pick"); }
+  $("homeIn").addEventListener("click", () => newBill("in"));
+  $("homeOut").addEventListener("click", () => newBill("out"));
+
+  // ---------- bill: photo or sheet → check → approve ----------
+  S.bill = { mode: "in", recent: [], lines: null, head: null, done: null };
+  function setBillMode(mode) {
+    S.bill.mode = mode === "out" ? "out" : "in";
+    $("billModeIn").setAttribute("aria-pressed", String(S.bill.mode === "in"));
+    $("billModeOut").setAttribute("aria-pressed", String(S.bill.mode === "out"));
+    $("billSheetBtn").hidden = S.bill.mode !== "out";
+    $("billHint").textContent = t(S.bill.mode === "in" ? "bill.hintIn" : "bill.hintOut");
+  }
+  $("billModeIn").addEventListener("click", () => setBillMode("in"));
+  $("billModeOut").addEventListener("click", () => setBillMode("out"));
+  function billStep(step) { $("billPick").hidden = step !== "pick"; $("billCheck").hidden = step !== "check"; $("billDone").hidden = step !== "done"; window.scrollTo({ top: 0 }); }
+  function billMsg(text, cls) { const m = $("billMsg"); m.hidden = !text; m.className = "notice " + (cls || ""); m.textContent = text || ""; }
+  async function loadBills() {
+    if (!S.bill.lines && !S.bill.done) billStep("pick");
+    try { const r = await api("GET", "/api/v1/bills"); S.bill.recent = r.bills; renderBillList(); } catch (e) { if (!e.auth && !e.network) toast(e.message); }
+  }
+  function billLi(b) {
+    const sign = b.kind === "in" ? "+" : "−";
+    const what = [b.supplier, b.bill_no && "#" + b.bill_no, b.source === "sheet" ? "Excel" : ""].filter(Boolean).join(" · ") || t(b.kind === "in" ? "bill.in" : "bill.out");
+    const photo = b.has_photo ? ` · <a href="/api/v1/bills/${esc(encodeURIComponent(b.id))}/photo" target="_blank" rel="noopener">${esc(t("bill.photoLink"))}</a>` : "";
+    const again = b.status === "undone" && b.has_photo ? ` <button type="button" class="btn quiet small" data-again="${esc(b.id)}" data-kind="${esc(b.kind)}">${esc(t("bill.again"))}</button>` : "";
+    const undone = b.status === "undone" ? ` <span class="muted">(${esc(t("bill.statusUndone"))})</span>${again}` : "";
+    return `<li><span class="mv ${b.kind}">${sign}${b.units}</span><span><span class="${b.status === "undone" ? "undone" : ""}">${esc(what)}</span>${undone}<span class="muted small"> · ${esc(b.by_name || "")}${photo}</span></span><span class="muted small num">${esc(fmtDate(b.at))} ${esc(fmtTime(b.at))}</span></li>`;
+  }
+  // An undone bill often only had a mistake: read its photo again instead of asking for a new one.
+  ["billList", "homeToday"].forEach((id) => $(id).addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-again]"); if (!b) return;
+    newBill(b.dataset.kind);
+    try {
+      const r = await fetch(`/api/v1/bills/${encodeURIComponent(b.dataset.again)}/photo`, { credentials: "same-origin" });
+      if (!r.ok) throw new Error(`Error ${r.status}`);
+      const blob = await r.blob();
+      readPhoto(new File([blob], "bill.jpg", { type: blob.type || "image/jpeg" }));
+    } catch (x) { billMsg(x.message, "bad"); }
+  }));
+  function renderBillList() { $("billList").innerHTML = (S.bill.recent || []).length ? S.bill.recent.slice(0, 30).map(billLi).join("") : `<li class="one muted small">${esc(t("bill.noRecent"))}</li>`; }
+
+  /** Shrink a phone photo to about 1600 px JPEG before upload: faster, cheaper, and plenty for reading. */
+  async function shrinkPhoto(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("That file is not a photo.")); i.src = url; });
+      const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      return c.toDataURL("image/jpeg", 0.82);
+    } finally { URL.revokeObjectURL(url); }
+  }
+  function showReading() { billStep("check"); $("billCheck").innerHTML = `<div class="reading"><div class="spinner"></div><div>${esc(t("bill.reading"))}</div></div>`; }
+  async function readPhoto(file) {
+    if (!file) return;
+    if (!navigator.onLine) { billMsg(t("bill.offline"), "bad"); return; }
+    billMsg("");
+    showReading();
+    try {
+      const photo = await shrinkPhoto(file);
+      const r = await api("POST", "/api/v1/bills/read", { photo });
+      startCheck(r, "photo");
+    } catch (e) {
+      billStep("pick");
+      billMsg(e.network ? t("bill.offline") : aiError(e), "bad");
+    }
+  }
+  /** The server's AI errors are for the logs; the person gets one plain sentence. */
+  function aiError(e) {
+    const m = e.message || "";
+    if (/not set up/i.test(m)) return t("bill.notSetUp");
+    if (/returned (401|403)|key/i.test(m)) return t("bill.aiKey");
+    if (/too long/i.test(m)) return t("bill.aiSlow");
+    if (/readable answer/i.test(m)) return t("bill.aiUnreadable");
+    if (e.status === 502 || /reach the AI|AI provider/i.test(m)) return t("bill.aiFail");
+    return m;
+  }
+  ["billCamera", "billGallery"].forEach((id) => $(id).addEventListener("change", (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; readPhoto(f); }));
+  $("billSheet").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
+    billMsg(""); showReading();
+    try {
+      const xl = /\.xlsx$/i.test(f.name);
+      const r = await api("POST", `/api/v1/bills/read-sheet?format=${xl ? "xlsx" : "csv"}`, xl ? await f.arrayBuffer() : await f.text(), xl ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv");
+      setBillMode("out");
+      startCheck(r, "sheet");
+    } catch (err) { billStep("pick"); billMsg(err.message, "bad"); }
+  });
+
+  async function startCheck(r, source) {
+    // Items another phone added since our last refresh: fetch them so every match can be shown.
+    if ((r.lines || []).some((l) => (l.candidates || []).some((c) => !item(c.sku)))) await refresh();
+    // The person chose In or Sold; the AI's guess only fills in when it is sure and they did not pick.
+    const mode = S.bill.mode;
+    // The id makes Approve safe to repeat (lost reply, double tap); the mode is fixed for this draft.
+    S.bill.head = { id: crypto.randomUUID(), mode, supplier: r.supplier || "", billNo: r.billNo || "", date: r.date || "", total: r.total, notes: r.notes || "", checks: r.checks || [], photoId: r.photoId || null, alreadyEntered: r.alreadyEntered || null, source, force: false };
+    S.bill.lines = (r.lines || []).map((l) => {
+      const cands = l.candidates || [];
+      const best = cands[0];
+      // Pick for the person only when one item clearly fits; two close matches (Blue and Black of one article) are theirs to choose.
+      const clear = best && (!cands[1] || cands[1].score < best.score - 0.1);
+      const sure = best && clear && (mode === "out" ? best.score >= 0.45 : best.score >= 0.6);
+      return { text: l.text || "", qty: l.qty == null ? "" : l.qty, brand: l.brand || "", article: l.article || (l.brand || l.colour ? "" : l.text || ""), colour: l.colour || "", rate: l.rate == null ? "" : l.rate, mrp: "", sku: sure ? best.sku : "", candidates: cands, unclear: l.qty == null };
+    });
+    if (!S.bill.lines.length) S.bill.lines.push(blankLine(true));
+    S.bill.done = null;
+    renderCheck();
+  }
+  /** The sum checks come from the server in English; say them in the app's language. */
+  function checkText(c) {
+    let m;
+    if ((m = /^Row (\d+): quantity not readable$/.exec(c))) return t("check.qty", { r: m[1] });
+    if ((m = /^Row (\d+): (\S+) × (\S+) = (\S+), bill says (\S+)$/.exec(c))) return t("check.row", { r: m[1], q: m[2], rate: m[3], sum: m[4], amt: m[5] });
+    if ((m = /^Rows add up to (\S+), bill total says (\S+)$/.exec(c))) return t("check.total", { sum: m[1], total: m[2] });
+    return c;
+  }
+  function lineQty(l) { const n = parseInt(l.qty, 10); return n > 0 ? n : 0; }
+  function blankLine(unclear) { return { text: "", qty: "", brand: "", article: "", colour: "", rate: "", mrp: "", sku: "", candidates: [], unclear: Boolean(unclear) }; }
+  function renderCheck() {
+    const h = S.bill.head, mode = h.mode, lines = S.bill.lines;
+    const all = [...S.items.values()].sort((a, b) => itemName(a).localeCompare(itemName(b)));
+    const opt = (it, sel) => `<option value="${esc(it.sku)}" ${sel ? "selected" : ""}>${esc(itemName(it))}${it.size && it.size !== "-" ? " " + esc(it.size) : ""} · ${it.qty}</option>`;
+    const rows = lines.map((l, i) => {
+      const it = l.sku ? item(l.sku) : null;
+      const candSkus = new Set(l.candidates.map((c) => c.sku));
+      const options = (mode === "in" ? `<option value="">${esc(t("bill.new"))}</option>` : `<option value="">${esc(t("bill.pick"))}</option>`)
+        + l.candidates.map((c) => item(c.sku)).filter(Boolean).map((x) => opt(x, x.sku === l.sku)).join("")
+        + `<optgroup label="${esc(t("nav.stock"))}">${all.filter((x) => !candSkus.has(x.sku)).slice(0, 800).map((x) => opt(x, x.sku === l.sku)).join("")}</optgroup>`;
+      const q = lineQty(l);
+      const over = it && mode === "out" && q > it.qty ? ` <span class="pill low">${esc(t("bill.overBook", { have: it.qty, n: q - it.qty }))}</span>` : "";
+      const after = it ? `<div class="after">${esc(itemName(it))}: ${it.qty} → <b>${mode === "in" ? it.qty + q : Math.max(0, it.qty - q)}</b>${over}</div>` : "";
+      const need = mode === "out" && !l.sku && q > 0;
+      const nameField = mode === "in" && !l.sku ? `<div class="field"><label for="bl-article-${i}">${esc(t("bill.item"))}</label><input id="bl-article-${i}" data-i="${i}" data-f="article" value="${esc(l.article)}"></div>` : `<div class="field"><label for="bl-sku-${i}">${esc(t("bill.match"))}</label><select id="bl-sku-${i}" data-i="${i}" data-f="sku">${options}</select></div>`;
+      const partsFields = mode === "in" && !l.sku ? `<div class="grid2c"><div class="field"><label for="bl-brand-${i}">${esc(t("bill.brand"))}</label><input id="bl-brand-${i}" data-i="${i}" data-f="brand" value="${esc(l.brand)}" placeholder="${esc(t("bill.optional"))}" list="brandList"></div><div class="field"><label for="bl-colour-${i}">${esc(t("bill.colour"))}</label><input id="bl-colour-${i}" data-i="${i}" data-f="colour" value="${esc(l.colour)}" placeholder="${esc(t("bill.optional"))}" list="colourList"></div></div>` : "";
+      const matchField = mode === "in" && !l.sku ? `<div class="field"><label for="bl-sku-${i}">${esc(t("bill.match"))}</label><select id="bl-sku-${i}" data-i="${i}" data-f="sku">${options}</select></div>` : "";
+      return `<div class="bill-row ${l.unclear ? "warn" : ""} ${need ? "need" : ""}" id="bl-row-${i}">
+        ${l.text ? `<div class="written">${esc(t("bill.written"))}: “${esc(l.text)}”</div>` : ""}
+        ${need ? `<div class="need-hint">${esc(t("bill.needPick"))}</div>` : ""}
+        <div class="grid"><div class="field"><label for="bl-qty-${i}">${esc(t("bill.qty"))}</label><input id="bl-qty-${i}" class="qty" data-i="${i}" data-f="qty" inputmode="numeric" value="${esc(l.qty)}"></div>${nameField}</div>
+        ${partsFields}
+        ${matchField}
+        <div class="grid2c"><div class="field"><label for="bl-rate-${i}">${esc(t("bill.rate"))}</label><input id="bl-rate-${i}" data-i="${i}" data-f="rate" inputmode="numeric" value="${esc(l.rate)}"></div>${mode === "in" && !l.sku ? `<div class="field"><label for="bl-mrp-${i}">${esc(t("bill.mrp"))}</label><input id="bl-mrp-${i}" data-i="${i}" data-f="mrp" inputmode="numeric" placeholder="${esc(t("bill.optional"))}" value="${esc(l.mrp)}"></div>` : ""}</div>
+        ${after}
+        <div><button type="button" class="btn quiet" data-remove="${i}">${esc(t("bill.remove"))}</button></div>
+      </div>`;
+    }).join("");
+    // A sale can only take what the book has: the button says how many pairs will really leave stock.
+    const units = lines.reduce((a, l) => { const it = mode === "out" && l.sku ? item(l.sku) : null; return a + (it ? Math.min(lineQty(l), it.qty) : lineQty(l)); }, 0);
+    const money = lines.reduce((a, l) => a + lineQty(l) * (parseFloat(l.rate) || 0), 0);
+    const notes = [];
+    if (h.alreadyEntered) notes.push(`<div class="notice bad">${esc(t("bill.dupe", { date: fmtDate(h.alreadyEntered) }))} <label class="small"><input type="checkbox" id="billForce" ${h.force ? "checked" : ""}> ${esc(t("bill.force"))}</label></div>`);
+    // The AI's own remark is for when something looks off: one tap away, not the first thing on screen.
+    const aiNote = h.notes ? `<details class="ai-note"><summary>${esc(t("bill.aiSaw"))}</summary>${esc(h.notes)}</details>` : "";
+    if (h.source === "photo") notes.push(`<div class="notice ${h.checks.length ? "" : "good"}">${esc(lines.length === 1 ? t("bill.row1") : t("bill.rows", { n: lines.length }))} ${h.checks.length ? "" : esc(t("bill.allOk"))}${h.checks.map((c) => `<br>• ${esc(checkText(c))}`).join("")}${aiNote}</div>`);
+    else if (h.checks.length) notes.push(`<div class="notice">${h.checks.map((c) => esc(checkText(c))).join("<br>")}</div>`);
+    $("billCheck").innerHTML = `
+      <div class="btn-row" style="justify-content:space-between"><h3 style="margin:0">${esc(t("bill.check"))} · ${esc(t(mode === "in" ? "bill.in" : "bill.out"))}</h3><button type="button" class="btn quiet" id="billRestart">${esc(t("bill.retake"))}</button></div>
+      ${notes.join("")}
+      <div class="card bill-head">
+        <div class="field"><label for="bhSupplier">${esc(t("bill.supplier"))}</label><input id="bhSupplier" value="${esc(h.supplier)}"></div>
+        <div class="field"><label for="bhDate">${esc(t("bill.date"))}</label><input id="bhDate" type="date" value="${esc(h.date)}"></div>
+        <div class="field"><label for="bhNo">${esc(t("bill.no"))}</label><input id="bhNo" value="${esc(h.billNo)}"></div>
+      </div>
+      ${rows}
+      <div><button type="button" class="btn" id="billAddRow">${esc(t("bill.addRow"))}</button></div>
+      <div class="bill-total"><span>${esc(t("bill.total"))}</span><span class="mono">${esc(t("bill.pairs", { n: units }))}${money ? " · " + esc(rupee(money)) : ""}</span></div>
+      <div class="bill-approve"><div id="billErr" class="notice bad" hidden></div><button type="submit" class="btn primary" id="billApprove">${esc(t(mode === "in" ? "bill.approveIn" : "bill.approveOut", { n: units }))}</button><small>${esc(t("bill.nothingYet"))}</small></div>`;
+    billStep("check");
+  }
+  $("billCheck").addEventListener("input", (e) => {
+    const el = e.target; const i = el.dataset.i;
+    if (i !== undefined && el.dataset.f && el.dataset.f !== "sku") { S.bill.lines[+i][el.dataset.f] = el.value; if (el.dataset.f === "qty" || el.dataset.f === "rate") updateTotals(); return; }
+    if (el.id === "bhSupplier") S.bill.head.supplier = el.value;
+    if (el.id === "bhNo") S.bill.head.billNo = el.value;
+    if (el.id === "bhDate") S.bill.head.date = el.value;
+  });
+  $("billCheck").addEventListener("change", (e) => {
+    const el = e.target;
+    if (el.dataset.f === "sku") { S.bill.lines[+el.dataset.i].sku = el.value; renderCheck(); return; }
+    if (el.id === "billForce") S.bill.head.force = el.checked;
+  });
+  function updateTotals() {
+    // Re-render keeps the numbers and the button text in step; keep the caret where the person is typing.
+    const a = document.activeElement; const id = a && a.id; const pos = a && a.selectionStart;
+    renderCheck();
+    if (id && $(id)) { $(id).focus(); try { $(id).setSelectionRange(pos, pos); } catch {} }
+  }
+  $("billCheck").addEventListener("click", (e) => {
+    const rm = e.target.closest("[data-remove]");
+    if (rm) { S.bill.lines.splice(+rm.dataset.remove, 1); if (!S.bill.lines.length) S.bill.lines.push(blankLine()); renderCheck(); return; }
+    if (e.target.id === "billAddRow") { S.bill.lines.push(blankLine()); renderCheck(); return; }
+    if (e.target.id === "billRestart") { S.bill.lines = null; S.bill.head = null; billStep("pick"); }
+  });
+  $("billCheck").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const h = S.bill.head, mode = h.mode;
+    const lines = S.bill.lines.filter((l) => lineQty(l) > 0);
+    const err = $("billErr"); err.hidden = true;
+    if (!lines.length) { err.hidden = false; err.textContent = t("bill.pairs", { n: 0 }); return; }
+    const stuck = (key, bad) => {
+      err.hidden = false; err.textContent = t(key);
+      const i = S.bill.lines.findIndex((l) => lineQty(l) > 0 && bad(l)); const row = $("bl-row-" + i);
+      if (row) { row.classList.add("need"); row.scrollIntoView({ behavior: "smooth", block: "center" }); const f = row.querySelector("select, input[data-f=article]"); if (f) f.focus({ preventScroll: true }); }
+    };
+    if (mode === "out" && lines.some((l) => !l.sku)) { stuck("bill.needItem", (l) => !l.sku); return; }
+    if (mode === "in" && lines.some((l) => !l.sku && !l.article.trim())) { stuck("bill.needName", (l) => !l.sku && !l.article.trim()); return; }
+    const body = {
+      id: h.id, kind: mode, source: h.source, photoId: h.photoId, force: h.force, supplier: h.supplier, billNo: h.billNo, date: h.date, total: h.total,
+      lines: lines.map((l) => ({ qty: lineQty(l), sku: l.sku || undefined, brand: l.sku ? undefined : l.brand.trim(), article: l.sku ? undefined : l.article.trim(), colour: l.sku ? undefined : l.colour.trim(), rate: parseFloat(l.rate) || null, mrp: parseFloat(l.mrp) || null })),
+    };
+    $("billApprove").disabled = true;
+    try {
+      const r = await api("POST", "/api/v1/bills/apply", body);
+      r.items.forEach((it) => S.items.set(it.sku, it));
+      S.bill.done = { bill: r.bill, results: r.results };
+      S.bill.lines = null; S.bill.head = null;
+      renderDone(); refresh();
+    } catch (x) {
+      $("billApprove").disabled = false;
+      err.hidden = false; err.textContent = x.network ? t("bill.offline") : x.message;
+      if (x.status === 409 && /already entered/i.test(x.message)) { h.alreadyEntered = h.alreadyEntered || new Date().toISOString(); renderCheck(); $("billErr").hidden = false; $("billErr").textContent = t("bill.dupe", { date: fmtDate(h.alreadyEntered) }); }
+      else if (x.status === 409) { renderCheck(); $("billErr").hidden = false; $("billErr").textContent = x.message; }
+    }
+  });
+  function renderDone() {
+    const d = S.bill.done; if (!d) return;
+    const rows = d.results.map((x) => { const it = item(x.sku); return `<li><span class="mv ${x.delta < 0 ? "out" : "in"}">${x.delta > 0 ? "+" : ""}${x.delta}</span><span>${esc(it ? itemName(it) : x.sku)}${x.short ? ` <span class="pill low">${esc(t("bill.short", { n: x.short }))}</span>` : ""}</span><span class="mono">${x.before} → ${x.after}</span></li>`; }).join("");
+    $("billDone").innerHTML = `<div class="done-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></div>
+      <h3 style="text-align:center;margin:0" id="billDoneTitle">${esc(t(d.bill.kind === "in" ? "bill.savedIn" : "bill.savedOut", { n: d.bill.units }))}</h3>
+      <div class="card"><ul class="movelist">${rows}</ul></div>
+      <div class="btn-row" style="justify-content:center"><button type="button" class="btn" id="billUndo">${esc(t("bill.undo"))}</button></div>
+      <div class="btn-row"><button type="button" class="btn primary" id="billNext" style="flex:1">${esc(t("bill.next"))}</button><button type="button" class="btn" id="billHome" style="flex:1">${esc(t("bill.home"))}</button></div>`;
+    billStep("done");
+  }
+  $("billDone").addEventListener("click", async (e) => {
+    if (e.target.id === "billNext") { S.bill.done = null; billStep("pick"); loadBills(); }
+    if (e.target.id === "billHome") { S.bill.done = null; show("home"); }
+    if (e.target.id === "billUndo") {
+      const id = S.bill.done.bill.id; e.target.disabled = true;
+      try { await api("POST", `/api/v1/bills/${encodeURIComponent(id)}/undo`); S.bill.done = null; toast(t("bill.undone"), 3000); await refresh(); billStep("pick"); loadBills(); }
+      catch (x) { e.target.disabled = false; toast(x.message, 4000); }
+    }
+  });
+
+  // ---------- start ----------
+  setOnline(navigator.onLine);
+  showGate();
+})();

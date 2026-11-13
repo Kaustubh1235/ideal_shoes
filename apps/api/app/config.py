@@ -37,12 +37,13 @@ class Settings(BaseSettings):
     msg91_template_otp: str = ""
     otp_dev_mode: bool = True
 
-    # S3 / MinIO
-    s3_endpoint: str = "http://minio:9000"
+    # S3-compatible storage (SeaweedFS in the stack)
+    s3_endpoint: str = "http://storage:8333"
     s3_public_endpoint: str = "http://localhost:9000"
-    s3_bucket: str = "bharatboot"
-    s3_access_key: str = "minioadmin"
-    s3_secret_key: str = "minioadmin123"
+    s3_bucket: str = "media"  # public: product photos, AR models
+    s3_private_bucket: str = "private"  # invoices, GSTR exports, tender attachments
+    s3_access_key: str = "devaccess"
+    s3_secret_key: str = "devsecret123"
     s3_region: str = "ap-south-1"
     s3_force_path_style: bool = True
 
@@ -56,9 +57,9 @@ class Settings(BaseSettings):
 
     # Seller identity
     seller_gstin: str = ""
-    seller_legal_name: str = "BharatBoot Manufacturing Pvt Ltd"
-    seller_trade_name: str = "BharatBoot"
-    seller_state_code: str = "27"
+    seller_legal_name: str = "Ideal Shoes"
+    seller_trade_name: str = "IDEALX"
+    seller_state_code: str = "09"
     seller_address_json: str = '{"line1":"","line2":"","city":"","state":"","pincode":"","country":"India"}'
     seller_email: str = ""
     seller_phone: str = ""
@@ -91,6 +92,18 @@ class Settings(BaseSettings):
     whatsapp_phone_number_id: str = ""
     whatsapp_access_token: str = ""
     whatsapp_verify_token: str = ""
+
+    # Inventory app (separate self-hosted stock system; the site's only link to it)
+    inventory_api_url: str = ""
+    inventory_api_key: str = ""
+    inventory_app_url: str = ""
+
+    # Public address of the shop, for links in emails (AUTH_URL is the same thing for Auth.js).
+    auth_url: str = ""
+
+    @property
+    def public_site_url(self) -> str:
+        return self.auth_url.rstrip("/")
 
     @field_validator("seller_address_json")
     @classmethod

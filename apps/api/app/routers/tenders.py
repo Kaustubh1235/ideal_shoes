@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,7 @@ from app.auth import AuthUser, require_staff
 from app.db.enums import TenderSource, TenderStatus
 from app.db.models import Tender
 from app.db.session import get_db
+from app.services.storage.s3 import PRIVATE_PREFIX, s3_client
 from app.services.tenders.cppp_rss import poll_cppp_rss
 from app.services.tenders.email_parser import poll_tender_inbox
 from app.services.tenders.writer import upsert_tender
@@ -98,6 +100,20 @@ def update_tender(
     db.add(t)
     db.commit()
     return _serialize(t)
+
+
+@router.get("/{tender_id}/documents/{index}")
+def tender_document(
+    tender_id: UUID, index: int, db: Session = Depends(get_db), _user: AuthUser = Depends(require_staff)
+) -> RedirectResponse:
+    """Email attachments are stored privately; portal documents are plain links."""
+    t = db.query(Tender).filter(Tender.id == tender_id).first()
+    docs = (t.document_urls or []) if t else []
+    if not 0 <= index < len(docs):
+        raise HTTPException(status_code=404, detail="not_found")
+    ref = docs[index]
+    url = s3_client.presigned_get(ref) if ref.startswith(PRIVATE_PREFIX) else ref
+    return RedirectResponse(url, status_code=302)
 
 
 @router.post("/poll/rss")

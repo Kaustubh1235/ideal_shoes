@@ -47,7 +47,7 @@ export default async function WholesaleHome() {
             <ul className="space-y-2 text-sm">
               {recent.map((o) => (
                 <li key={o.id} className="flex justify-between">
-                  <Link href={`/wholesale/orders/${o.id}`} className="hover:text-olive-700">{o.orderNo} — {o.status}</Link>
+                  <Link href={`/wholesale/orders/${o.id}`} className="hover:text-leather-700">{o.orderNo} — {o.status}</Link>
                   <span>{inr(o.grandTotal)}</span>
                 </li>
               ))}

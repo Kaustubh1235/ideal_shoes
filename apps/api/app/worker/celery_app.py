@@ -32,6 +32,7 @@ celery_app.conf.update(
         "tenders.*": {"queue": "tenders"},
         "gstr.*": {"queue": "gstr"},
         "notify.*": {"queue": "notify"},
+        "inventory.*": {"queue": "inventory"},
     },
     beat_schedule={
         "poll_cppp_rss_every_6h": {
@@ -45,6 +46,10 @@ celery_app.conf.update(
         "cleanup_expired_idempotency_keys_hourly": {
             "task": "maint.cleanup_idempotency",
             "schedule": crontab(minute=15),
+        },
+        "sync_stock_from_inventory_every_15m": {
+            "task": "inventory.sync_stock",
+            "schedule": crontab(minute="*/15"),
         },
     },
 )

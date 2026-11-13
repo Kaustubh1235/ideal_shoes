@@ -8,7 +8,6 @@
 
 generator client {
   provider        = "prisma-client-js"
-  output          = "../node_modules/.prisma/client"
   previewFeatures = ["multiSchema"]
 }
 
@@ -21,6 +20,8 @@ enum UserType {
   customer
   dealer
   staff
+
+  @@map("user_type")
 }
 
 enum StaffRole {
@@ -29,6 +30,8 @@ enum StaffRole {
   ops
   finance
   support
+
+  @@map("staff_role")
 }
 
 enum DealerStatus {
@@ -36,12 +39,16 @@ enum DealerStatus {
   approved
   suspended
   rejected
+
+  @@map("dealer_status")
 }
 
 enum DealerGstScheme {
   regular
   composition
   unregistered
+
+  @@map("dealer_gst_scheme")
 }
 
 enum OrderChannel {
@@ -49,6 +56,8 @@ enum OrderChannel {
   wholesale
   manual
   tender
+
+  @@map("order_channel")
 }
 
 enum OrderStatus {
@@ -62,6 +71,8 @@ enum OrderStatus {
   cancelled
   returned
   refunded
+
+  @@map("order_status")
 }
 
 enum PaymentStatus {
@@ -71,6 +82,8 @@ enum PaymentStatus {
   failed
   refunded
   partially_refunded
+
+  @@map("payment_status")
 }
 
 enum TaxTreatment {
@@ -79,12 +92,16 @@ enum TaxTreatment {
   NIL_RATED
   ZERO_RATED
   NON_GST
+
+  @@map("tax_treatment")
 }
 
 enum AddressType {
   billing
   shipping
   both
+
+  @@map("address_type")
 }
 
 enum StockMovementReason {
@@ -98,6 +115,8 @@ enum StockMovementReason {
   damage
   reserve
   release
+
+  @@map("stock_movement_reason")
 }
 
 enum TenderSource {
@@ -106,6 +125,8 @@ enum TenderSource {
   email
   aggregator_bidassist
   aggregator_tendersinfo
+
+  @@map("tender_source")
 }
 
 enum TenderStatus {
@@ -117,6 +138,8 @@ enum TenderStatus {
   lost
   withdrawn
   expired
+
+  @@map("tender_status")
 }
 
 model User {
@@ -416,6 +439,7 @@ model Order {
   shippingAddressId   String?      @map("shipping_address_id") @db.Uuid
   buyerGstin          String?      @map("buyer_gstin")
   buyerLegalName      String?      @map("buyer_legal_name")
+  contactEmail        String?      @map("contact_email")
   placeOfSupply       String?      @map("place_of_supply") // 2-digit state code
   reverseCharge       Boolean      @default(false) @map("reverse_charge")
   subtotal            Int          @default(0)

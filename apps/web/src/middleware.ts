@@ -1,5 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { auth } from "@/auth";
+import NextAuth from "next-auth";
+import { authConfig } from "@/auth.config";
+
+const { auth } = NextAuth(authConfig);
 
 const ADMIN_PREFIX = "/admin";
 const WHOLESALE_PREFIX = "/wholesale";
@@ -11,8 +14,8 @@ export default async function middleware(req: NextRequest) {
   if (pathname.startsWith(ADMIN_PREFIX)) {
     const allowlist = (process.env.ADMIN_IP_ALLOWLIST ?? "").split(",").map((s) => s.trim()).filter(Boolean);
     if (allowlist.length > 0) {
-      const fwd = req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "";
-      const ip = fwd.split(",")[0]?.trim() ?? "";
+      // The proxy overwrites X-Real-IP with the connecting address; the first X-Forwarded-For entry is client-supplied.
+      const ip = (req.headers.get("x-real-ip") ?? "").trim();
       if (!ip || !allowlist.some((cidr) => matchCidr(ip, cidr))) {
         return new NextResponse("Forbidden", { status: 403 });
       }

@@ -1,9 +1,9 @@
 import env from "@/env";
-import { getInternalToken } from "@/auth";
+import { getInternalToken, getServiceToken } from "@/auth";
 
 /** Server-only fetch wrapper that talks to FastAPI with a fresh bearer token. */
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = await getInternalToken();
+export async function apiFetch<T>(path: string, init: RequestInit = {}, opts: { asService?: boolean } = {}): Promise<T> {
+  const token = opts.asService ? await getServiceToken() : await getInternalToken();
   const headers = new Headers(init.headers);
   headers.set("content-type", "application/json");
   if (token) headers.set("authorization", `Bearer ${token}`);

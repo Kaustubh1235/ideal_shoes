@@ -18,7 +18,7 @@ export default async function AdminInventoryPage() {
       <h1 className="font-display text-2xl uppercase">Inventory</h1>
       <p className="text-sm text-ink/60">All stock changes are written to <code>stock_movements</code> as an append-only ledger.</p>
 
-      <div className="rounded-lg border border-olive-100 bg-cream">
+      <div className="rounded-lg border border-leather-100 bg-cream">
         <Table>
           <TableHeader>
             <TableRow>

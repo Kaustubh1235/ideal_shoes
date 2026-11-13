@@ -16,7 +16,7 @@ export default async function AdminShipmentsPage() {
       <p className="text-sm text-ink/60">
         Configure Shiprocket / Delhivery in <code>.env</code> to enable one-click AWB generation. See NEXT-STEPS step 9.
       </p>
-      <div className="rounded-lg border border-olive-100 bg-cream">
+      <div className="rounded-lg border border-leather-100 bg-cream">
         <Table>
           <TableHeader>
             <TableRow>

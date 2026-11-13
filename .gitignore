@@ -52,6 +52,7 @@ Thumbs.db
 data/
 uploads/
 storage/
+!apps/api/app/services/storage/
 backups/
 *.sqlite
 *.sqlite3
@@ -68,3 +69,6 @@ logs/
 # misc
 .cache/
 .parcel-cache/
+# made by e2e/bills/make_bills.py and the AI readers
+e2e/bills/img/
+e2e/bills/answers.json

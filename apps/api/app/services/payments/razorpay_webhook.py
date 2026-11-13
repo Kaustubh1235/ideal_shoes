@@ -4,7 +4,7 @@ Pipeline:
   1. Verify HMAC-SHA256 signature against RAZORPAY_WEBHOOK_SECRET.
   2. Persist every event in payment_events (with `event_id` as a unique key for dedupe).
   3. Project the event onto the Payment row (status, captured_at, refund, etc.).
-  4. On `payment.captured`: mark Order paid, fire invoice-generation Celery task.
+  4. On `payment.captured`: mark Order paid, fire invoice-generation and inventory stock-out Celery tasks.
 
 Idempotency: same `event_id` arriving twice short-circuits at step 2 (unique index).
 """
@@ -13,7 +13,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
@@ -42,7 +42,7 @@ def verify_client_callback(order_id: str, payment_id: str, signature: str) -> bo
     """Used on the client redirect after Razorpay Checkout success (separate signature)."""
     if not settings.razorpay_key_secret:
         return False
-    msg = f"{order_id}|{payment_id}".encode("utf-8")
+    msg = f"{order_id}|{payment_id}".encode()
     expected = hmac.new(
         settings.razorpay_key_secret.encode("utf-8"), msg, hashlib.sha256
     ).hexdigest()
@@ -91,11 +91,18 @@ def handle_webhook_event(db: Session, payload: dict[str, Any], raw_body: bytes, 
         return {"ok": True, "duplicate": True}
 
     # Project onto Payment / Order
+    after_commit: list[tuple[str, str]] = []
     if payment is None:
         # Orphan event -- still recorded above. Most likely happens if our DB lost the create
         # between order creation and webhook arrival; will require manual reconciliation.
         db.commit()
         return {"ok": True, "orphan": True}
+
+    # Razorpay does not guarantee event order: a late authorized/failed must not undo a capture.
+    final = payment.status in ("captured", "refunded")
+    if event_type in ("payment.authorized", "payment.failed") and final:
+        db.commit()
+        return {"ok": True, "event": event_type, "ignored": "already_" + payment.status}
 
     if event_type == "payment.authorized":
         payment.status = "authorized"
@@ -109,17 +116,28 @@ def handle_webhook_event(db: Session, payload: dict[str, Any], raw_body: bytes, 
         payment.raw_payload = entity
 
         order: Order | None = db.query(Order).filter(Order.id == payment.order_id).first()
+        paid_amount = entity.get("amount")
+        if order and paid_amount is not None and int(paid_amount) != int(payment.amount):
+            log.error(
+                "razorpay_webhook.amount_mismatch",
+                extra={"order_id": str(order.id), "paid": paid_amount, "expected": payment.amount},
+            )
+            order = None  # recorded on the payment; a person must reconcile before it ships
         if order and order.status.value in ("pending_payment", "draft"):
             order.status = "paid"
-            order.paid_at = datetime.now(timezone.utc)
+            order.paid_at = datetime.now(UTC)
             db.add(order)
 
-            # Enqueue invoice generation (async)
-            try:
-                from app.worker.celery_app import celery_app
-                celery_app.send_task("invoices.generate", args=[str(order.id)])
-            except Exception as e:  # noqa: BLE001
-                log.warning("invoice_enqueue_failed", extra={"error": str(e)})
+            # Invoice, stock-out to the inventory app (idempotent per order item; no-op when
+            # INVENTORY_API_* is unset), WhatsApp and email confirmations (no-ops until the Meta
+            # keys / SMTP_HOST are set).
+            # Queued after the commit below so the worker never reads an order that is not yet paid.
+            after_commit = [
+                ("invoices.generate", str(order.id)),
+                ("inventory.order_out", str(order.id)),
+                ("notify.whatsapp_order_confirmed", str(order.id)),
+                ("notify.order_confirmed_email", str(order.id)),
+            ]
     elif event_type == "payment.failed":
         payment.status = "failed"
         payment.gateway_payment_id = gateway_payment_id
@@ -130,5 +148,13 @@ def handle_webhook_event(db: Session, payload: dict[str, Any], raw_body: bytes, 
 
     db.add(payment)
     db.commit()
+
+    for task, arg in after_commit:
+        try:
+            from app.worker.celery_app import celery_app
+
+            celery_app.send_task(task, args=[arg])
+        except Exception as e:  # noqa: BLE001
+            log.warning("task_enqueue_failed", extra={"task": task, "error": str(e)})
 
     return {"ok": True, "event": event_type}

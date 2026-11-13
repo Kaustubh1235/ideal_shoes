@@ -1,9 +1,10 @@
 """Production seed: create an admin user only (no demo products / fake dealers).
 
 Usage in prod:
-    docker compose -f infra/docker/compose.prod.yml exec api python -m scripts.seed_admin
+    sh scripts/prod.sh exec api python scripts/seed_admin.py you@idealx.in
 
-Set ADMIN_EMAIL + ADMIN_PASSWORD in env first.
+It asks for the password (12+ characters) so it never lands in shell history, and prints the
+TOTP secret to add to an authenticator app. ADMIN_EMAIL / ADMIN_PASSWORD env vars also work.
 """
 from __future__ import annotations
 
@@ -14,18 +15,32 @@ import sys
 import bcrypt
 import pyotp
 
-# Add apps/api to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "apps", "api"))
+# Works from the repo (scripts/ next to apps/api) and inside the API image (/app/scripts).
+_here = os.path.dirname(os.path.abspath(__file__))
+for _p in (os.path.join(_here, "..", "apps", "api"), os.path.join(_here, "..")):
+    if os.path.isdir(os.path.join(_p, "app")):
+        sys.path.insert(0, _p)
+        break
 
 from app.db.session import SessionLocal  # noqa: E402
 from app.db.models import StaffProfile, User  # noqa: E402
 
 
 def main():
-    email = os.environ.get("ADMIN_EMAIL")
+    email = (sys.argv[1] if len(sys.argv) > 1 else os.environ.get("ADMIN_EMAIL") or "").strip().lower()
     password = os.environ.get("ADMIN_PASSWORD")
+    if email and not password and sys.stdin.isatty():
+        import getpass
+
+        password = getpass.getpass("Admin password (12+ characters): ")
+        if password != getpass.getpass("Again: "):
+            print("Passwords do not match.")
+            sys.exit(1)
     if not email or not password:
-        print("Set ADMIN_EMAIL and ADMIN_PASSWORD env vars.")
+        print("Usage: python scripts/seed_admin.py <email>   (or set ADMIN_EMAIL and ADMIN_PASSWORD)")
+        sys.exit(1)
+    if len(password) < 12:
+        print("Use at least 12 characters.")
         sys.exit(1)
 
     db = SessionLocal()
@@ -54,7 +69,9 @@ def main():
         db.add(staff)
         db.commit()
 
-        uri = pyotp.totp.TOTP(totp_secret).provisioning_uri(name=email, issuer_name="BharatBoot")
+        uri = pyotp.totp.TOTP(totp_secret).provisioning_uri(
+            name=email, issuer_name=os.environ.get("ADMIN_TOTP_ISSUER", "IDEALX")
+        )
         print(f"✓ Admin user created: {email}")
         print(f"TOTP secret: {totp_secret}")
         print(f"Add to Google Authenticator using: {uri}")

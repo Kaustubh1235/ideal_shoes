@@ -10,7 +10,7 @@ export const redis: Redis =
   global.__bharatboot_redis ??
   new Redis(env.REDIS_URL, {
     maxRetriesPerRequest: 3,
-    lazyConnect: false,
+    lazyConnect: true,
   });
 
 if (process.env.NODE_ENV !== "production") {

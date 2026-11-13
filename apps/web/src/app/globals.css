@@ -4,26 +4,26 @@
 
 @layer base {
   :root {
-    --background: 40 33% 97%;       /* cream */
-    --foreground: 0 0% 10%;
-    --card: 40 33% 99%;
-    --card-foreground: 0 0% 10%;
-    --popover: 40 33% 99%;
-    --popover-foreground: 0 0% 10%;
-    --primary: 78 33% 23%;          /* olive 600 */
-    --primary-foreground: 40 33% 97%;
-    --secondary: 41 49% 58%;        /* khaki 400 */
-    --secondary-foreground: 0 0% 10%;
-    --muted: 40 14% 90%;
-    --muted-foreground: 0 0% 40%;
-    --accent: 25 76% 31%;           /* umber 400 */
-    --accent-foreground: 40 33% 97%;
+    --background: 36 38% 97%;       /* cream */
+    --foreground: 18 18% 10%;       /* ink */
+    --card: 36 38% 99%;
+    --card-foreground: 18 18% 10%;
+    --popover: 36 38% 99%;
+    --popover-foreground: 18 18% 10%;
+    --primary: 16 42% 26%;          /* leather 600 */
+    --primary-foreground: 36 38% 97%;
+    --secondary: 36 39% 70%;        /* sand 300 */
+    --secondary-foreground: 18 18% 10%;
+    --muted: 32 24% 92%;
+    --muted-foreground: 20 12% 38%;
+    --accent: 352 59% 30%;          /* oxblood 500 */
+    --accent-foreground: 36 38% 97%;
     --destructive: 0 70% 45%;
-    --destructive-foreground: 40 33% 97%;
-    --border: 78 14% 80%;
-    --input: 78 14% 80%;
-    --ring: 78 33% 30%;
-    --radius: 4px;
+    --destructive-foreground: 36 38% 97%;
+    --border: 22 30% 77%;
+    --input: 22 30% 77%;
+    --ring: 352 59% 30%;
+    --radius: 3px;
   }
 }
 
@@ -36,7 +36,8 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
   h1, h2, h3, h4 {
-    @apply font-display tracking-wide;
+    @apply font-display tracking-normal;
+    text-wrap: balance;
   }
 }
 
@@ -51,8 +52,8 @@
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-olive-200 rounded;
+  @apply bg-leather-200 rounded;
 }
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-olive-300;
+  @apply bg-leather-300;
 }

@@ -16,7 +16,7 @@ export default async function WholesaleOrdersPage() {
   return (
     <div className="container py-8">
       <h1 className="font-display text-3xl uppercase">Your Orders</h1>
-      <div className="mt-6 rounded-lg border border-olive-100 bg-cream">
+      <div className="mt-6 rounded-lg border border-leather-100 bg-cream">
         <Table>
           <TableHeader>
             <TableRow>
@@ -29,7 +29,7 @@ export default async function WholesaleOrdersPage() {
           <TableBody>
             {orders.map((o) => (
               <TableRow key={o.id}>
-                <TableCell><Link href={`/wholesale/orders/${o.id}`} className="hover:text-olive-700 font-medium">{o.orderNo}</Link></TableCell>
+                <TableCell><Link href={`/wholesale/orders/${o.id}`} className="hover:text-leather-700 font-medium">{o.orderNo}</Link></TableCell>
                 <TableCell>{o.createdAt.toLocaleDateString("en-IN")}</TableCell>
                 <TableCell><Badge variant="outline">{o.status}</Badge></TableCell>
                 <TableCell className="text-right">{inr(o.grandTotal)}</TableCell>

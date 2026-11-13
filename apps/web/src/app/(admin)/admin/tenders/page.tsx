@@ -35,7 +35,7 @@ export default async function AdminTendersPage() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-olive-100 bg-cream">
+      <div className="rounded-lg border border-leather-100 bg-cream">
         <Table>
           <TableHeader>
             <TableRow>

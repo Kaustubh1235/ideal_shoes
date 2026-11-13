@@ -1,0 +1,23 @@
+{
+	# Phones opening a bare IP (DOMAIN=192.168.1.50 on a shop PC) send no SNI. Without this, Caddy looks the
+	# certificate up by the container's own Docker address, finds none, and the TLS handshake fails.
+	default_sni {$DOMAIN}
+}
+
+# No ACME email on purpose: Let's Encrypt no longer sends expiry mail, Caddy renews on its own,
+# and an empty or placeholder address stopped Caddy from starting.
+
+# DOMAIN=stock.idealx.in  -> public certificate from Let's Encrypt (the DNS A record must point here).
+# DOMAIN=192.168.1.50     -> a shop PC on the LAN: Caddy's own local CA; install its root certificate on each phone once.
+# DOMAIN=<name>.ts.net    -> Tailscale MagicDNS name of the server (Tailscale can also issue the cert).
+# DOMAIN=localhost        -> testing on the server itself only; on a phone, "localhost" is the phone.
+{$DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	reverse_proxy app:8787 {
+		header_up X-Real-IP {remote_host}
+	}
+}

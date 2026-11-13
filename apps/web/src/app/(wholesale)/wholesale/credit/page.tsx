@@ -23,7 +23,7 @@ export default async function CreditPage() {
         </Card>
         <Card>
           <CardHeader><CardTitle className="text-sm">Available</CardTitle></CardHeader>
-          <CardContent><p className="font-display text-2xl text-olive-700">{inr((dealer?.creditLimit ?? 0) - (dealer?.creditUsed ?? 0))}</p></CardContent>
+          <CardContent><p className="font-display text-2xl text-leather-700">{inr((dealer?.creditLimit ?? 0) - (dealer?.creditUsed ?? 0))}</p></CardContent>
         </Card>
       </div>
       <p className="mt-6 text-sm text-ink/70">

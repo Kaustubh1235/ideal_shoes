@@ -31,7 +31,7 @@ def _parse_deadline(text: str) -> datetime | None:
     for fmt in ("%d-%m-%Y %H:%M:%S", "%d/%m/%Y %H:%M:%S", "%d-%m-%Y", "%d/%m/%Y"):
         try:
             return datetime.strptime(raw, fmt)
-        except Exception:
+        except Exception:  # noqa: S112 -- try the next date format
             continue
     return None
 

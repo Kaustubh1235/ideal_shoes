@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@bharatboot/ui";
-import { approveDealerAction, suspendDealerAction } from "@/app/actions/admin-dealers";
+import { Badge, Input, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@bharatboot/ui";
+import { approveDealerAction, suspendDealerAction, setDealerPasswordAction } from "@/app/actions/admin-dealers";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export default async function AdminDealersPage() {
   return (
     <div className="space-y-4">
       <h1 className="font-display text-2xl uppercase">Dealers</h1>
-      <div className="rounded-lg border border-olive-100 bg-cream">
+      <div className="rounded-lg border border-leather-100 bg-cream">
         <Table>
           <TableHeader>
             <TableRow>
@@ -46,9 +46,15 @@ export default async function AdminDealersPage() {
                     </form>
                   )}
                   {d.status === "approved" && (
-                    <form action={suspendDealerAction.bind(null, d.userId)}>
-                      <Button type="submit" size="sm" variant="outline">Suspend</Button>
-                    </form>
+                    <>
+                      <form action={suspendDealerAction.bind(null, d.userId)}>
+                        <Button type="submit" size="sm" variant="outline">Suspend</Button>
+                      </form>
+                      <form action={setDealerPasswordAction.bind(null, d.userId)} className="flex gap-1">
+                        <Input name="password" type="password" minLength={10} required placeholder="New password" className="h-8 w-36" autoComplete="new-password" aria-label={`Password for ${d.businessName}`} />
+                        <Button type="submit" size="sm" variant="outline">Set</Button>
+                      </form>
+                    </>
                   )}
                 </TableCell>
               </TableRow>
