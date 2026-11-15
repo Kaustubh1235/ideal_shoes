@@ -244,30 +244,46 @@ export function soundKey(w: string): string {
 }
 const soundWords = (s: string) => words(s).map(soundKey).filter((w) => w.length >= 2);
 
-/** How well a line's words match an item, 0..1. Brand and article count most; size only when both have one. */
-export function matchScore(line: Pick<BillLine, "brand" | "article" | "colour" | "size" | "text">, it: ItemRow): number {
-  const want = squash(`${line.brand}${line.article}`) || squash(line.text);
-  const have = squash(`${it.brand}${it.article}`);
-  if (!want || !have) return 0;
+// What matching needs from an item, worked out once per item instead of once per bill line.
+interface ItemKey { have: string; words: string[]; sounds: string[]; colour: string; size: string }
+const itemKeys = new WeakMap<ItemRow, ItemKey>();
+function itemKey(it: ItemRow): ItemKey {
+  let k = itemKeys.get(it);
+  if (!k) {
+    k = { have: squash(`${it.brand}${it.article}`), words: words(`${it.brand} ${it.article}`), sounds: soundWords(`${it.brand} ${it.article}`), colour: colourKey(it.colour), size: it.size === "-" ? "" : squash(it.size) };
+    itemKeys.set(it, k);
+  }
+  return k;
+}
+type Line = Pick<BillLine, "brand" | "article" | "colour" | "size" | "text">;
+interface LineKey { want: string; article: string; words: Set<string>; long: string[]; sounds: Set<string>; colour: string; size: string }
+function lineKey(line: Line): LineKey {
+  const all = `${line.brand} ${line.article} ${line.text}`;
+  const w = new Set(words(all));
+  return { want: squash(`${line.brand}${line.article}`) || squash(line.text), article: squash(line.article), words: w, long: [...w].filter((x) => x.length >= 3), sounds: new Set(soundWords(all)), colour: colourKey(line.colour), size: line.size ? squash(line.size) : "" };
+}
+
+function score(l: LineKey, k: ItemKey): number {
+  if (!l.want || !k.have) return 0;
   let s = 0;
-  if (want === have) s = 0.8;
-  else if (have.includes(squash(line.article)) && squash(line.article).length >= 3) s = 0.6;
+  if (l.want === k.have) s = 0.8;
+  else if (k.have.includes(l.article) && l.article.length >= 3) s = 0.6;
   else {
-    const a = new Set(words(`${line.brand} ${line.article} ${line.text}`));
-    const b = words(`${it.brand} ${it.article}`);
-    const hit = b.filter((w) => a.has(w) || [...a].some((x) => x.length >= 3 && (x.includes(w) || w.includes(x)))).length;
-    s = b.length ? (0.6 * hit) / b.length : 0;
+    const hit = k.words.filter((w) => l.words.has(w) || l.long.some((x) => x.includes(w) || w.includes(x))).length;
+    s = k.words.length ? (0.6 * hit) / k.words.length : 0;
   }
   // The same words in another script or spelling (रिलैंक्सो फ्लाइट for Relaxo Flite): match by sound.
-  const heard = new Set(soundWords(`${line.brand} ${line.article} ${line.text}`));
-  const said = soundWords(`${it.brand} ${it.article}`);
-  if (said.length && heard.size) s = Math.max(s, (0.75 * said.filter((w) => heard.has(w)).length) / said.length);
+  if (k.sounds.length && l.sounds.size) s = Math.max(s, (0.75 * k.sounds.filter((w) => l.sounds.has(w)).length) / k.sounds.length);
   if (s === 0) return 0;
   // A different colour is a different item: never good enough to be picked for the person.
-  const want_c = colourKey(line.colour), have_c = colourKey(it.colour);
-  if (want_c && have_c) s += want_c === have_c ? 0.1 : colourFamily(want_c) === colourFamily(have_c) ? 0 : -0.45;
-  if (line.size && it.size !== "-") s += squash(line.size) === squash(it.size) ? 0.1 : -0.3;
+  if (l.colour && k.colour) s += l.colour === k.colour ? 0.1 : colourFamily(l.colour) === colourFamily(k.colour) ? 0 : -0.45;
+  if (l.size && k.size) s += l.size === k.size ? 0.1 : -0.3;
   return Math.max(0, Math.min(1, s));
+}
+
+/** How well a line's words match an item, 0..1. Brand and article count most; size only when both have one. */
+export function matchScore(line: Line, it: ItemRow): number {
+  return score(lineKey(line), itemKey(it));
 }
 
 export interface Candidate {
@@ -281,8 +297,9 @@ export interface Candidate {
 }
 
 export function candidatesFor(line: BillLine, items: ItemRow[], limit = 8): Candidate[] {
+  const key = lineKey(line);
   return items
-    .map((it) => ({ it, score: matchScore(line, it) }))
+    .map((it) => ({ it, score: score(key, itemKey(it)) }))
     .filter((x) => x.score >= 0.3)
     .sort((a, b) => b.score - a.score || b.it.qty - a.it.qty)
     .slice(0, limit)
@@ -337,6 +354,7 @@ export interface BillRow {
   source: string;
   status: "done" | "undone";
   undone_at: string | null;
+  shorts?: string | null;
 }
 
 /** One row the person approved. For stock in, `sku` tops up an existing item; without it a new item is made. */
@@ -406,8 +424,9 @@ export function applyBill(db: Database, input: ApplyInput, actor: Actor): ApplyO
   const saved = getBill(db, id);
   if (saved) {
     // The phone sent the same Approve twice (lost reply, double tap): answer with what was saved.
-    const moves = db.query<MovementRow, [string]>("SELECT * FROM movements WHERE ref = ? ORDER BY at").all(id);
-    return { bill: saved, replay: true, results: moves.map((m) => ({ sku: m.sku, before: m.before_qty, after: m.after_qty, delta: m.delta, created: m.type === "new", short: 0 })) };
+    const moves = db.query<MovementRow, [string]>("SELECT * FROM movements WHERE ref = ? ORDER BY at, rowid").all(id);
+    const shorts = (() => { try { return JSON.parse(saved.shorts ?? "{}") as Record<string, number>; } catch { return {}; } })();
+    return { bill: saved, replay: true, results: moves.map((m) => ({ sku: m.sku, before: m.before_qty, after: m.after_qty, delta: m.delta, created: m.type === "new", short: shorts[m.sku] ?? 0 })) };
   }
   const hash = input.photoHash && /^[0-9a-f]{64}$/.test(input.photoHash) ? input.photoHash : null;
   if (hash && !input.force) {
@@ -419,6 +438,7 @@ export function applyBill(db: Database, input: ApplyInput, actor: Actor): ApplyO
   const date = /^\d{4}-\d{2}-\d{2}$/.test(String(input.date ?? "")) ? String(input.date) : "";
   const note = (input.kind === "in" ? "Bill in" : "Bill sale") + [supplier && ` · ${supplier}`, billNo && ` #${billNo}`].filter(Boolean).join("");
   const results: ApplyOutcome["results"] = [];
+  const shorts: Record<string, number> = {};
   let units = 0;
   const tx = db.transaction(() => {
     for (const l of lines) {
@@ -429,8 +449,10 @@ export function applyBill(db: Database, input: ApplyInput, actor: Actor): ApplyO
         const it = getItem(db, sku);
         if (!it) throw new StockError(404, `No item with code ${sku}`);
         const r = applyMovement(db, { sku, type: "out", delta: -qty, note: l.rate ? `${note} · ₹${money(l.rate)}` : note, ref: id }, actor);
-        results.push({ sku, before: r.movement.before_qty, after: r.movement.after_qty, delta: r.movement.delta, created: false, short: qty + r.movement.delta });
-        units += qty;
+        const short = qty + r.movement.delta;
+        if (short) shorts[sku] = (shorts[sku] ?? 0) + short;
+        results.push({ sku, before: r.movement.before_qty, after: r.movement.after_qty, delta: r.movement.delta, created: false, short });
+        units -= r.movement.delta; // what really left the shelf, not what the sheet said
         continue;
       }
       const existing = sku ? getItem(db, sku) : null;
@@ -447,12 +469,21 @@ export function applyBill(db: Database, input: ApplyInput, actor: Actor): ApplyO
           throw new StockError(409, `"${[row.brand, row.article, row.colour].filter((x) => x !== "-").join(" ")}" gets the same code as "${[clash.brand, clash.article, clash.colour].filter((x) => x !== "-").join(" ")}" (${clash.sku}). Pick that item under "In stock as", or change the name so they differ in the first letters.`);
         }
       }
+      if (existing) {
+        // The person picked this item: top up exactly that one, even if its code would be made differently today.
+        const r = applyMovement(db, { sku: existing.sku, type: "in", delta: qty, note, ref: id }, actor);
+        if (money(l.rate)) db.query("UPDATE items SET cost = ? WHERE sku = ?").run(money(l.rate), existing.sku);
+        if (money(l.mrp)) db.query("UPDATE items SET mrp = ? WHERE sku = ?").run(money(l.mrp), existing.sku);
+        results.push({ sku: existing.sku, before: r.movement.before_qty, after: r.movement.after_qty, delta: r.movement.delta, created: false, short: 0 });
+        units += qty;
+        continue;
+      }
       const [r] = addStock(db, [{ ...row, qty, cost: money(l.rate), mrp: money(l.mrp) }], actor, { note, ref: id });
       results.push({ sku: r.item.sku, before: r.movement.before_qty, after: r.movement.after_qty, delta: r.movement.delta, created: r.movement.type === "new", short: 0 });
       units += qty;
     }
-    db.query("INSERT INTO bills (id, kind, at, user_id, supplier, bill_no, bill_date, total, units, lines, photo_hash, source, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'done')").run(
-      id, input.kind, now(), actor.userId ?? null, supplier, billNo, date, input.total == null ? null : money(input.total), units, lines.length, hash, input.source ?? "manual",
+    db.query("INSERT INTO bills (id, kind, at, user_id, supplier, bill_no, bill_date, total, units, lines, photo_hash, source, status, shorts) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'done', ?)").run(
+      id, input.kind, now(), actor.userId ?? null, supplier, billNo, date, input.total == null ? null : money(input.total), units, lines.length, hash, input.source ?? "manual", Object.keys(shorts).length ? JSON.stringify(shorts) : null,
     );
     if (input.photo && hash) {
       db.query("INSERT INTO bill_photos (bill_id, mime, data, at) VALUES (?,?,?,?)").run(id, input.photo.mime, input.photo.bytes, now());
@@ -472,6 +503,16 @@ export function undoBill(db: Database, id: string, actor: Actor): BillRow {
   if (!bill) throw new StockError(404, "Bill not found");
   if (bill.status === "undone") throw new StockError(409, "This bill was already undone");
   const moves = db.query<MovementRow, [string]>("SELECT * FROM movements WHERE ref = ? ORDER BY at").all(id);
+  // Taking a delivery back needs the pairs still on the shelf. If some were sold since, a half undo would
+  // leave the book and the reports disagreeing: say so, and let a count fix it instead.
+  const need = new Map<string, number>();
+  for (const m of moves) if (m.delta > 0) need.set(m.sku, (need.get(m.sku) ?? 0) + m.delta);
+  for (const [sku, n] of need) {
+    const it = getItem(db, sku);
+    if (it && it.qty < n) {
+      throw new StockError(409, `${[it.brand, it.article, it.colour].filter((x) => x && x !== "-").join(" ")}: ${n - it.qty} of the ${n} pairs on this bill have already been sold, so it cannot be undone. Correct the stock with a count instead.`);
+    }
+  }
   const tx = db.transaction(() => {
     for (const m of moves) {
       if (!m.delta || !getItem(db, m.sku)) continue;

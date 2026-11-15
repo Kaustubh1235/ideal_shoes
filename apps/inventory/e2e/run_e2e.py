@@ -113,8 +113,8 @@ def main() -> int:
             page.goto(base)
             expect(page.locator("#gate-setup")).to_be_visible()
             page.fill("#setupName", "Papa")
-            page.fill("#setupPin", "2468")
-            page.fill("#setupPin2", "2468")
+            page.fill("#setupPin", "246813")
+            page.fill("#setupPin2", "246813")
             page.click("#setupGo")
             expect(page.locator("#app")).to_be_visible()
             expect(page.locator("#meName")).to_have_text("Papa")
@@ -400,7 +400,7 @@ def main() -> int:
             dpage.goto(base)
             expect(dpage.locator("#gate-login")).to_be_visible()
             dpage.click("#people button[data-name='Papa']")
-            for d in "2468":
+            for d in "246813":
                 dpage.click(f"#pinpad button[data-k='{d}']")
             dpage.click("#pinpad button[data-k='OK']")
             expect(dpage.locator("#app")).to_be_visible(timeout=10000)
@@ -447,7 +447,7 @@ def main() -> int:
             cpage.on("pageerror", lambda e: errors.append(str(e)))
             cpage.goto(base)
             cpage.click("#people button[data-name='Papa']")
-            for d in "2468":
+            for d in "246813":
                 cpage.click(f"#pinpad button[data-k='{d}']")
             cpage.click("#pinpad button[data-k='OK']")
             expect(cpage.locator("#app")).to_be_visible(timeout=10000)

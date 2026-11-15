@@ -1,12 +1,11 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { requireStaff } from "@/lib/require-staff";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
 async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.userType !== "staff") throw new Error("forbidden");
-  return session.user;
+  return requireStaff();
 }
 
 export async function approveDealerAction(dealerUserId: string) {

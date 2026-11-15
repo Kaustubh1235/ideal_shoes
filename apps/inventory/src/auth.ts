@@ -53,6 +53,11 @@ export function validPin(pin: unknown): pin is string {
   return typeof pin === "string" && /^[0-9]{4,8}$/.test(pin);
 }
 
+/** Owners and admins can change everything, so their PIN needs 6 to 8 digits; staff may use 4. */
+export function validPinFor(role: "admin" | "staff", pin: unknown): pin is string {
+  return validPin(pin) && (role !== "admin" || pin.length >= 6);
+}
+
 export interface Session {
   userId: string;
   name: string;
@@ -61,7 +66,7 @@ export interface Session {
 
 export function issueSession(secret: string, user: UserRow): { token: string; cookie: string } {
   const exp = Math.floor(Date.now() / 1000) + SESSION_DAYS * 86400;
-  const token = signToken(secret, { sub: user.id, role: user.role, exp, iat: Math.floor(Date.now() / 1000) });
+  const token = signToken(secret, { sub: user.id, role: user.role, ep: user.session_epoch ?? 0, exp, iat: Math.floor(Date.now() / 1000) });
   const cookie = `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}`;
   return { token, cookie };
 }
@@ -87,6 +92,7 @@ export function sessionFromRequest(db: Database, secret: string, req: Request): 
   if (!payload || typeof payload.sub !== "string") return null;
   const user = db.query<UserRow, [string]>("SELECT * FROM users WHERE id = ? AND active = 1").get(payload.sub);
   if (!user) return null;
+  if ((typeof payload.ep === "number" ? payload.ep : 0) !== (user.session_epoch ?? 0)) return null; // signed out or PIN changed since
   return { userId: user.id, name: user.name, role: user.role };
 }
 
@@ -94,25 +100,46 @@ export type LoginResult =
   | { ok: true; user: UserRow }
   | { ok: false; reason: "no_user" | "locked" | "bad_pin"; lockedUntil?: string };
 
-export async function attemptLogin(db: Database, userId: string, pin: string): Promise<LoginResult> {
+/**
+ * A phone where this person signed in before carries a signed "known device" cookie. Wrong PINs typed by
+ * strangers lock the account, but not on that phone: nobody can keep the owner out by guessing on purpose.
+ * The per-device rate limit still applies there.
+ */
+const DEVICE_DAYS = 365;
+export function deviceCookie(secret: string, userId: string): string {
+  const token = signToken(secret, { dev: userId, exp: Math.floor(Date.now() / 1000) + DEVICE_DAYS * 86400 });
+  return `sr_dev_${userId.slice(0, 8)}=${token}; Path=/api/v1/auth; HttpOnly; Secure; SameSite=Strict; Max-Age=${DEVICE_DAYS * 86400}`;
+}
+export function knownDevice(secret: string, req: Request, userId: string): boolean {
+  const t = parseCookies(req.headers.get("cookie"))[`sr_dev_${userId.slice(0, 8)}`];
+  const p = t ? verifyToken(secret, t) : null;
+  return Boolean(p && p.dev === userId);
+}
+
+export async function attemptLogin(db: Database, userId: string, pin: string, trusted = false): Promise<LoginResult> {
   const user = db.query<UserRow, [string]>("SELECT * FROM users WHERE id = ? AND active = 1").get(userId);
   if (!user) return { ok: false, reason: "no_user" };
-  if (user.locked_until && Date.parse(user.locked_until) > Date.now()) {
+  if (!trusted && user.locked_until && Date.parse(user.locked_until) > Date.now()) {
     return { ok: false, reason: "locked", lockedUntil: user.locked_until };
   }
   const good = await verifyPin(pin, user.pin_hash);
+  // Many guesses can be checked at the same time, so everything below re-reads the row after the
+  // (slow) PIN check and counts with one UPDATE: parallel wrong PINs cannot overwrite each other's count.
+  const now_ = db.query<UserRow, [string]>("SELECT * FROM users WHERE id = ? AND active = 1").get(userId);
+  if (!now_) return { ok: false, reason: "no_user" };
+  if (!trusted && now_.locked_until && Date.parse(now_.locked_until) > Date.now()) return { ok: false, reason: "locked", lockedUntil: now_.locked_until };
   if (good) {
     db.query("UPDATE users SET failed_attempts = 0, locked_until = NULL, lockouts = 0 WHERE id = ?").run(user.id);
-    return { ok: true, user };
+    return { ok: true, user: now_ };
   }
-  const fails = user.failed_attempts + 1;
-  if (fails >= MAX_FAILS) {
-    const minutes = Math.min(MAX_LOCK_MINUTES, LOCK_MINUTES * 2 ** (user.lockouts ?? 0));
+  if (trusted) return { ok: false, reason: "bad_pin" }; // the device limit still counts these
+  const row = db.query<{ failed_attempts: number; lockouts: number }, [string]>("UPDATE users SET failed_attempts = failed_attempts + 1 WHERE id = ? RETURNING failed_attempts, lockouts").get(user.id)!;
+  if (row.failed_attempts >= MAX_FAILS) {
+    const minutes = Math.min(MAX_LOCK_MINUTES, LOCK_MINUTES * 2 ** (row.lockouts ?? 0));
     const until = new Date(Date.now() + minutes * 60000).toISOString();
     db.query("UPDATE users SET failed_attempts = 0, locked_until = ?, lockouts = lockouts + 1 WHERE id = ?").run(until, user.id);
     return { ok: false, reason: "locked", lockedUntil: until };
   }
-  db.query("UPDATE users SET failed_attempts = ? WHERE id = ?").run(fails, user.id);
   return { ok: false, reason: "bad_pin" };
 }
 

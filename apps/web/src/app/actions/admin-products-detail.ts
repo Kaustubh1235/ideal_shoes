@@ -1,5 +1,6 @@
 "use server";
 import { z } from "zod";
+import { requireStaff } from "@/lib/require-staff";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -7,9 +8,7 @@ import env from "@/env";
 import { getInternalToken } from "@/auth";
 
 async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.userType !== "staff") throw new Error("forbidden");
-  return session.user;
+  return requireStaff();
 }
 
 const VariantSchema = z.object({

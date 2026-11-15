@@ -63,7 +63,7 @@ beforeAll(async () => {
     fetchImpl: ((u: string, i: RequestInit) => ai.fn(u, i)) as unknown as typeof fetch,
     rateLimits: { billReads: { max: 12, windowMs: 60_000 } },
   });
-  const r = await call("POST", "/api/v1/auth/setup", { name: "Papa", pin: "2468" }, "");
+  const r = await call("POST", "/api/v1/auth/setup", { name: "Papa", pin: "246813" }, "");
   owner = r.headers.get("set-cookie")!.split(";")[0];
   await call("POST", "/api/v1/admin/users", { name: "Raju", pin: "1357", role: "staff" });
   const state = await call("GET", "/api/v1/auth/state", undefined, "");

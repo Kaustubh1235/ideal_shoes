@@ -129,7 +129,7 @@
     const name = $("setupName").value.trim(), p1 = $("setupPin").value.trim(), p2 = $("setupPin2").value.trim();
     const msg = $("setupMsg"); msg.hidden = true;
     if (!name) { msg.hidden = false; msg.textContent = I18N.t("setup.needName"); return; }
-    if (!/^[0-9]{4,8}$/.test(p1)) { msg.hidden = false; msg.textContent = I18N.t("setup.badPin"); return; }
+    if (!/^[0-9]{6,8}$/.test(p1)) { msg.hidden = false; msg.textContent = I18N.t("setup.badPin"); return; }
     if (p1 !== p2) { msg.hidden = false; msg.textContent = I18N.t("setup.noMatch"); return; }
     try { const r = await api("POST", "/api/v1/auth/setup", { name, pin: p1, shop: $("setupShop").value.trim(), appUrl: location.origin, setupCode: $("setupCode").value.trim() }); S.me = r.me; await boot(); }
     catch (e) { msg.hidden = false; msg.textContent = e.status === 403 ? I18N.t("setup.badCode") : e.message; }
@@ -491,7 +491,7 @@
       loadAdmin();
     } catch (err) { toast(err.message); }
   });
-  function askPin() { const v = window.prompt(t("admin.askPin")); if (v == null) return null; const p = v.trim(); if (/^[0-9]{4,8}$/.test(p)) return p; toast(t("setup.badPin")); return null; }
+  function askPin() { const v = window.prompt(t("admin.askPin")); if (v == null) return null; const p = v.trim(); if (/^[0-9]{4,8}$/.test(p)) return p; toast(t("admin.badPin")); return null; }
   $("userForm").addEventListener("submit", async (e) => { e.preventDefault(); try { await api("POST", "/api/v1/admin/users", { name: $("uName").value.trim(), pin: $("uPin").value.trim(), role: $("uRole").value }); $("uName").value = ""; $("uPin").value = ""; toast(t("admin.added")); loadAdmin(); } catch (err) { toast(err.message); } });
   function renderSettings(s) {
     S.settings = s; $("shopName").textContent = s.shop;
@@ -747,7 +747,13 @@
       </div>`;
     }).join("");
     // A sale can only take what the book has: the button says how many pairs will really leave stock.
-    const units = lines.reduce((a, l) => { const it = mode === "out" && l.sku ? item(l.sku) : null; return a + (it ? Math.min(lineQty(l), it.qty) : lineQty(l)); }, 0);
+    const left = new Map(); // two rows of one item can't both take the whole shelf
+    const units = lines.reduce((a, l) => {
+      const it = mode === "out" && l.sku ? item(l.sku) : null;
+      if (!it) return a + lineQty(l);
+      const have = left.has(l.sku) ? left.get(l.sku) : it.qty; const take = Math.min(lineQty(l), have);
+      left.set(l.sku, have - take); return a + take;
+    }, 0);
     const money = lines.reduce((a, l) => a + lineQty(l) * (parseFloat(l.rate) || 0), 0);
     const notes = [];
     if (h.alreadyEntered) notes.push(`<div class="notice bad">${esc(t("bill.dupe", { date: fmtDate(h.alreadyEntered) }))} <label class="small"><input type="checkbox" id="billForce" ${h.force ? "checked" : ""}> ${esc(t("bill.force"))}</label></div>`);

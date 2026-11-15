@@ -1,7 +1,8 @@
 #!/bin/sh
 # Bring the running site up to the newest commit of main, and roll back if it does not come up.
 #
-#   sudo sh scripts/deploy.sh          by hand on the server
+#   sudo sh scripts/deploy.sh            by hand on the server: the newest main
+#   sudo sh scripts/deploy.sh <commit>   one tested commit of main (what GitHub Actions sends)
 #
 # GitHub Actions runs it after CI passes on main (.github/workflows/deploy.yml). Its SSH key is
 # pinned to this one command in authorized_keys, so the key cannot open a shell or run anything
@@ -36,8 +37,15 @@ wait_healthy() {
 
 before=$(git rev-parse HEAD)
 git fetch --quiet origin "$BRANCH"
-git checkout --quiet "$BRANCH"
-git merge --ff-only --quiet "origin/$BRANCH"
+# GitHub sends the commit whose tests passed (through SSH, so it arrives as SSH_ORIGINAL_COMMAND). Only a full
+# commit id that is part of main is accepted; anything else means "the newest main".
+want="${1:-${SSH_ORIGINAL_COMMAND:-}}"
+target="origin/$BRANCH"
+if printf '%s' "$want" | grep -Eq '^[0-9a-f]{40}$'; then
+  git merge-base --is-ancestor "$want" "origin/$BRANCH" || { echo "deploy: $want is not on $BRANCH; refusing" >&2; exit 1; }
+  target="$want"
+fi
+git checkout --quiet --detach "$target"
 after=$(git rev-parse HEAD)
 echo "deploy: $(git rev-parse --short "$before") -> $(git rev-parse --short "$after")"
 

@@ -20,6 +20,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   deploy:
@@ -28,7 +29,27 @@ jobs:
     environment: production
     timeout-minutes: 45
     steps:
+      - name: Pick the tested commit
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          head=$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)
+          sha="${RUN_SHA:-$head}"
+          if [ "$sha" != "$head" ]; then
+            echo "::notice::main has moved on to ${head:0:7}; its own CI run will deploy it. Nothing to do for ${sha:0:7}."
+            echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ -z "$RUN_SHA" ]; then
+            ok=$(gh run list -R "${{ github.repository }}" --workflow CI --commit "$sha" --status success --json databaseId --jq length)
+            [ "$ok" -gt 0 ] || { echo "::error::CI has not passed for ${sha:0:7} yet; not deploying it."; exit 1; }
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "go=true" >> "$GITHUB_OUTPUT"
+
       - name: Connect to the server
+        if: steps.pick.outputs.go == 'true'
         id: ssh
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -51,8 +72,10 @@ jobs:
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-        # The key may only run scripts/deploy.sh on the server; the command sent here is ignored.
-        run: ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=yes -o BatchMode=yes -o ServerAliveInterval=30 "${DEPLOY_USER:-ubuntu}@$DEPLOY_HOST" deploy
+          SHA: ${{ steps.pick.outputs.sha }}
+        # The key may only run scripts/deploy.sh on the server; the commit id sent here is its one input,
+        # and deploy.sh accepts it only if it is a full id that is part of main.
+        run: ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=yes -o BatchMode=yes -o ServerAliveInterval=30 "${DEPLOY_USER:-ubuntu}@$DEPLOY_HOST" "$SHA"
 
       - name: Check from outside
         if: steps.ssh.outputs.ready == 'true' && vars.SITE_DOMAIN != ''

@@ -26,7 +26,7 @@ function crc32(b: Uint8Array): number {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-function zip(files: { name: string; data: Uint8Array }[]): Uint8Array {
+export function zip(files: { name: string; data: Uint8Array }[]): Uint8Array {
   const enc = new TextEncoder();
   const parts: Uint8Array[] = [];
   const central: Uint8Array[] = [];
@@ -83,8 +83,14 @@ function zip(files: { name: string; data: Uint8Array }[]): Uint8Array {
 
 // A stock sheet is a few MB at most; the cap stops a crafted file from inflating to gigabytes.
 const MAX_PART = 64 * 1024 * 1024;
+/** Everything unpacked from one uploaded file, together: a small zip can claim to hold gigabytes. */
+const MAX_TOTAL = 96 * 1024 * 1024;
+/** A shop's sheet never needs more: a cell reference like ZZZZZZ1 must not make the reader allocate millions of cells. */
+export const MAX_COLS = 200;
+export const MAX_ROWS = 20000;
 
-function unzip(buf: Uint8Array): Map<string, Uint8Array> {
+/** Unpack the zip parts `want` accepts (all when no filter is given). */
+function unzip(buf: Uint8Array, want?: (name: string) => boolean): Map<string, Uint8Array> {
   const v = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
   let e = buf.length - 22;
   while (e >= 0 && v.getUint32(e, true) !== 0x06054b50) e--;
@@ -93,10 +99,12 @@ function unzip(buf: Uint8Array): Map<string, Uint8Array> {
   let p = v.getUint32(e + 16, true);
   const dec = new TextDecoder();
   const out = new Map<string, Uint8Array>();
+  let total = 0;
   for (let i = 0; i < count; i++) {
     if (v.getUint32(p, true) !== 0x02014b50) throw new Error("Damaged Excel file");
     const method = v.getUint16(p + 10, true);
     const size = v.getUint32(p + 20, true);
+    const fullSize = v.getUint32(p + 24, true);
     const nameLen = v.getUint16(p + 28, true);
     const extraLen = v.getUint16(p + 30, true);
     const commentLen = v.getUint16(p + 32, true);
@@ -104,10 +112,14 @@ function unzip(buf: Uint8Array): Map<string, Uint8Array> {
     const name = dec.decode(buf.subarray(p + 46, p + 46 + nameLen));
     const dataOff = localOff + 30 + v.getUint16(localOff + 26, true) + v.getUint16(localOff + 28, true);
     const raw = buf.subarray(dataOff, dataOff + size);
-    if (v.getUint32(p + 24, true) > MAX_PART) throw new Error("Excel file too large");
-    if (method === 0) out.set(name, raw);
-    else if (method === 8) out.set(name, inflateRawSync(raw, { maxOutputLength: MAX_PART }));
     p += 46 + nameLen + extraLen + commentLen;
+    if (want && !want(name)) continue;
+    if (fullSize > MAX_PART) throw new Error("Excel file too large");
+    const data = method === 0 ? raw : method === 8 ? inflateRawSync(raw, { maxOutputLength: MAX_PART }) : null;
+    if (!data) continue;
+    total += data.length;
+    if (total > MAX_TOTAL) throw new Error("Excel file too large");
+    out.set(name, data);
   }
   return out;
 }
@@ -184,7 +196,8 @@ export function writeXlsx(sheets: Sheet[]): Uint8Array {
 
 /** First worksheet as rows of strings (empty cells are ""). */
 export function readXlsx(buf: Uint8Array): string[][] {
-  const files = unzip(buf);
+  // Only the workbook, its links, the shared words and the sheets are read; nothing else is unpacked.
+  const files = unzip(buf, (n) => n === "xl/workbook.xml" || n === "xl/_rels/workbook.xml.rels" || n === "xl/sharedStrings.xml" || /^xl\/worksheets\/[^/]+\.xml$/.test(n));
   const dec = new TextDecoder();
   const read = (n: string) => {
     const f = files.get(n);
@@ -218,6 +231,7 @@ export function readXlsx(buf: Uint8Array): string[][] {
       const inner = cm[2] ?? "";
       const ref = attrs.match(/\br="([A-Z]+\d+)"/)?.[1];
       const i = ref ? colIndex(ref) : next;
+      if (i >= MAX_COLS) continue; // far-right cells are never item, qty or rate columns
       next = i + 1;
       const t = attrs.match(/\bt="(\w+)"/)?.[1];
       const v = inner.match(/<v>([\s\S]*?)<\/v>/)?.[1];
@@ -229,6 +243,7 @@ export function readXlsx(buf: Uint8Array): string[][] {
       row[i] = val;
     }
     rows.push(row);
+    if (rows.length > MAX_ROWS) throw new Error(`Too many rows in the Excel file (max ${MAX_ROWS})`);
   }
   return rows;
 }

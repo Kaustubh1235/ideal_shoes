@@ -6,7 +6,7 @@ Approve. The fake AI container (e2e/mock_ai.py) answers with the replies an AI m
 each photo (e2e/bills/answers.json, one per bill in order). At the end every item's stock must equal
 what the bills really say: received minus sold.
 
-Needs the stack from e2e/stack_e2e.py running (it creates the owner Papa, PIN 2468), and:
+Needs the stack from e2e/stack_e2e.py running (it creates the owner Papa, PIN 246813), and:
     python e2e/bills/make_bills.py                  # photos + truth.json
     (an AI reads each photo with the app's prompt → e2e/bills/answers.json)
     STACK_ROOT=... python e2e/bills_e2e.py
@@ -65,7 +65,7 @@ def main() -> int:
         page.on("pageerror", lambda e: errors.append(str(e)))
         page.goto(STOCK)
         page.click("#people button[data-name='Papa']")
-        for d in "2468":
+        for d in "246813":
             page.click(f"#pinpad button[data-k='{d}']")
         page.click("#pinpad button[data-k='OK']")
         expect(page.locator("#app")).to_be_visible(timeout=15000)

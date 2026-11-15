@@ -27,6 +27,9 @@ import {
   type Session,
   type Scope,
   type ApiKeyRow,
+  validPinFor,
+  deviceCookie,
+  knownDevice,
 } from "./auth";
 import { addStock, applyMovement, updateItemDetails, deleteItem, parseCsv, parseTable, csvTable, StockError, normalizeSku, CATEGORIES } from "./stock";
 import { writeXlsx, readXlsx, XLSX_TYPE } from "./xlsx";
@@ -135,7 +138,8 @@ async function body<T = Record<string, unknown>>(req: Request, maxBytes = 1024 *
 }
 
 function csv(rows: Record<string, unknown>[], cols: string[]): string {
-  const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  // Text read from a bill could start with = + - @ and run as a formula in Excel: make such cells plain text.
+  const q = (v: unknown) => { const s = String(v ?? ""); return `"${(/^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s) ? "'" + s : s).replace(/"/g, '""')}"`; };
   return [cols.join(","), ...rows.map((r) => cols.map((c) => q(r[c])).join(","))].join("\n") + "\n";
 }
 
@@ -286,13 +290,15 @@ export function createApp(opts: AppOptions): App {
         if (opts.setupToken) {
           const given = Buffer.from(String(b.setupCode ?? "").trim());
           const want = Buffer.from(opts.setupToken);
-          if (given.length !== want.length || !timingSafeEqual(given, want)) throw new HttpError(403, "Wrong setup code. It is STOCK_SETUP_TOKEN in the server's .env file.");
+          if (given.length !== want.length || !timingSafeEqual(given, want)) throw new HttpError(403, "Wrong setup code. It is SETUP_TOKEN in Stock Room's .env (STOCK_SETUP_TOKEN in the IDEALX server's .env).");
         }
         const name = String(b.name ?? "").trim().slice(0, 40);
         if (!name) throw new HttpError(400, "Name is required");
-        if (!validPin(b.pin)) throw new HttpError(400, "PIN must be 4 to 8 digits");
+        if (!validPinFor("admin", b.pin)) throw new HttpError(400, "The owner's PIN must be 6 to 8 digits");
         const user: UserRow = { id: crypto.randomUUID(), name, pin_hash: await hashPin(b.pin), role: "admin", active: 1, failed_attempts: 0, locked_until: null, created_at: now() };
-        db.query("INSERT INTO users (id, name, pin_hash, role, active, created_at) VALUES (?,?,?,?,1,?)").run(user.id, user.name, user.pin_hash, user.role, user.created_at);
+        // Two devices may submit setup together: insert only if there is still nobody, in one statement.
+        const made = db.query("INSERT INTO users (id, name, pin_hash, role, active, created_at) SELECT ?,?,?,?,1,? WHERE NOT EXISTS (SELECT 1 FROM users)").run(user.id, user.name, user.pin_hash, user.role, user.created_at);
+        if (!made.changes) throw new HttpError(409, "Setup already done");
         if (b.appUrl) setSetting(db, "appUrl", String(b.appUrl).trim().slice(0, 200));
         if (b.shop) setSetting(db, "shop", String(b.shop).trim().slice(0, 60));
         audit(db, { userId: user.id, actor: user.name, action: "setup", ip: ip(req) });
@@ -303,7 +309,7 @@ export function createApp(opts: AppOptions): App {
         limit(loginLimit, req, "login", "Too many tries from this device. Wait a few minutes and try again.");
         const b = await body<{ userId?: string; pin?: string }>(req);
         if (!b.userId || !validPin(b.pin)) throw new HttpError(400, "Pick a name and enter your PIN");
-        const res = await attemptLogin(db, String(b.userId), b.pin);
+        const res = await attemptLogin(db, String(b.userId), b.pin, knownDevice(opts.secret, req, String(b.userId)));
         if (!res.ok) {
           M.inc("stockroom_login_failures_total", { reason: res.reason });
           audit(db, { userId: String(b.userId), actor: "?", action: "login_failed", detail: { reason: res.reason }, ip: ip(req) });
@@ -312,9 +318,17 @@ export function createApp(opts: AppOptions): App {
         }
         audit(db, { userId: res.user.id, actor: res.user.name, action: "login", ip: ip(req) });
         const { cookie } = issueSession(opts.secret, res.user);
-        return json({ me: { userId: res.user.id, name: res.user.name, role: res.user.role } }, 200, { "set-cookie": cookie });
+        const h = new Headers({ "content-type": "application/json; charset=utf-8" });
+        h.append("set-cookie", cookie);
+        h.append("set-cookie", deviceCookie(opts.secret, res.user.id));
+        return new Response(JSON.stringify({ me: { userId: res.user.id, name: res.user.name, role: res.user.role } }), { status: 200, headers: h });
       }
-      if (r[1] === "logout" && m === "POST") return json({ ok: true }, 200, { "set-cookie": clearSessionCookie });
+      if (r[1] === "logout" && m === "POST") {
+        // Signing out ends this person's sessions everywhere, so a lost phone can be signed out from another one.
+        const me = sessionFromRequest(db, opts.secret, req);
+        if (me) db.query("UPDATE users SET session_epoch = session_epoch + 1 WHERE id = ?").run(me.userId);
+        return json({ ok: true }, 200, { "set-cookie": clearSessionCookie });
+      }
       throw new HttpError(404, "Not found");
     }
 
@@ -576,8 +590,8 @@ export function createApp(opts: AppOptions): App {
           const b = await body<{ name?: string; pin?: string; role?: string }>(req);
           const name = String(b.name ?? "").trim().slice(0, 40);
           if (!name) throw new HttpError(400, "Name is required");
-          if (!validPin(b.pin)) throw new HttpError(400, "PIN must be 4 to 8 digits");
           const role = b.role === "admin" ? "admin" : "staff";
+          if (!validPinFor(role, b.pin)) throw new HttpError(400, role === "admin" ? "An admin's PIN must be 6 to 8 digits" : "PIN must be 4 to 8 digits");
           if (db.query("SELECT 1 FROM users WHERE name = ?").get(name)) throw new HttpError(409, "A user with that name exists");
           const id = crypto.randomUUID();
           db.query("INSERT INTO users (id, name, pin_hash, role, active, created_at) VALUES (?,?,?,?,1,?)").run(id, name, await hashPin(b.pin), role, now());
@@ -591,8 +605,9 @@ export function createApp(opts: AppOptions): App {
           if (b.active === false && u.id === session.userId) throw new HttpError(400, "You cannot deactivate yourself");
           if (b.role && b.role !== "admin" && u.id === session.userId) throw new HttpError(400, "You cannot demote yourself");
           if (b.pin !== undefined) {
-            if (!validPin(b.pin)) throw new HttpError(400, "PIN must be 4 to 8 digits");
-            db.query("UPDATE users SET pin_hash = ?, failed_attempts = 0, locked_until = NULL, lockouts = 0 WHERE id = ?").run(await hashPin(b.pin), u.id);
+            if (!validPinFor((b.role ?? u.role) === "admin" ? "admin" : "staff", b.pin)) throw new HttpError(400, (b.role ?? u.role) === "admin" ? "An admin's PIN must be 6 to 8 digits" : "PIN must be 4 to 8 digits");
+            // A new PIN signs this person out everywhere: an old phone with the old session stops working.
+            db.query("UPDATE users SET pin_hash = ?, failed_attempts = 0, locked_until = NULL, lockouts = 0, session_epoch = session_epoch + 1 WHERE id = ?").run(await hashPin(b.pin), u.id);
           }
           if (b.active !== undefined) db.query("UPDATE users SET active = ? WHERE id = ?").run(b.active ? 1 : 0, u.id);
           if (b.role) db.query("UPDATE users SET role = ? WHERE id = ?").run(b.role === "admin" ? "admin" : "staff", u.id);

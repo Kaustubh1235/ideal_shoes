@@ -199,7 +199,9 @@ back to the previous version** if they don't. A run can also be started by hand:
 Actions → Deploy → Run workflow.
 
 GitHub gets its own SSH key that can do exactly one thing on the server, run the deploy script:
-no shell, no file copy, no port forwarding. Set it up once:
+no shell, no file copy, no port forwarding. The only thing GitHub sends is the id of the commit
+whose tests passed; the script deploys it only if it is a full commit id that is part of `main`.
+Set it up once:
 
 1. On your Mac, make the key:
 
@@ -212,7 +214,7 @@ no shell, no file copy, no port forwarding. Set it up once:
    Paste the whole `ssh-ed25519 …` line from step 1 where it says `<public key>`:
 
    ```bash
-   echo 'command="sudo -n sh /opt/ideal_shoes/scripts/deploy.sh",restrict <public key>' >> ~/.ssh/authorized_keys
+   echo 'command="sudo -n sh /opt/ideal_shoes/scripts/deploy.sh \"$SSH_ORIGINAL_COMMAND\"",restrict <public key>' >> ~/.ssh/authorized_keys
    ```
 
 3. Give GitHub the key, the address and the server's fingerprint (from the Mac, in the repo folder):

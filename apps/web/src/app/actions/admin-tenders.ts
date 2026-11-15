@@ -1,11 +1,11 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { requireStaff } from "@/lib/require-staff";
 import { auth } from "@/auth";
 import { apiFetch, ApiError } from "@/lib/api";
 
 async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.userType !== "staff") throw new Error("forbidden");
+  return requireStaff();
 }
 
 export async function pollRssAction(): Promise<{ ok: boolean; count?: number; error?: string }> {

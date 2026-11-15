@@ -203,7 +203,7 @@ export function applyMovement(db: Database, input: MovementInput, actor: Actor):
   const tx = db.transaction(() => {
     insertMovement(db, m);
     db.query(
-      "UPDATE items SET qty = ?, last_in = CASE WHEN ? > 0 AND ? != 'count' THEN ? ELSE last_in END, last_out = CASE WHEN ? < 0 AND ? != 'count' THEN ? ELSE last_out END, last_count = CASE WHEN ? = 'count' THEN ? ELSE last_count END, updated_at = ? WHERE sku = ?",
+      "UPDATE items SET qty = ?, last_in = CASE WHEN ? > 0 AND ? NOT IN ('count','adj') THEN ? ELSE last_in END, last_out = CASE WHEN ? < 0 AND ? NOT IN ('count','adj') THEN ? ELSE last_out END, last_count = CASE WHEN ? = 'count' THEN ? ELSE last_count END, updated_at = ? WHERE sku = ?",
     ).run(after, delta, type, t, delta, type, t, type, t, t, sku);
   });
   tx();

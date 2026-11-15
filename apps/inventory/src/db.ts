@@ -11,6 +11,8 @@ export interface UserRow {
   failed_attempts: number;
   locked_until: string | null;
   lockouts: number;
+  /** Bumped on sign-out and PIN change: every session signed before it stops working. */
+  session_epoch?: number;
   created_at: string;
 }
 
@@ -56,6 +58,7 @@ CREATE TABLE IF NOT EXISTS users (
   failed_attempts INTEGER NOT NULL DEFAULT 0,
   locked_until TEXT,
   lockouts INTEGER NOT NULL DEFAULT 0,
+  session_epoch INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS items (
@@ -138,7 +141,8 @@ CREATE TABLE IF NOT EXISTS bills (
   photo_hash TEXT,
   source TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'done' CHECK (status IN ('done','undone')),
-  undone_at TEXT
+  undone_at TEXT,
+  shorts TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_bills_at ON bills(at);
 CREATE INDEX IF NOT EXISTS ix_bills_photo ON bills(photo_hash);
@@ -169,6 +173,9 @@ export function openDb(path: string): Database {
   // Columns added after the first release: add them to databases made before.
   const userCols = new Set(db.query<{ name: string }, []>("PRAGMA table_info(users)").all().map((c) => c.name));
   if (!userCols.has("lockouts")) db.exec("ALTER TABLE users ADD COLUMN lockouts INTEGER NOT NULL DEFAULT 0");
+  const billCols = new Set(db.query<{ name: string }, []>("PRAGMA table_info(bills)").all().map((c) => c.name));
+  if (!billCols.has("shorts")) db.exec("ALTER TABLE bills ADD COLUMN shorts TEXT");
+  if (!userCols.has("session_epoch")) db.exec("ALTER TABLE users ADD COLUMN session_epoch INTEGER NOT NULL DEFAULT 0");
   return db;
 }
 

@@ -40,7 +40,7 @@ describe("setup and login", () => {
     expect(r.status).toBe(400);
   });
   test("creates owner and signs in", async () => {
-    const r = await call("POST", "/api/v1/auth/setup", { name: "Papa", pin: "2468", shop: "Ideal Shoes", appUrl: "https://stock.test" }, {}, "");
+    const r = await call("POST", "/api/v1/auth/setup", { name: "Papa", pin: "246813", shop: "Ideal Shoes", appUrl: "https://stock.test" }, {}, "");
     expect(r.status).toBe(200);
     expect(r.data.me.role).toBe("admin");
     const sc = r.headers.get("set-cookie")!;
@@ -56,7 +56,7 @@ describe("setup and login", () => {
     const id = state.data.users[0].id;
     for (let i = 0; i < 4; i++) expect((await call("POST", "/api/v1/auth/login", { userId: id, pin: "0000" }, {}, "")).status).toBe(401);
     expect((await call("POST", "/api/v1/auth/login", { userId: id, pin: "0000" }, {}, "")).status).toBe(423);
-    expect((await call("POST", "/api/v1/auth/login", { userId: id, pin: "2468" }, {}, "")).status).toBe(423);
+    expect((await call("POST", "/api/v1/auth/login", { userId: id, pin: "246813" }, {}, "")).status).toBe(423);
   });
   test("mutations without the CSRF header are refused", async () => {
     const res = await app.fetch(new Request("https://stock.test/api/v1/items", { method: "POST", headers: { cookie, "content-type": "application/json" }, body: "{}" }));
@@ -298,7 +298,7 @@ describe("backups", () => {
     const dir = mkdtempSync(join(tmpdir(), "stockroom-backup-"));
     const a = createApp({ dbPath: ":memory:", secret: "test-secret-test-secret-test-secret-xx", publicDir: PUBLIC, backupDir: dir, version: "test", log: () => {} });
     const h = { "x-requested-with": "StockRoom", "content-type": "application/json" };
-    const setup = await a.fetch(new Request("https://stock.test/api/v1/auth/setup", { method: "POST", headers: h, body: JSON.stringify({ name: "Papa", pin: "2468" }) }));
+    const setup = await a.fetch(new Request("https://stock.test/api/v1/auth/setup", { method: "POST", headers: h, body: JSON.stringify({ name: "Papa", pin: "246813" }) }));
     const c = setup.headers.get("set-cookie")!.split(";")[0];
     await a.fetch(new Request("https://stock.test/api/v1/items", { method: "POST", headers: { ...h, cookie: c }, body: JSON.stringify({ rows: [{ brand: "IDEALX", article: "Oxford", colour: "Black", size: "8", cat: "shoe", qty: 4 }] }) }));
     const r = await a.fetch(new Request("https://stock.test/api/v1/admin/backup", { headers: { cookie: c } }));
@@ -318,14 +318,14 @@ describe("first-run setup code", () => {
     expect(st.setupCodeNeeded).toBe(true);
     expect((await post({ name: "Intruder", pin: "1111" })).status).toBe(403);
     expect((await post({ name: "Intruder", pin: "1111", setupCode: "s3tup-code-123X" })).status).toBe(403);
-    expect((await post({ name: "Papa", pin: "2468", setupCode: "s3tup-code-1234" })).status).toBe(200);
+    expect((await post({ name: "Papa", pin: "246813", setupCode: "s3tup-code-1234" })).status).toBe(200);
   });
 });
 
 describe("lockouts grow", () => {
   test("each lockout in a row doubles the wait", async () => {
     const a = createApp({ dbPath: ":memory:", secret: "test-secret-test-secret-test-secret-xx", publicDir: PUBLIC, version: "test", log: () => {}, rateLimits: { login: { max: 1000, windowMs: 60000 } } });
-    const r = await a.fetch(new Request("https://stock.test/api/v1/auth/setup", { method: "POST", headers: { "content-type": "application/json", "x-requested-with": "StockRoom" }, body: JSON.stringify({ name: "Papa", pin: "2468" }) }));
+    const r = await a.fetch(new Request("https://stock.test/api/v1/auth/setup", { method: "POST", headers: { "content-type": "application/json", "x-requested-with": "StockRoom" }, body: JSON.stringify({ name: "Papa", pin: "246813" }) }));
     expect(r.status).toBe(200);
     const id = a.db.query<{ id: string }, []>("SELECT id FROM users").get()!.id;
     const login = (pin: string) => a.fetch(new Request("https://stock.test/api/v1/auth/login", { method: "POST", headers: { "content-type": "application/json", "x-requested-with": "StockRoom" }, body: JSON.stringify({ userId: id, pin }) }));
@@ -336,7 +336,7 @@ describe("lockouts grow", () => {
     for (let i = 0; i < 5; i++) await login("0000");
     expect(lockMinutes()).toBe(20);
     a.db.exec("UPDATE users SET locked_until = NULL");
-    expect((await login("2468")).status).toBe(200);
+    expect((await login("246813")).status).toBe(200);
     expect(a.db.query<{ lockouts: number }, []>("SELECT lockouts FROM users").get()!.lockouts).toBe(0);
   });
 });

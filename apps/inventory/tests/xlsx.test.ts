@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { join } from "node:path";
-import { writeXlsx, readXlsx } from "../src/xlsx";
+import { writeXlsx, readXlsx, zip, MAX_COLS } from "../src/xlsx";
 import { parseTable } from "../src/stock";
 
 const fixture = async (name: string) => new Uint8Array(await Bun.file(join(import.meta.dir, "fixtures", name)).arrayBuffer());
@@ -32,5 +32,15 @@ describe("xlsx", () => {
   });
   test("rejects files that are not workbooks", () => {
     expect(() => readXlsx(new TextEncoder().encode("brand,article,qty\n"))).toThrow();
+  });
+  test("a hostile sheet cannot make the server allocate millions of cells", () => {
+    const enc = new TextEncoder();
+    const sheet = `<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>item</t></is></c><c r="ZZZZZZZ1" t="inlineStr"><is><t>x</t></is></c></row></sheetData></worksheet>`;
+    const file = zip([{ name: "xl/worksheets/sheet1.xml", data: enc.encode(sheet) }, { name: "junk/big.bin", data: new Uint8Array(1024) }]);
+    const t0 = performance.now();
+    const rows = readXlsx(file);
+    expect(performance.now() - t0).toBeLessThan(200);
+    expect(rows[0]).toEqual(["item"]);
+    expect(rows[0].length).toBeLessThanOrEqual(MAX_COLS);
   });
 });
