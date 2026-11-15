@@ -53,6 +53,16 @@ CHALLAN = {
 }
 
 
+TYPED = {
+    "kind": "in", "supplier": "Sharma", "billNo": "", "date": "", "total": None, "notes": "",
+    "lines": [{"text": "12 Paragon slipper blue @150", "qty": 12, "brand": "Paragon", "article": "Slipper", "colour": "Blue", "size": "", "rate": 150, "amount": None}],
+}
+ARTICLE = {
+    "brand": "Bata", "article": "Formal Oxford", "colour": "Black", "cat": "shoe", "sizes": [{"size": "7", "qty": 2}, {"size": "8", "qty": 3}],
+    "qty": None, "cost": 820, "mrp": 1499, "hsn": "6403", "title": "Bata Formal Oxford – Black", "description": "Black leather oxford for office wear.", "notes": "",
+}
+
+
 def start_fake_ai() -> tuple[int, list]:
     """A stand-in for Gemini's OpenAI-compatible endpoint: answers every photo with the real challan's rows."""
     import http.server
@@ -64,7 +74,9 @@ def start_fake_ai() -> tuple[int, list]:
         def do_POST(self):  # noqa: N802
             body = json.loads(self.rfile.read(int(self.headers["content-length"])))
             seen.append({"path": self.path, "auth": self.headers.get("authorization"), "body": body})
-            reply = json.dumps({"choices": [{"message": {"content": "```json\n" + json.dumps(CHALLAN) + "\n```"}}]}).encode()
+            prompt = body["messages"][0]["content"][0]["text"]
+            answer = ARTICLE if "add a new article" in prompt else TYPED if "There is no photo" in prompt else CHALLAN
+            reply = json.dumps({"choices": [{"message": {"content": "```json\n" + json.dumps(answer) + "\n```"}}]}).encode()
             self.send_response(200)
             self.send_header("content-type", "application/json")
             self.send_header("content-length", str(len(reply)))
@@ -355,6 +367,39 @@ def main() -> int:
             sug.locator("button[data-act=approve]").click()
             expect(page.locator("#toOrderList")).to_contain_text("Gold sandal")
 
+            # ---- a typed note instead of a photo ------------------------------------------
+            page.click("#tab-home")
+            page.click("#homeIn")
+            page.fill("#billText", "Sharma se 12 Paragon slipper blue aaye @150")
+            page.click("#billTextGo")
+            expect(page.locator("#billCheck")).to_contain_text("AI read 1 row.", timeout=15000)
+            expect(page.locator("#billApprove")).to_have_text("Approve · add 12 pairs")
+            page.click("#billApprove")
+            expect(page.locator("#billDoneTitle")).to_have_text("12 pairs added")
+            page.click("#billHome")
+
+            # ---- a new article from a photo and a note, put on the website -----------------
+            shoe = pathlib.Path(data) / "shoe.png"
+            page.screenshot(path=str(shoe), clip={"x": 0, "y": 0, "width": 200, "height": 160})
+            page.click("#homeArticle")
+            expect(page.locator("#artPick")).to_be_visible()
+            page.set_input_files("#artGallery", str(shoe))
+            expect(page.locator("#artPreview")).to_be_visible()
+            page.fill("#artNote", "Bata formal black, size 7 8, 2 and 3, MRP 1499, @820")
+            page.click("#artRead")
+            expect(page.locator("#arArticle")).to_have_value("Formal Oxford", timeout=15000)
+            expect(page.locator("#artApprove")).to_have_text("Approve · add 5 pairs")
+            page.check("#arWeb")
+            expect(page.locator("#arPrice")).to_have_value("1499")
+            page.fill("#arPrice", "1399")
+            expect(page.locator("#arHsn")).to_have_value("6403")
+            page.click("#artApprove")
+            expect(page.locator("#artDoneTitle")).to_have_text("5 pairs added", timeout=10000)
+            expect(page.locator("#artDone")).to_contain_text("Sent to the website as a draft")
+            listings = page.evaluate("fetch('/api/v1/articles/listings').then(r => r.json())")["listings"]
+            assert listings[0]["status"] == "pending" and listings[0]["price"] == 1399 and listings[0]["photo_mime"] == "image/jpeg", listings[0]
+            page.click("#artHome")
+
             # ---- Hindi --------------------------------------------------------------------
             page.click("#langBtn")
             expect(page.locator("#tab-home")).to_contain_text("होम")
@@ -405,7 +450,7 @@ def main() -> int:
             dpage.click("#pinpad button[data-k='OK']")
             expect(dpage.locator("#app")).to_be_visible(timeout=10000)
             dpage.click("#tab-stock")
-            expect(dpage.locator("#stockRows tr")).to_have_count(5)  # 3 boots + OP AirMix + Gold sandal
+            expect(dpage.locator("#stockRows tr")).to_have_count(8)  # 3 boots + OP AirMix + Gold sandal + Paragon slipper + Bata oxford 7 and 8
             dpage.screenshot(path=str(ROOT / "e2e" / "last-desktop.png"))
             # ---- Excel: download the workbook, then import the shop's own sheet ----
             dpage.click("#tab-dash")
@@ -421,7 +466,7 @@ def main() -> int:
             dpage.set_input_files("#csvFile", str(ROOT / "tests" / "fixtures" / "register-openpyxl.xlsx"))
             expect(dpage.locator("#csvMsg")).to_have_text("3 rows: 3 new, 0 topped up.")
             dpage.click("#tab-stock")
-            expect(dpage.locator("#stockRows tr")).to_have_count(8)
+            expect(dpage.locator("#stockRows tr")).to_have_count(11)
             dpage.click("#tab-dash")
             expect(dpage.locator("#chTrend svg")).to_be_visible()
             dpage.screenshot(path=str(ROOT / "e2e" / "last-desktop-insights.png"), full_page=True)

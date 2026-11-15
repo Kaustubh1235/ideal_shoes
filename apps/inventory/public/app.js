@@ -165,13 +165,13 @@
   window.addEventListener("hashchange", () => { const h = (location.hash || "").slice(1); if (h && S.me) openCode(h); });
 
   // ---------- views ----------
-  const VIEWS = ["home", "bill", "scan", "stock", "add", "labels", "dash", "admin"];
+  const VIEWS = ["home", "bill", "article", "scan", "stock", "add", "labels", "dash", "admin"];
   function show(view) {
     if (view === "admin" && (!S.me || S.me.role !== "admin")) view = "home";
     S.view = VIEWS.includes(view) ? view : "home";
     closeMore();
     VIEWS.forEach((v) => { $("view-" + v).hidden = v !== S.view; });
-    document.querySelectorAll("nav.tabs button").forEach((b) => { if (b.dataset.view === S.view || (b.id === "tab-more" && ["scan", "add", "labels", "admin"].includes(S.view))) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+    document.querySelectorAll("nav.tabs button").forEach((b) => { if (b.dataset.view === S.view || (b.id === "tab-more" && ["article", "scan", "add", "labels", "admin"].includes(S.view))) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
     try { localStorage.setItem("sr.view", S.view); } catch {}
     if (S.view !== "scan" && Scanner.active()) stopScan();
     render();
@@ -179,6 +179,7 @@
     if (S.view === "admin") loadAdmin();
     if (S.view === "home") loadHome();
     if (S.view === "bill") loadBills();
+    if (S.view === "article" && !S.art.draft) artStep("pick");
     window.scrollTo({ top: 0 });
   }
   document.addEventListener("click", (e) => { const b = e.target.closest("[data-view]"); if (b && !b.closest("nav") && b.tagName === "BUTTON") show(b.dataset.view); });
@@ -547,6 +548,7 @@
     if (S.view === "dash" && S.dash) renderDash(S.dash);
     if (S.view === "admin") loadAdmin();
     if (S.bill.lines && !$("billCheck").hidden) renderCheck();
+    if (S.art && S.art.draft && !$("artForm").hidden) renderArticle();
     if (S.bill.done && !$("billDone").hidden) renderDone();
     if (S.view === "bill") renderBillList();
   }
@@ -602,6 +604,7 @@
   function newBill(mode) { S.bill.lines = null; S.bill.head = null; S.bill.done = null; setBillMode(mode); show("bill"); billStep("pick"); }
   $("homeIn").addEventListener("click", () => newBill("in"));
   $("homeOut").addEventListener("click", () => newBill("out"));
+  $("homeArticle").addEventListener("click", () => { resetArticle(); show("article"); });
 
   // ---------- bill: photo or sheet → check → approve ----------
   S.bill = { mode: "in", recent: [], lines: null, head: null, done: null };
@@ -678,6 +681,13 @@
     return m;
   }
   ["billCamera", "billGallery"].forEach((id) => $(id).addEventListener("change", (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; readPhoto(f); }));
+  $("billTextGo").addEventListener("click", async () => {
+    const text = $("billText").value.trim(); if (!text) { $("billText").focus(); return; }
+    if (!navigator.onLine) { billMsg(t("bill.offline"), "bad"); return; }
+    billMsg(""); showReading();
+    try { const r = await api("POST", "/api/v1/bills/read-text", { text, kind: S.bill.mode }); $("billText").value = ""; startCheck(r, "text"); }
+    catch (e) { billStep("pick"); billMsg(e.network ? t("bill.offline") : aiError(e), "bad"); }
+  });
   $("billSheet").addEventListener("change", async (e) => {
     const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
     billMsg(""); showReading();
@@ -759,7 +769,7 @@
     if (h.alreadyEntered) notes.push(`<div class="notice bad">${esc(t("bill.dupe", { date: fmtDate(h.alreadyEntered) }))} <label class="small"><input type="checkbox" id="billForce" ${h.force ? "checked" : ""}> ${esc(t("bill.force"))}</label></div>`);
     // The AI's own remark is for when something looks off: one tap away, not the first thing on screen.
     const aiNote = h.notes ? `<details class="ai-note"><summary>${esc(t("bill.aiSaw"))}</summary>${esc(h.notes)}</details>` : "";
-    if (h.source === "photo") notes.push(`<div class="notice ${h.checks.length ? "" : "good"}">${esc(lines.length === 1 ? t("bill.row1") : t("bill.rows", { n: lines.length }))} ${h.checks.length ? "" : esc(t("bill.allOk"))}${h.checks.map((c) => `<br>• ${esc(checkText(c))}`).join("")}${aiNote}</div>`);
+    if (h.source === "photo" || h.source === "text") notes.push(`<div class="notice ${h.checks.length ? "" : "good"}">${esc(lines.length === 1 ? t("bill.row1") : t("bill.rows", { n: lines.length }))} ${h.checks.length ? "" : esc(t("bill.allOk"))}${h.checks.map((c) => `<br>• ${esc(checkText(c))}`).join("")}${aiNote}</div>`);
     else if (h.checks.length) notes.push(`<div class="notice">${h.checks.map((c) => esc(checkText(c))).join("<br>")}</div>`);
     $("billCheck").innerHTML = `
       <div class="btn-row" style="justify-content:space-between"><h3 style="margin:0">${esc(t("bill.check"))} · ${esc(t(mode === "in" ? "bill.in" : "bill.out"))}</h3><button type="button" class="btn quiet" id="billRestart">${esc(t("bill.retake"))}</button></div>
@@ -849,6 +859,104 @@
       catch (x) { e.target.disabled = false; toast(x.message, 4000); }
     }
   });
+
+  // ---------- new article: photo + note → AI fills the form → approve ----------
+  S.art = { photo: null, draft: null, id: null };
+  function artStep(step) { $("artPick").hidden = step !== "pick"; $("artForm").hidden = step !== "form"; $("artDone").hidden = step !== "done"; window.scrollTo({ top: 0 }); }
+  function artMsg(text, cls) { const m = $("artMsg"); m.hidden = !text; m.className = "notice " + (cls || ""); m.textContent = text || ""; }
+  function resetArticle() { S.art = { photo: null, draft: null, id: null }; $("artNote").value = ""; $("artPreview").hidden = true; $("artPreview").removeAttribute("src"); artMsg(""); artStep("pick"); }
+  ["artCamera", "artGallery"].forEach((id) => $(id).addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
+    try { S.art.photo = await shrinkPhoto(f); $("artPreview").src = S.art.photo; $("artPreview").hidden = false; artMsg(""); } catch (x) { artMsg(x.message, "bad"); }
+  }));
+  const blankArticle = () => ({ brand: "", article: "", colour: "", cat: "shoe", sizes: [], qty: 1, cost: null, mrp: null, hsn: "", title: "", description: "", notes: "", website: false, price: null });
+  $("artManual").addEventListener("click", () => { S.art.id = crypto.randomUUID(); S.art.draft = blankArticle(); renderArticle(); });
+  $("artRead").addEventListener("click", async () => {
+    const text = $("artNote").value.trim();
+    if (!text && !S.art.photo) { artMsg(t("art.needSomething"), "bad"); return; }
+    if (!navigator.onLine) { artMsg(t("bill.offline"), "bad"); return; }
+    $("artRead").disabled = true; artMsg(t("art.reading"));
+    try {
+      const r = await api("POST", "/api/v1/articles/read", { photo: S.art.photo || undefined, text });
+      S.art.id = crypto.randomUUID();
+      S.art.draft = { ...blankArticle(), ...r, qty: r.sizes && r.sizes.length ? null : r.qty, website: false, price: r.mrp };
+      artMsg(""); renderArticle();
+    } catch (e) { artMsg(e.network ? t("bill.offline") : aiError(e), "bad"); }
+    $("artRead").disabled = false;
+  });
+  const artPairs = (d) => (d.sizes.length ? d.sizes.reduce((a, s) => a + (parseInt(s.qty, 10) || 0), 0) : parseInt(d.qty, 10) || 0);
+  function renderArticle() {
+    const d = S.art.draft; const admin = S.me && S.me.role === "admin";
+    const f = (id, key, label, attrs = "") => `<div class="field"><label for="${id}">${esc(t(label))}</label><input id="${id}" data-a="${key}" value="${esc(d[key] == null ? "" : d[key])}" ${attrs}></div>`;
+    const cats = (S.settings.categories || CATS).map((c) => `<option value="${esc(c)}" ${c === d.cat ? "selected" : ""}>${esc(catName(c))}</option>`).join("");
+    const sizeRows = d.sizes.map((s, i) => `<div class="size-row"><input aria-label="${esc(t("stock.size"))}" data-size="${i}" data-sf="size" value="${esc(s.size)}" placeholder="7"><input aria-label="${esc(t("bill.qty"))}" data-size="${i}" data-sf="qty" inputmode="numeric" value="${esc(s.qty)}"><button type="button" class="btn quiet" data-size-rm="${i}" aria-label="${esc(t("bill.remove"))}">×</button></div>`).join("");
+    $("artForm").innerHTML = `
+      <div class="btn-row" style="justify-content:space-between"><h3 style="margin:0">${esc(t("bill.check"))}</h3><button type="button" class="btn quiet" id="artRestart">${esc(t("bill.retake"))}</button></div>
+      ${S.art.photo ? `<img class="art-preview" src="${esc(S.art.photo)}" alt="">` : ""}
+      ${d.notes ? `<details class="ai-note"><summary>${esc(t("bill.aiSaw"))}</summary>${esc(d.notes)}</details>` : ""}
+      <div class="card stack">
+        <div class="grid2c">${f("arBrand", "brand", "bill.brand", 'list="brandList"')}${f("arArticle", "article", "art.article")}</div>
+        <div class="grid2c">${f("arColour", "colour", "bill.colour", 'list="colourList"')}<div class="field"><label for="arCat">${esc(t("art.type"))}</label><select id="arCat" data-a="cat">${cats}</select></div></div>
+        <div class="label">${esc(t("art.sizes"))}</div>
+        <div class="stack" id="arSizes">${sizeRows || `<p class="muted small" style="margin:0">${esc(t("art.noSizes"))}</p>`}</div>
+        <div class="btn-row"><button type="button" class="btn" id="arAddSize">${esc(t("art.addSize"))}</button></div>
+        ${d.sizes.length ? "" : `<div style="max-width:160px">${f("arQty", "qty", "bill.qty", 'inputmode="numeric"')}</div>`}
+        <div class="grid2c">${f("arCost", "cost", "art.cost", 'inputmode="numeric"')}${f("arMrp", "mrp", "sheet.mrp", 'inputmode="numeric"')}</div>
+      </div>
+      ${admin ? `<div class="card stack">
+        <label class="small"><input type="checkbox" id="arWeb" ${d.website ? "checked" : ""}> <b>${esc(t("art.website"))}</b></label>
+        <p class="muted small" style="margin:0">${esc(t("art.websiteHint"))}</p>
+        <div id="arWebBox" class="stack" ${d.website ? "" : "hidden"}>
+          ${f("arTitle", "title", "art.webTitle")}
+          <div class="field"><label for="arDesc">${esc(t("art.webDesc"))}</label><textarea id="arDesc" data-a="description" rows="3">${esc(d.description)}</textarea></div>
+          <div class="grid2c">${f("arPrice", "price", "art.webPrice", 'inputmode="numeric"')}${f("arHsn", "hsn", "art.hsn", 'inputmode="numeric"')}</div>
+        </div>
+      </div>` : ""}
+      <div class="bill-approve"><div id="artErr" class="notice bad" hidden></div><button type="submit" class="btn primary" id="artApprove">${esc(t("art.approve", { n: artPairs(d) }))}</button><small>${esc(t("bill.nothingYet"))}</small></div>`;
+    artStep("form");
+  }
+  $("artForm").addEventListener("input", (e) => {
+    const el = e.target; const d = S.art.draft; if (!d) return;
+    if (el.dataset.a) d[el.dataset.a] = el.value;
+    if (el.dataset.size !== undefined) d.sizes[+el.dataset.size][el.dataset.sf] = el.value;
+    if (el.id === "arWeb") { d.website = el.checked; $("arWebBox").hidden = !el.checked; }
+    $("artApprove").textContent = t("art.approve", { n: artPairs(d) });
+  });
+  $("artForm").addEventListener("change", (e) => { if (e.target.id === "arCat") S.art.draft.cat = e.target.value; if (e.target.id === "arWeb") { S.art.draft.website = e.target.checked; $("arWebBox").hidden = !e.target.checked; } });
+  $("artForm").addEventListener("click", (e) => {
+    const d = S.art.draft; if (!d) return;
+    if (e.target.id === "artRestart") { resetArticle(); return; }
+    if (e.target.id === "arAddSize") { d.sizes.push({ size: "", qty: 1 }); d.qty = null; renderArticle(); const n = document.querySelector(`[data-size="${d.sizes.length - 1}"][data-sf="size"]`); if (n) n.focus(); return; }
+    const rm = e.target.closest("[data-size-rm]"); if (rm) { d.sizes.splice(+rm.dataset.sizeRm, 1); if (!d.sizes.length) d.qty = 1; renderArticle(); }
+  });
+  $("artForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const d = S.art.draft; const err = $("artErr"); err.hidden = true;
+    const fail = (key) => { err.hidden = false; err.textContent = t(key); err.scrollIntoView({ behavior: "smooth", block: "center" }); };
+    if (!String(d.article || "").trim()) return fail("art.needName");
+    const sizes = d.sizes.filter((s) => String(s.size).trim()).map((s) => ({ size: String(s.size).trim(), qty: parseInt(s.qty, 10) || 0 }));
+    if (d.website && !(parseInt(d.price, 10) > 0)) return fail("art.needPrice");
+    if (d.website && !/^[0-9]{4,8}$/.test(String(d.hsn || ""))) return fail("art.needHsn");
+    const body = {
+      id: S.art.id, brand: d.brand, article: d.article, colour: d.colour, cat: d.cat, sizes, qty: sizes.length ? undefined : parseInt(d.qty, 10) || 0,
+      cost: parseInt(d.cost, 10) || 0, mrp: parseInt(d.mrp, 10) || 0,
+      website: d.website ? { title: d.title, description: d.description, hsn: d.hsn, price: parseInt(d.price, 10) } : null,
+      photo: d.website && S.art.photo ? S.art.photo : undefined,
+    };
+    $("artApprove").disabled = true;
+    try {
+      const r = await api("POST", "/api/v1/articles", body);
+      r.items.forEach((it) => S.items.set(it.sku, it));
+      const rows = r.items.map((it) => `<li><span class="mv in">+${it.qty}</span><span>${esc(itemName(it))}${it.size && it.size !== "-" ? " · " + esc(it.size) : ""}</span><span class="mono small">${esc(it.sku)}</span></li>`).join("");
+      $("artDone").innerHTML = `<div class="done-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></div>
+        <h3 style="text-align:center;margin:0" id="artDoneTitle">${esc(t("art.saved", { n: r.items.reduce((a, it) => a + it.qty, 0) }))}</h3>
+        <div class="card"><ul class="movelist">${rows}</ul></div>
+        ${r.listing ? `<div class="notice good">${esc(t("art.webQueued"))}</div>` : ""}
+        <div class="btn-row"><button type="button" class="btn primary" id="artAnother" style="flex:1">${esc(t("art.another"))}</button><button type="button" class="btn" id="artHome" style="flex:1">${esc(t("bill.home"))}</button></div>`;
+      S.art.draft = null; artStep("done"); refresh();
+    } catch (x) { $("artApprove").disabled = false; err.hidden = false; err.textContent = x.network ? t("bill.offline") : x.message; }
+  });
+  $("artDone").addEventListener("click", (e) => { if (e.target.id === "artAnother") resetArticle(); if (e.target.id === "artHome") { resetArticle(); show("home"); } });
 
   // ---------- start ----------
   setOnline(navigator.onLine);

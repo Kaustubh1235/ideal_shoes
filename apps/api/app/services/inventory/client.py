@@ -8,6 +8,9 @@ Contract (all paths under ``{INVENTORY_API_URL}/api/v1/public``, header ``X-API-
          body {"id": uuid, "sku": str, "type": "out"|"in", "delta": int, "note": str, "ref": str}
          Repeating the same ``id`` returns the same result (idempotent). Unknown sku -> 404.
     GET  /summary               -> aggregates (not used by the site)
+    GET  /listings              -> {"listings": [Listing, ...]}  articles marked "Put on website"
+    GET  /listings/{id}/photo   -> the listing's photo bytes      (404 if none)
+    POST /listings/{id}/sent    -> body {"productId": str}; the shop made its draft product
 
 StockItem = {"sku", "brand", "article", "colour", "size", "cat", "qty", "mrp", "cost"?, "updatedAt"}
 """
@@ -155,6 +158,30 @@ class InventoryClient:
             return None
         self._raise_for_status(r, "/movements")
         return r.json()
+
+    # -- website listings ------------------------------------------------------
+
+    def fetch_listings(self) -> list[dict[str, Any]]:
+        """Articles the owner marked "Put on website" that have no product here yet."""
+        self._ensure()
+        r = self._client.get("/listings")
+        self._raise_for_status(r, "/listings")
+        data = r.json()
+        return [x for x in data.get("listings", []) if isinstance(x, dict) and x.get("id")]
+
+    def fetch_listing_photo(self, listing_id: str, max_bytes: int) -> bytes | None:
+        """The photo as the phone sent it, or None. Callers must re-check it before use."""
+        self._ensure()
+        r = self._client.get(f"/listings/{listing_id}/photo")
+        if r.status_code == 404:
+            return None
+        self._raise_for_status(r, f"/listings/{listing_id}/photo")
+        return r.content if len(r.content) <= max_bytes else None
+
+    def mark_listing_sent(self, listing_id: str, product_id: str) -> None:
+        self._ensure()
+        r = self._client.post(f"/listings/{listing_id}/sent", json={"productId": product_id})
+        self._raise_for_status(r, f"/listings/{listing_id}/sent")
 
     def close(self) -> None:
         self._client.close()

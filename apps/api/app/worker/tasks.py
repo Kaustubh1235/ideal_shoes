@@ -103,10 +103,14 @@ def task_order_confirmed_email(order_id: str) -> bool:
 
 @celery_app.task(name="inventory.sync_stock")
 def task_sync_stock_from_inventory() -> dict:
-    """Pull stock levels from the inventory app into inventory.on_hand (every 15 min)."""
+    """Pull stock levels from the inventory app into inventory.on_hand (every 15 min). New articles the owner
+    marked "Put on website" in Stock Room become draft products first, so their stock fills in the same run."""
+    from app.services.inventory.listings import import_listings
+
     db = SessionLocal()
     try:
-        return sync_stock_from_inventory(db).as_dict()
+        listings = import_listings(db).as_dict()
+        return {**sync_stock_from_inventory(db).as_dict(), "listings": listings}
     finally:
         db.close()
 

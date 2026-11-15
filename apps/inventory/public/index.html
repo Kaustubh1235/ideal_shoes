@@ -75,6 +75,7 @@
     </nav>
     <div id="moreMenu" class="more-menu" hidden>
       <button type="button" data-view="scan" id="more-scan" data-i18n="nav.scan">Scan</button>
+      <button type="button" data-view="article" id="more-article" data-i18n="nav.article">New article</button>
       <button type="button" data-view="add" id="more-add" data-i18n="nav.add">Add</button>
       <button type="button" data-view="labels" id="more-labels" data-i18n="nav.labels">Labels</button>
       <button type="button" data-view="admin" id="more-admin" data-i18n="nav.admin" hidden>Admin</button>
@@ -88,6 +89,7 @@
         <div class="bigactions">
           <button type="button" class="bigaction primary" id="homeIn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="4"/></svg><span><b data-i18n="home.in">Maal aaya</b><small data-i18n="home.inSub">Photo of the challan · stock in</small></span></button>
           <button type="button" class="bigaction" id="homeOut"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg><span><b data-i18n="home.out">Maal bika</b><small data-i18n="home.outSub">Photo of sale bill, or Excel · stock out</small></span></button>
+          <button type="button" class="bigaction" id="homeArticle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 17c3 0 5-1 7-4l2-3c1 2 3 3 6 3h3v4H3z"/><path d="M12 4v4M10 6h4"/></svg><span><b data-i18n="home.article">Naya article</b><small data-i18n="home.articleSub">Photo of the shoe · stock and website</small></span></button>
         </div>
         <div class="card stack">
           <div class="label" data-i18n="home.ask">Suggested · you decide</div>
@@ -121,6 +123,8 @@
               <label class="btn" for="billSheet" id="billSheetBtn" hidden><span data-i18n="bill.excel">Excel or CSV of sales</span></label>
               <input type="file" id="billSheet" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
             </div>
+            <div class="field"><label for="billText" data-i18n="bill.typeIt">Or type it (the keyboard's mic works too)</label><textarea id="billText" rows="3" data-i18n-ph="bill.typePh"></textarea></div>
+            <div class="btn-row"><button type="button" class="btn" id="billTextGo" data-i18n="bill.typeGo">Read what I typed</button></div>
             <div id="billMsg" class="notice" hidden></div>
           </div>
           <div class="card">
@@ -130,6 +134,26 @@
         </div>
         <form id="billCheck" class="view-part" hidden novalidate></form>
         <div id="billDone" class="view-part" hidden></div>
+      </section>
+
+      <!-- NEW ARTICLE: photo + note → AI fills the form → approve → stock (and the website) -->
+      <section class="view" id="view-article" hidden>
+        <div class="view-head"><h2 data-i18n="art.title">New article</h2></div>
+        <div id="artPick" class="card stack">
+          <p class="muted small" style="margin:0" data-i18n="art.hint">A photo of the shoe or its box, and a line about it. The AI fills the form; you check it.</p>
+          <div class="btn-row">
+            <label class="btn primary big" for="artCamera"><span data-i18n="bill.photo">Take photo</span></label>
+            <input type="file" id="artCamera" accept="image/*" capture="environment" hidden>
+            <label class="btn big" for="artGallery"><span data-i18n="bill.gallery">Pick photo</span></label>
+            <input type="file" id="artGallery" accept="image/jpeg,image/png,image/webp" hidden>
+          </div>
+          <img id="artPreview" class="art-preview" alt="" hidden>
+          <div class="field"><label for="artNote" data-i18n="art.note">What is it?</label><textarea id="artNote" rows="3" data-i18n-ph="art.notePh"></textarea></div>
+          <div class="btn-row"><button type="button" class="btn primary" id="artRead" data-i18n="art.read">Fill with AI</button><button type="button" class="btn" id="artManual" data-i18n="art.manual">Fill it myself</button></div>
+          <div id="artMsg" class="notice" hidden></div>
+        </div>
+        <form id="artForm" class="stack" hidden novalidate></form>
+        <div id="artDone" class="stack" hidden></div>
       </section>
 
       <!-- SCAN -->

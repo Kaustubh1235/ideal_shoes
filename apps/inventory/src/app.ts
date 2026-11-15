@@ -37,6 +37,7 @@ import * as R from "./reports";
 import { askLlm, getLlmConfig, setLlmConfig } from "./insights";
 import * as M from "./metrics";
 import * as B from "./bills";
+import * as A from "./articles";
 import { computeSuggestions, decideSuggestion, toOrder } from "./suggestions";
 
 export interface AppOptions {
@@ -350,6 +351,23 @@ export function createApp(opts: AppOptions): App {
         requireApiKey(req, "read");
         return json(digest());
       }
+      if (r[1] === "listings" && !r[2] && m === "GET") {
+        requireApiKey(req, "read");
+        return json({ listings: A.pendingListings(db) });
+      }
+      if (r[1] === "listings" && r[2] && r[3] === "photo" && m === "GET") {
+        requireApiKey(req, "read");
+        const ph = A.listingPhoto(db, r[2]);
+        if (!ph) throw new HttpError(404, "No photo for this listing");
+        return new Response(ph.data, { headers: { "content-type": ph.mime, "cache-control": "no-store", "x-content-type-options": "nosniff", "content-disposition": "inline" } });
+      }
+      if (r[1] === "listings" && r[2] && r[3] === "sent" && m === "POST") {
+        const k = requireApiKey(req, "write");
+        const b = await body<{ productId?: string }>(req);
+        const l = A.markListingSent(db, r[2], String(b.productId ?? ""));
+        audit(db, { actor: `api:${k.name}`, action: "listing_sent", target: l.id, detail: { productId: l.web_product }, ip: ip(req) });
+        return json({ listing: { id: l.id, status: l.status, webProduct: l.web_product } });
+      }
       if (r[1] === "movements" && m === "POST") {
         const k = requireApiKey(req, "write");
         const b = await body<{ id?: string; sku?: string; type?: string; delta?: number; counted?: number; note?: string; ref?: string }>(req);
@@ -441,6 +459,33 @@ export function createApp(opts: AppOptions): App {
       }
     }
 
+    // ---- new article: photo + note → AI fills the form → approve → stock (and a website listing) ----
+    if (r[0] === "articles") {
+      if (r[1] === "read" && m === "POST") {
+        const wait = billReadLimit.hit(session.userId);
+        if (wait) {
+          M.inc("stockroom_rate_limited_total", { limit: "bill_read" });
+          throw new HttpError(429, "Too many reads this hour. Try again later.", { "retry-after": String(wait) });
+        }
+        const b = await body<{ photo?: string; text?: string }>(req, 9 * 1024 * 1024);
+        const image = b.photo ? B.parseDataUrl(b.photo) : null;
+        const draft = await A.readArticle(db, opts.secret, { image, note: String(b.text ?? "") }, opts.fetchImpl ?? fetch);
+        audit(db, { userId: session.userId, actor: session.name, action: "article_read", detail: { model: draft.model, photo: Boolean(image) }, ip: ip(req) });
+        return json(draft);
+      }
+      if (!r[1] && m === "POST") {
+        const b = await body<A.ArticleInput & { photo?: unknown }>(req, 9 * 1024 * 1024);
+        // Only the owner/admin decides what goes on the website; staff can still add the stock.
+        if (b.website && session.role !== "admin") throw new HttpError(403, "Only the owner can put articles on the website");
+        const photo = b.website && b.photo ? B.parseDataUrl(b.photo) : null;
+        const res = A.createArticle(db, { ...b, photo: photo ? { mime: photo.mime, bytes: Buffer.from(photo.base64, "base64") } : null }, { userId: session.userId, source: "app" });
+        if (!res.replay) audit(db, { userId: session.userId, actor: session.name, action: "article_add", target: res.items[0]?.sku, detail: { skus: res.items.map((i) => i.sku), website: Boolean(res.listing) }, ip: ip(req) });
+        return json({ items: res.items.map(publicItem), listing: res.listing, replay: Boolean(res.replay) });
+      }
+      if (r[1] === "listings" && m === "GET") return json({ listings: A.listListings(db) });
+      throw new HttpError(404, "Not found");
+    }
+
     if (r[0] === "bills") {
       const actor = { userId: session.userId, source: "bill" as const };
       if (r[1] === "read" && m === "POST") {
@@ -464,6 +509,19 @@ export function createApp(opts: AppOptions): App {
           M.inc("stockroom_bill_reads_total", { status: "error" });
           throw e;
         }
+      }
+      if (r[1] === "read-text" && m === "POST") {
+        const wait = billReadLimit.hit(session.userId);
+        if (wait) {
+          M.inc("stockroom_rate_limited_total", { limit: "bill_read" });
+          throw new HttpError(429, "Too many reads this hour. Try again later.", { "retry-after": String(wait) });
+        }
+        const b = await body<{ text?: string; kind?: string }>(req, 16 * 1024);
+        const items = allItems(db);
+        const read = await B.readBillText(db, opts.secret, String(b.text ?? ""), b.kind === "out" ? "out" : "in", items, opts.fetchImpl ?? fetch);
+        M.inc("stockroom_bill_reads_total", { status: "ok" });
+        audit(db, { userId: session.userId, actor: session.name, action: "bill_read_text", detail: { rows: read.lines.length, model: read.model }, ip: ip(req) });
+        return json({ ...read, photoId: null, alreadyEntered: null, lines: read.lines.map((l) => ({ ...l, candidates: B.candidatesFor(l, items) })) });
       }
       if (r[1] === "read-sheet" && m === "POST") {
         const kind = url.searchParams.get("format") === "csv" ? "csv" : "xlsx";
@@ -489,7 +547,7 @@ export function createApp(opts: AppOptions): App {
         const b = await body<B.ApplyInput & { photoId?: string }>(req, 1024 * 1024);
         const photoHash = typeof b.photoId === "string" && /^[0-9a-f]{64}$/.test(b.photoId) ? b.photoId : undefined;
         const photo = photoHash ? pendingPhotos.get(photoHash) : undefined;
-        const res = B.applyBill(db, { id: typeof b.id === "string" ? b.id : undefined, kind: b.kind, supplier: b.supplier, billNo: b.billNo, date: b.date, total: b.total, source: b.source === "photo" || b.source === "sheet" ? b.source : "manual", force: Boolean(b.force), lines: b.lines, photoHash, photo: photo ? { mime: photo.mime, bytes: photo.bytes } : undefined }, actor);
+        const res = B.applyBill(db, { id: typeof b.id === "string" ? b.id : undefined, kind: b.kind, supplier: b.supplier, billNo: b.billNo, date: b.date, total: b.total, source: b.source === "photo" || b.source === "sheet" || b.source === "text" ? b.source : "manual", force: Boolean(b.force), lines: b.lines, photoHash, photo: photo ? { mime: photo.mime, bytes: photo.bytes } : undefined }, actor);
         if (photoHash && !res.replay) pendingPhotos.delete(photoHash);
         if (!res.replay) M.inc("stockroom_bills_applied_total", { kind: res.bill.kind });
         if (!res.replay) audit(db, { userId: session.userId, actor: session.name, action: "bill_apply", target: res.bill.id, detail: { kind: res.bill.kind, rows: res.bill.lines, units: res.bill.units, source: res.bill.source }, ip: ip(req) });
@@ -754,6 +812,9 @@ function openApiSpec(origin: string) {
       "/stock": { get: { summary: "All items with current quantity", responses: { "200": { description: "OK", content: { "application/json": { schema: { type: "object", properties: { asOf: { type: "string" }, items: { type: "array", items: { $ref: "#/components/schemas/Item" } } } } } } } } } },
       "/items/{sku}": { get: { summary: "One item with its last 50 movements", parameters: [{ name: "sku", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "OK" }, "404": { description: "Unknown SKU" } } } },
       "/summary": { get: { summary: "Aggregated digest: totals, ageing, dead stock, top sellers, size gaps. Designed for LLM consumption.", responses: { "200": { description: "OK" } } } },
+      "/listings": { get: { summary: "Articles marked 'Put on website' that the shop has not made into products yet (read scope)", responses: { "200": { description: "OK", content: { "application/json": { schema: { type: "object", properties: { listings: { type: "array", items: { type: "object", properties: { id: { type: "string" }, title: { type: "string" }, description: { type: "string" }, hsn: { type: "string" }, price: { type: "integer", description: "rupees, GST included" }, mrp: { type: "integer" }, cat: { type: "string" }, brand: { type: "string" }, article: { type: "string" }, colour: { type: "string" }, hasPhoto: { type: "boolean" }, variants: { type: "array", items: { type: "object", properties: { sku: { type: "string" }, size: { type: "string" }, qty: { type: "integer" } } } } } } } } } } } } } } },
+      "/listings/{id}/photo": { get: { summary: "The listing's photo as sent from the phone (read scope); re-check it before use", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "image/jpeg, image/png or image/webp" }, "404": { description: "No photo" } } } },
+      "/listings/{id}/sent": { post: { summary: "The shop made a product from this listing (write scope); repeating it is harmless", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["productId"], properties: { productId: { type: "string" } } } } } }, responses: { "200": { description: "OK" }, "403": { description: "Key lacks write scope" }, "404": { description: "Unknown listing" } } } },
       "/movements": { post: { summary: "Record a stock movement (idempotent on id)", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["sku", "type"], properties: { id: { type: "string", format: "uuid", description: "Client-generated; repeating it returns the original result" }, sku: { type: "string" }, type: { type: "string", enum: ["in", "out", "count", "adj"] }, delta: { type: "integer", description: "for in/out/adj; negative for out" }, counted: { type: "integer", description: "for count" }, note: { type: "string" }, ref: { type: "string" } } } } } }, responses: { "200": { description: "OK", content: { "application/json": { schema: { type: "object", properties: { item: { $ref: "#/components/schemas/Item" }, movement: { $ref: "#/components/schemas/Movement" }, idempotent: { type: "boolean" } } } } } }, "403": { description: "Key lacks write scope" }, "404": { description: "Unknown SKU" } } } },
     },
   };

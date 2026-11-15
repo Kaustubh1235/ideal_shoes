@@ -146,6 +146,28 @@ CREATE TABLE IF NOT EXISTS bills (
 );
 CREATE INDEX IF NOT EXISTS ix_bills_at ON bills(at);
 CREATE INDEX IF NOT EXISTS ix_bills_photo ON bills(photo_hash);
+-- New articles marked "Put on website": the shop's sync reads them with its API key and makes draft products.
+CREATE TABLE IF NOT EXISTS listings (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  user_id TEXT,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  hsn TEXT NOT NULL,
+  price INTEGER NOT NULL,
+  mrp INTEGER NOT NULL,
+  cat TEXT NOT NULL,
+  brand TEXT NOT NULL,
+  article TEXT NOT NULL,
+  colour TEXT NOT NULL,
+  skus TEXT NOT NULL,
+  photo BLOB,
+  photo_mime TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sent')),
+  web_product TEXT,
+  sent_at TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_listings_status ON listings(status, created_at);
 CREATE TABLE IF NOT EXISTS bill_photos (
   bill_id TEXT PRIMARY KEY,
   mime TEXT NOT NULL,
