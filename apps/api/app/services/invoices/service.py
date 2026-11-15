@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal
-from io import BytesIO
 
 from sqlalchemy.orm import Session, joinedload
 
@@ -26,12 +25,12 @@ settings = get_settings()
 def _series_for_channel(channel: str) -> tuple[str, str]:
     """Returns (series_code, prefix)."""
     if channel == "d2c":
-        return "BBT-D2C", "BBT/D2C"
+        return "IDX-D2C", "IDX/D2C"
     if channel == "wholesale":
-        return "BBT-B2B", "BBT/B2B"
+        return "IDX-B2B", "IDX/B2B"
     if channel == "tender":
-        return "BBT-TND", "BBT/TND"
-    return "BBT-MAN", "BBT/MAN"
+        return "IDX-TND", "IDX/TND"
+    return "IDX-MAN", "IDX/MAN"
 
 
 def generate_invoice_for_order(db: Session, order_id) -> Invoice:

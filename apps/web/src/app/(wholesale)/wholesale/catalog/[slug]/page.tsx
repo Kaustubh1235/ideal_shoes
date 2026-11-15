@@ -7,7 +7,8 @@ import { WholesaleAddToCart } from "@/components/wholesale/add-to-cart";
 
 export const dynamic = "force-dynamic";
 
-export default async function WholesaleProductPage({ params }: { params: { slug: string } }) {
+export default async function WholesaleProductPage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const session = await auth();
   const dealer = await prisma.dealerProfile.findUnique({ where: { userId: session!.user.id } });
   const tier = dealer?.priceTier ?? "tier_b";
@@ -32,7 +33,7 @@ export default async function WholesaleProductPage({ params }: { params: { slug:
   return (
     <div className="container py-8 grid gap-8 md:grid-cols-2">
       <div>
-        <div className="aspect-square rounded bg-olive-50 overflow-hidden">
+        <div className="aspect-square rounded bg-leather-50 overflow-hidden">
           {product.images[0] ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img src={product.images[0].url} alt={product.name} className="h-full w-full object-cover" />
@@ -45,25 +46,26 @@ export default async function WholesaleProductPage({ params }: { params: { slug:
         <h1 className="font-display text-2xl uppercase">{product.name}</h1>
         <p className="text-sm text-ink/60">{product.sku} · HSN {product.hsnCode}</p>
 
-        <div className="mt-6 rounded border border-olive-100 bg-cream overflow-hidden">
+        <div className="mt-6 rounded border border-leather-100 bg-cream overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Size</TableHead>
                 <TableHead>Color</TableHead>
-                <TableHead className="text-right">Tier Price</TableHead>
+                <TableHead className="text-right">Your price</TableHead>
                 <TableHead className="text-right">MRP</TableHead>
                 <TableHead>Qty</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {product.variants.map((v) => {
-                const tierPrice = priceMap.get(v.id) ?? v.priceOverride ?? product.basePrice;
+                const tier = priceMap.get(v.id);
+                const tierPrice = tier ?? v.priceOverride ?? product.basePrice;
                 return (
                   <TableRow key={v.id}>
                     <TableCell>UK {v.size}</TableCell>
                     <TableCell>{v.color}</TableCell>
-                    <TableCell className="text-right font-medium">{inr(tierPrice)}</TableCell>
+                    <TableCell className="text-right font-medium">{inr(tierPrice)} <span className="block text-[10px] font-normal text-ink/50">{tier !== undefined ? "+ GST" : "incl. GST"}</span></TableCell>
                     <TableCell className="text-right text-ink/50 line-through">{inr(product.mrp ?? product.basePrice)}</TableCell>
                     <TableCell><WholesaleAddToCart variantId={v.id} /></TableCell>
                   </TableRow>

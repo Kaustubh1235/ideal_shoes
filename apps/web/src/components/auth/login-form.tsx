@@ -1,12 +1,10 @@
 "use client";
 import { useState, useTransition } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { Button, Input, Label, Tabs, TabsContent, TabsList, TabsTrigger } from "@bharatboot/ui";
 import { toast } from "sonner";
 
 export function LoginForm({ callbackUrl, initialError }: { callbackUrl: string; initialError?: string }) {
-  const router = useRouter();
   const [tab, setTab] = useState<"email" | "phone">("email");
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(initialError ?? null);
@@ -23,29 +21,32 @@ export function LoginForm({ callbackUrl, initialError }: { callbackUrl: string; 
   const [otp, setOtp] = useState("");
   const [otpToken, setOtpToken] = useState<string | null>(null);
 
+  // A full page load, not router.push: before sign-in Next prefetched the protected page and
+  // cached its redirect to /login, and a client-side push would replay that redirect.
+  const signedIn = () => window.location.assign(callbackUrl);
+
   const submitEmail = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     start(async () => {
+      // Only send totpCode when asked for: signIn() form-encodes undefined as the string "undefined".
       const res = await signIn("credentials", {
         email,
         password,
-        totpCode: requiresTotp ? totpCode : undefined,
+        ...(requiresTotp ? { totpCode } : {}),
         redirect: false,
         callbackUrl,
       });
-      if (res?.error === "REQUIRES_TOTP" || res?.error === "CredentialsSignin") {
-        if (!requiresTotp) {
-          setRequiresTotp(true);
-          return;
-        }
-        setError("Invalid credentials or TOTP code");
+      if ((res as { code?: string } | undefined)?.code === "totp_required") {
+        setRequiresTotp(true);
+        setError(requiresTotp ? "Enter the 6-digit code from your authenticator app" : null);
         return;
       }
-      if (res?.ok) {
-        router.push(callbackUrl);
-        router.refresh();
+      if (res?.error) {
+        setError(requiresTotp ? "Wrong password or authenticator code" : "Wrong email or password");
+        return;
       }
+      if (res?.ok) signedIn();
     });
   };
 
@@ -62,7 +63,7 @@ export function LoginForm({ callbackUrl, initialError }: { callbackUrl: string; 
         body: JSON.stringify({ phone }),
       });
       if (!r.ok) {
-        setError("Could not send OTP");
+        setError((await r.json().catch(() => null))?.error ?? "Could not send OTP");
         return;
       }
       const data = await r.json();
@@ -81,7 +82,7 @@ export function LoginForm({ callbackUrl, initialError }: { callbackUrl: string; 
         body: JSON.stringify({ phone, code: otp }),
       });
       if (!r.ok) {
-        setError("Invalid OTP");
+        setError((await r.json().catch(() => null))?.error ?? "Invalid OTP");
         return;
       }
       const data = await r.json();
@@ -92,10 +93,7 @@ export function LoginForm({ callbackUrl, initialError }: { callbackUrl: string; 
         redirect: false,
         callbackUrl,
       });
-      if (res?.ok) {
-        router.push(callbackUrl);
-        router.refresh();
-      } else {
+      if (res?.ok) signedIn(); else {
         setError("Sign-in failed");
       }
     });

@@ -4,8 +4,9 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
+import jwt
 from fastapi import Depends, Header, HTTPException, status
-from jose import JWTError, jwt
+from jwt import InvalidTokenError
 from pydantic import BaseModel
 
 from app.config import get_settings
@@ -30,9 +31,10 @@ def _decode(token: str) -> AuthUser:
             algorithms=["HS256"],
             audience=settings.jwt_audience,
             issuer=settings.jwt_issuer,
-            options={"verify_aud": False, "verify_iss": False},
+            # The web app always sets issuer, audience and a short expiry; a token without them is not ours.
+            options={"require": ["exp", "iss", "aud"]},
         )
-    except JWTError as e:
+    except InvalidTokenError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_token") from e
 
     sub = payload.get("sub") or payload.get("userId")
@@ -73,3 +75,10 @@ def require_dealer(user: Annotated[AuthUser, Depends(get_current_user)]) -> Auth
     if user.user_type != "dealer":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="dealer_only")
     return user
+
+
+def can_access_order(user: AuthUser, order_user_id) -> bool:
+    """Staff and the web server's service token see every order; a customer or dealer only their own."""
+    if user.user_type in ("staff", "service"):
+        return True
+    return order_user_id is not None and str(order_user_id) == user.user_id

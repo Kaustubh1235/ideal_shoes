@@ -8,13 +8,13 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-olive-600 text-cream hover:bg-olive-700",
-        primary: "bg-olive-600 text-cream hover:bg-olive-700",
+        default: "bg-leather-600 text-cream hover:bg-leather-700",
+        primary: "bg-leather-600 text-cream hover:bg-leather-700",
         destructive: "bg-red-600 text-white hover:bg-red-700",
-        outline: "border border-olive-600 text-olive-700 bg-transparent hover:bg-olive-50",
-        secondary: "bg-khaki-400 text-ink hover:bg-khaki-500",
-        ghost: "hover:bg-olive-50 text-ink",
-        link: "text-olive-700 underline-offset-4 hover:underline",
+        outline: "border border-leather-600 text-leather-700 bg-transparent hover:bg-leather-50",
+        secondary: "bg-sand-400 text-ink hover:bg-sand-500",
+        ghost: "hover:bg-leather-50 text-ink",
+        link: "text-leather-700 underline-offset-4 hover:underline",
       },
       size: {
         default: "h-10 px-4 py-2",

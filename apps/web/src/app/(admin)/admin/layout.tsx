@@ -14,7 +14,13 @@ import {
   Truck,
   Settings,
   LogOut,
+  QrCode,
 } from "lucide-react";
+
+// Every page reads the session, the cart or the database: render per request, never at build time.
+export const dynamic = "force-dynamic";
+
+export const metadata = { title: { default: "Admin", template: "%s · IDEALX admin" }, robots: { index: false, follow: false } };
 
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -34,13 +40,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const session = await auth();
   if (!session?.user) redirect("/login?from=/admin");
   if (session.user.userType !== "staff") redirect("/");
+  const stockRoomUrl = process.env.INVENTORY_APP_URL;
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-60 shrink-0 border-r border-olive-200 bg-olive-700 text-cream">
+      <aside className="w-60 shrink-0 border-r border-leather-200 bg-leather-700 text-cream">
         <div className="p-4 border-b border-cream/10">
           <Link href="/admin" className="font-display text-xl uppercase tracking-wider">
-            BharatBoot
+            IDEALX · Admin
           </Link>
           <p className="text-xs text-cream/60 mt-1">Admin Console</p>
         </div>
@@ -55,6 +62,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               {label}
             </Link>
           ))}
+          {stockRoomUrl && (
+            <a
+              href={stockRoomUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 flex items-center gap-3 rounded border border-cream/15 px-3 py-2 text-sm text-cream/80 hover:bg-cream/10 hover:text-cream"
+              title="Opens the separate inventory app in a new tab"
+            >
+              <QrCode className="size-4" />
+              Stock room
+            </a>
+          )}
         </nav>
         <div className="p-2 border-t border-cream/10">
           <form action={async () => { "use server"; await signOut({ redirectTo: "/login" }); }}>
@@ -65,7 +84,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </div>
       </aside>
       <main className="flex-1 bg-cream min-w-0">
-        <header className="border-b border-olive-100 bg-cream sticky top-0 z-30">
+        <header className="border-b border-leather-100 bg-cream sticky top-0 z-30">
           <div className="px-6 py-3 flex items-center gap-4">
             <h1 className="font-display uppercase tracking-wide">Admin</h1>
             <span className="ml-auto text-sm text-ink/60">{session.user.email ?? session.user.name}</span>

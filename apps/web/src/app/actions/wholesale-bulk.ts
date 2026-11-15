@@ -20,30 +20,39 @@ export async function bulkUploadAction(formData: FormData) {
   const sizeIdx = cols.indexOf("size");
   const colorIdx = cols.indexOf("color");
   const qtyIdx = cols.indexOf("quantity");
-  if (skuIdx === -1 || sizeIdx === -1 || qtyIdx === -1) {
+  if (skuIdx === -1 || qtyIdx === -1) {
     throw new Error("missing_columns");
   }
 
   const cartId = await getOrCreateCartId();
   let added = 0;
 
-  for (const line of lines) {
+  // A row names either a variant SKU (IDX-BOOT-DMS-9-BLACK, as in the example on the page) or a
+  // product SKU plus size (and colour, if the product comes in several).
+  for (const line of lines.slice(0, 500)) {
     const parts = line.split(",").map((p) => p.trim());
-    const productSku = parts[skuIdx];
+    const sku = parts[skuIdx];
     const size = parts[sizeIdx];
     const color = colorIdx >= 0 ? parts[colorIdx] : undefined;
-    const qty = Number.parseInt(parts[qtyIdx] ?? "0", 10);
-    if (!productSku || !size || qty < 1) continue;
+    const qty = Math.min(Number.parseInt(parts[qtyIdx] ?? "0", 10), 10_000);
+    if (!sku || !(qty >= 1)) continue;
 
-    const variant = await prisma.productVariant.findFirst({
-      where: {
-        size,
-        ...(color ? { color } : {}),
-        product: { sku: productSku },
-        isActive: true,
-      },
-      select: { id: true },
-    });
+    const variant =
+      (await prisma.productVariant.findFirst({
+        where: { sku: { equals: sku, mode: "insensitive" }, isActive: true, product: { status: "active" } },
+        select: { id: true },
+      })) ??
+      (size
+        ? await prisma.productVariant.findFirst({
+            where: {
+              size: { equals: size, mode: "insensitive" },
+              ...(color ? { color: { equals: color, mode: "insensitive" } } : {}),
+              product: { sku: { equals: sku, mode: "insensitive" }, status: "active" },
+              isActive: true,
+            },
+            select: { id: true },
+          })
+        : null);
     if (!variant) continue;
     await addToCart(cartId, variant.id, qty);
     added++;

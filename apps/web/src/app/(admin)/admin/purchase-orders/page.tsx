@@ -15,7 +15,7 @@ export default async function AdminPosPage() {
     <div className="space-y-4">
       <h1 className="font-display text-2xl uppercase">Purchase Orders</h1>
       <p className="text-sm text-ink/60">Inbound POs to suppliers (raw leather, soles, fasteners). Wire your suppliers in /admin/suppliers (TODO).</p>
-      <div className="rounded-lg border border-olive-100 bg-cream">
+      <div className="rounded-lg border border-leather-100 bg-cream">
         <Table>
           <TableHeader>
             <TableRow>

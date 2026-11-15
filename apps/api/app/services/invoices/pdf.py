@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from weasyprint import HTML
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 
@@ -63,5 +62,8 @@ def render_invoice_pdf(context: dict[str, Any]) -> bytes:
     template = _env.get_template("invoice.html.j2")
     html = template.render(**context)
     buf = BytesIO()
+    # Imported here: WeasyPrint loads cairo/pango at import, which only the PDF path needs.
+    from weasyprint import HTML
+
     HTML(string=html).write_pdf(target=buf)
     return buf.getvalue()

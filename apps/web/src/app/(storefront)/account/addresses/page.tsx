@@ -2,6 +2,8 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@bharatboot/ui";
 
+export const metadata = { title: "Addresses", robots: { index: false } };
+
 export const dynamic = "force-dynamic";
 
 export default async function AddressesPage() {
@@ -13,7 +15,7 @@ export default async function AddressesPage() {
 
   return (
     <div className="container py-8">
-      <h1 className="font-display text-3xl uppercase">Addresses</h1>
+      <h1 className="font-display text-3xl">Addresses</h1>
       <p className="text-sm text-ink/60 mt-1">Addresses are saved when you place orders. Add new ones at checkout.</p>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">

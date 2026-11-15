@@ -5,10 +5,28 @@ import { prisma } from "@/lib/prisma";
 import { rupeesOnly, inr } from "@/lib/money";
 import { Button } from "@bharatboot/ui";
 import { AddToCart } from "@/components/storefront/add-to-cart";
+import { seller } from "@/lib/seller";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProductDetailPage({ params }: { params: { slug: string } }) {
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
+  const p = await prisma.product.findUnique({
+    where: { slug: params.slug },
+    include: { images: { orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }], take: 1 } },
+  });
+  if (!p || p.status !== "active") return { title: "Not found", robots: { index: false } };
+  const description = p.shortDescription ?? `${p.name}, made in the IDEALX factory in Agra. ${rupeesOnly(p.basePrice)} incl. GST.`;
+  return {
+    title: p.name,
+    description,
+    alternates: { canonical: `/products/${p.slug}` },
+    openGraph: { title: p.name, description, type: "website", images: p.images[0] ? [{ url: p.images[0].url, alt: p.name }] : undefined },
+  };
+}
+
+export default async function ProductDetailPage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const product = await prisma.product.findUnique({
     where: { slug: params.slug },
     include: {
@@ -17,18 +35,32 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
       category: true,
     },
   });
-  if (!product) notFound();
+  if (!product || product.status !== "active") notFound();
+
+  // Legal Metrology (Packaged Commodities) Rules, 2011, rule 6(10): declarations an online
+  // listing must show. Product meta overrides; otherwise the seller's own details apply.
+  const meta = (product.metaJson ?? {}) as Record<string, any>;
+  const s = seller();
+  const paired = ["boots", "shoes"].includes(product.category?.slug ?? "");
+  const declarations: [string, string][] = [
+    ["MRP", `${inr(product.mrp ?? product.basePrice)} (incl. of all taxes)`],
+    ["Generic name", meta.genericName ?? product.category?.name ?? product.name],
+    ["Net quantity", meta.netQuantity ?? (paired ? "1 pair" : "1 N (one piece)")],
+    ["Country of origin", meta.countryOfOrigin ?? "India"],
+    ["Manufactured by", meta.manufacturer ?? `${s.legalName}, ${s.address}`],
+    ["Customer care", [s.phone, s.email].filter(Boolean).join(" · ") || "See the Contact page"],
+  ];
 
   return (
     <div className="container py-8">
       <nav className="text-xs text-ink/60 flex items-center gap-1 mb-4">
-        <Link href="/" className="hover:text-olive-700">Home</Link>
+        <Link href="/" className="hover:text-leather-700">Home</Link>
         <ChevronRight className="size-3" />
-        <Link href="/products" className="hover:text-olive-700">Products</Link>
+        <Link href="/products" className="hover:text-leather-700">Products</Link>
         {product.category && (
           <>
             <ChevronRight className="size-3" />
-            <Link href={`/products?category=${product.category.slug}`} className="hover:text-olive-700">
+            <Link href={`/products?category=${product.category.slug}`} className="hover:text-leather-700">
               {product.category.name}
             </Link>
           </>
@@ -39,7 +71,7 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
 
       <div className="grid gap-10 md:grid-cols-2">
         <div>
-          <div className="aspect-square bg-olive-50 rounded-md overflow-hidden border border-olive-100">
+          <div className="aspect-square bg-leather-50 rounded-md overflow-hidden border border-leather-100">
             {product.images[0] ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img src={product.images[0].url} alt={product.name} className="h-full w-full object-cover" />
@@ -53,7 +85,7 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
             <div className="mt-3 grid grid-cols-4 gap-2">
               {product.images.slice(0, 4).map((img) => (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img key={img.id} src={img.url} alt={img.alt ?? ""} className="aspect-square w-full rounded object-cover border border-olive-100" />
+                <img key={img.id} src={img.url} alt={img.alt ?? ""} className="aspect-square w-full rounded object-cover border border-leather-100" />
               ))}
             </div>
           )}
@@ -67,12 +99,12 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
         </div>
 
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-olive-600">{product.category?.name}</p>
-          <h1 className="mt-1 font-display text-3xl uppercase tracking-wide">{product.name}</h1>
+          <p className="text-xs uppercase tracking-[0.2em] text-leather-600">{product.category?.name}</p>
+          <h1 className="mt-1 font-display text-3xl">{product.name}</h1>
           <p className="mt-1 text-sm text-ink/60">SKU: {product.sku}</p>
 
           <div className="mt-4 flex items-baseline gap-3">
-            <span className="font-display text-2xl text-olive-700">{rupeesOnly(product.basePrice)}</span>
+            <span className="font-display text-2xl text-leather-700">{rupeesOnly(product.basePrice)}</span>
             {product.mrp && product.mrp > product.basePrice && (
               <span className="text-sm text-ink/50 line-through">{inr(product.mrp)}</span>
             )}
@@ -101,21 +133,31 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
           <dl className="mt-8 grid grid-cols-2 gap-y-2 text-sm">
             <dt className="text-ink/60">HSN Code</dt>
             <dd>{product.hsnCode}</dd>
-            <dt className="text-ink/60">Country of Origin</dt>
-            <dd>{(product.metaJson as any)?.countryOfOrigin ?? "India"}</dd>
-            {(product.metaJson as any)?.material && (
+            {meta.material && (
               <>
                 <dt className="text-ink/60">Material</dt>
-                <dd>{(product.metaJson as any).material}</dd>
+                <dd>{meta.material}</dd>
               </>
             )}
-            {(product.metaJson as any)?.warrantyMonths && (
+            {meta.warrantyMonths && (
               <>
                 <dt className="text-ink/60">Warranty</dt>
-                <dd>{(product.metaJson as any).warrantyMonths} months</dd>
+                <dd>{meta.warrantyMonths} months</dd>
               </>
             )}
           </dl>
+
+          <section aria-labelledby="declarations" className="mt-8 rounded-md border border-leather-100 p-4">
+            <h2 id="declarations" className="text-xs uppercase tracking-[0.2em] text-ink/60">Product declarations</h2>
+            <dl className="mt-3 grid grid-cols-[auto,1fr] gap-x-6 gap-y-1.5 text-sm">
+              {declarations.map(([k, v]) => (
+                <div key={k} className="contents">
+                  <dt className="text-ink/60">{k}</dt>
+                  <dd>{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
         </div>
       </div>
     </div>

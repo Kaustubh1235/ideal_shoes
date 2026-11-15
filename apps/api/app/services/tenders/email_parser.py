@@ -10,7 +10,7 @@ import email
 import imaplib
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.header import decode_header
 from typing import Any
 
@@ -107,7 +107,7 @@ def poll_tender_inbox(session: Session | None = None) -> int:
                     "title": subject[:500] or "(no subject)",
                     "buyer_org": sender[:300],
                     "description": body[:8000],
-                    "published_at": datetime.now(timezone.utc),
+                    "published_at": datetime.now(UTC),
                     "document_urls": doc_urls or None,
                     "raw_payload": {
                         "from": sender,

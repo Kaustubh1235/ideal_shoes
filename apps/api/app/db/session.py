@@ -13,13 +13,9 @@ _db_url = settings.database_url
 if _db_url.startswith("postgresql://"):
     _db_url = _db_url.replace("postgresql://", "postgresql+psycopg://", 1)
 
-engine = create_engine(
-    _db_url,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
-    future=True,
-)
+# Pool sizing applies to Postgres only; SQLite (used by the unit tests) has no queue pool.
+_pool = {} if _db_url.startswith("sqlite") else {"pool_size": 10, "max_overflow": 20}
+engine = create_engine(_db_url, pool_pre_ping=True, future=True, **_pool)
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 

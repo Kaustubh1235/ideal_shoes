@@ -19,10 +19,10 @@ Handles:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Iterable
+from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from enum import Enum
-from typing import Iterable
 
 
 class TaxTreatment(str, Enum):
@@ -172,13 +172,13 @@ def compute_tax(
     inter_state = is_inter_state(buyer_state_code, seller_state_code)
     computed = [_compute_line(line, inter_state) for line in lines]
 
-    subtotal = sum((Decimal(l.unit_price) * Decimal(l.quantity) for l in computed), Decimal("0"))
-    total_discount = sum((l.discount for l in computed), Decimal("0"))
-    taxable_value = sum((l.taxable_value for l in computed), Decimal("0"))
-    cgst_total = sum((l.cgst for l in computed), Decimal("0"))
-    sgst_total = sum((l.sgst for l in computed), Decimal("0"))
-    igst_total = sum((l.igst for l in computed), Decimal("0"))
-    cess_total = sum((l.cess for l in computed), Decimal("0"))
+    subtotal = sum((Decimal(ln.unit_price) * Decimal(ln.quantity) for ln in computed), Decimal("0"))
+    total_discount = sum((ln.discount for ln in computed), Decimal("0"))
+    taxable_value = sum((ln.taxable_value for ln in computed), Decimal("0"))
+    cgst_total = sum((ln.cgst for ln in computed), Decimal("0"))
+    sgst_total = sum((ln.sgst for ln in computed), Decimal("0"))
+    igst_total = sum((ln.igst for ln in computed), Decimal("0"))
+    cess_total = sum((ln.cess for ln in computed), Decimal("0"))
 
     pre_round = taxable_value + cgst_total + sgst_total + igst_total + cess_total
     grand_total = pre_round.to_integral_value(rounding=ROUND_HALF_UP)

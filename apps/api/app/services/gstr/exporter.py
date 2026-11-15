@@ -10,7 +10,6 @@ import csv
 import io
 import logging
 from datetime import datetime
-from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
@@ -63,7 +62,6 @@ def export_gstr1(db: Session, month: str) -> str:
         "Invoice Value", "Place Of Supply", "Reverse Charge", "Invoice Type",
         "Rate", "Taxable Value", "Cess Amount", "Cgst Amount", "Sgst Amount", "Igst Amount",
     ])
-    rate_grouped: dict[tuple[str, str, str], list] = {}
     b2cl = []
     b2cs: dict[tuple[str, float], dict] = {}
 

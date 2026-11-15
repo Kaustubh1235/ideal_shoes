@@ -14,7 +14,7 @@ export default async function AdminReturnsPage() {
     <div className="space-y-4">
       <h1 className="font-display text-2xl uppercase">Returns / RMA</h1>
       <p className="text-sm text-ink/60">Approved returns automatically generate credit notes via the API.</p>
-      <div className="rounded-lg border border-olive-100 bg-cream">
+      <div className="rounded-lg border border-leather-100 bg-cream">
         <Table>
           <TableHeader>
             <TableRow>

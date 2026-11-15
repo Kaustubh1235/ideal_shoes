@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateCartId, getCart, clearCart } from "@/lib/cart";
+import { dealerTier, priceLines } from "@/lib/pricing";
 
 const AddrSchema = z.object({
   fullName: z.string().min(2),
@@ -25,7 +26,7 @@ const CheckoutInput = z.object({
   shipping: AddrSchema,
 });
 
-const SELLER_STATE_CODE = process.env.SELLER_STATE_CODE ?? "27";
+const SELLER_STATE_CODE = process.env.SELLER_STATE_CODE ?? "09";
 
 export async function placeOrderAction(formData: FormData) {
   const parsed = CheckoutInput.parse({
@@ -63,7 +64,6 @@ export async function placeOrderAction(formData: FormData) {
     include: { product: true },
   });
   const byId = new Map(variants.map((v) => [v.id, v]));
-
   const session = await auth();
 
   const placeOfSupply = parsed.shipping.stateCode;
@@ -77,17 +77,20 @@ export async function placeOrderAction(formData: FormData) {
 
   const lines: any[] = [];
 
-  for (const it of items) {
-    const v = byId.get(it.variantId);
-    if (!v) continue;
-    const unit = v.priceOverride ?? v.product.basePrice;
-    const lineGross = unit * it.quantity; // paise
-    subtotal += lineGross;
-    taxable_value += lineGross;
+  const tier = await dealerTier(session?.user?.id);
+  const priced = items
+    .map((it) => ({ it, v: byId.get(it.variantId) }))
+    .filter((x): x is { it: (typeof items)[number]; v: NonNullable<typeof x.v> } => !!x.v && x.v.isActive && x.v.product.status === "active");
+  if (priced.length === 0) throw new Error("Cart is empty");
+  const prices = await priceLines(priced.map(({ it, v }) => ({ variant: v, quantity: it.quantity })), tier);
 
-    // Slab: <=₹1000 -> 12%; >₹1000 -> 18% (footwear default). HSN-based via @bharatboot/gst.
-    const gstRate = (unit / 100) <= 1000 ? 0.12 : 0.18;
-    const totalTax = Math.round(lineGross * gstRate);
+  for (const [i, { it, v }] of priced.entries()) {
+    const p = prices[i]!;
+    const unit = p.unit;
+    const lineGross = p.gross;
+    const { gstRate, taxable: lineTaxable, tax: totalTax } = p;
+    subtotal += lineTaxable; // pre-tax, so subtotal + GST + round-off = grand total
+    taxable_value += lineTaxable;
     let cgst = 0, sgst = 0, igst = 0;
     if (isInterState) {
       igst = totalTax;
@@ -106,12 +109,12 @@ export async function placeOrderAction(formData: FormData) {
       quantity: it.quantity,
       unit_price: unit,
       discount: 0,
-      taxable_value: lineGross,
+      taxable_value: lineTaxable,
       gst_rate: gstRate,
       cgst,
       sgst,
       igst,
-      line_total: lineGross + cgst + sgst + igst,
+      line_total: lineGross,
       variant_id: v.id,
     });
   }
@@ -120,7 +123,7 @@ export async function placeOrderAction(formData: FormData) {
   const grand_total = Math.round(preRound / 100) * 100;
   const round_off = grand_total - preRound;
 
-  const orderNo = `BBT-${new Date().getFullYear().toString().slice(-2)}-${nanoid(8).toUpperCase()}`;
+  const orderNo = `IDX-${new Date().getFullYear().toString().slice(-2)}-${nanoid(8).toUpperCase()}`;
 
   const order = await prisma.$transaction(async (tx) => {
     const billing = await tx.address.create({
@@ -156,12 +159,13 @@ export async function placeOrderAction(formData: FormData) {
       data: {
         orderNo,
         userId: session?.user?.id ?? null,
-        channel: "d2c",
+        channel: tier ? "wholesale" : "d2c",
         status: "pending_payment",
         billingAddressId: billing.id,
         shippingAddressId: shipping.id,
         buyerGstin: parsed.buyerGstin ?? null,
         buyerLegalName: parsed.buyerLegalName ?? parsed.billing.fullName,
+        contactEmail: parsed.email ?? session?.user?.email ?? null,
         placeOfSupply,
         subtotal,
         taxableValue: taxable_value,

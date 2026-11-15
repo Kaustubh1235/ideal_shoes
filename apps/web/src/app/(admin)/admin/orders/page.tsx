@@ -15,7 +15,7 @@ export default async function AdminOrdersList() {
   return (
     <div className="space-y-4">
       <h1 className="font-display text-2xl uppercase">Orders</h1>
-      <div className="rounded-lg border border-olive-100 bg-cream">
+      <div className="rounded-lg border border-leather-100 bg-cream">
         <Table>
           <TableHeader>
             <TableRow>
@@ -30,7 +30,7 @@ export default async function AdminOrdersList() {
           <TableBody>
             {orders.map((o) => (
               <TableRow key={o.id}>
-                <TableCell><Link href={`/admin/orders/${o.id}`} className="font-medium hover:text-olive-700">{o.orderNo}</Link></TableCell>
+                <TableCell><Link href={`/admin/orders/${o.id}`} className="font-medium hover:text-leather-700">{o.orderNo}</Link></TableCell>
                 <TableCell>{o.createdAt.toLocaleDateString("en-IN")}</TableCell>
                 <TableCell>{o.user?.email ?? o.user?.phone ?? "Guest"}</TableCell>
                 <TableCell>{o.channel}</TableCell>

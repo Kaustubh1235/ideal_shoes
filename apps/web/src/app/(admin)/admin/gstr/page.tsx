@@ -9,7 +9,7 @@ interface Run {
   report_type: string;
   period_month: string;
   status: string;
-  file_url: string | null;
+  has_file: boolean;
   row_count: number | null;
   error: string | null;
   started_at: string;
@@ -70,7 +70,7 @@ export default async function AdminGstrPage() {
                   <TableCell><Badge variant={r.status === "done" ? "success" : r.status === "running" ? "warning" : "outline"}>{r.status}</Badge></TableCell>
                   <TableCell>{r.row_count ?? "—"}</TableCell>
                   <TableCell>{new Date(r.started_at).toLocaleString("en-IN")}</TableCell>
-                  <TableCell>{r.file_url ? <a className="underline" href={r.file_url} target="_blank" rel="noreferrer">Download</a> : "—"}</TableCell>
+                  <TableCell>{r.has_file ? <a className="underline" href={`/files/gstr/r1/runs/${r.id}/file`}>Download</a> : "—"}</TableCell>
                 </TableRow>
               ))}
               {runs.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-ink/60 py-6">No exports yet.</TableCell></TableRow>}

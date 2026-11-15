@@ -1,11 +1,11 @@
 "use server";
 import { redirect } from "next/navigation";
+import { requireStaff } from "@/lib/require-staff";
 import { auth } from "@/auth";
 import { apiFetch } from "@/lib/api";
 
 async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.userType !== "staff") throw new Error("forbidden");
+  return requireStaff();
 }
 
 export async function createTenderAction(formData: FormData) {

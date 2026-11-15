@@ -50,7 +50,7 @@ export default async function AdminDashboard() {
   for (const o of orders30) {
     if (!o.placedAt) continue;
     const key = o.placedAt.toISOString().slice(0, 10);
-    if (key in byDay) byDay[key] += o.grandTotal;
+    if (key in byDay) byDay[key] = (byDay[key] ?? 0) + o.grandTotal;
   }
   const series = Object.entries(byDay).map(([day, value]) => ({ day, value: value / 100 }));
 
@@ -96,7 +96,7 @@ export default async function AdminDashboard() {
             </thead>
             <tbody>
               {recentOrders.map((o) => (
-                <tr key={o.id} className="border-t border-olive-100">
+                <tr key={o.id} className="border-t border-leather-100">
                   <td className="py-2">{o.orderNo}</td>
                   <td>{o.user?.email ?? o.user?.phone ?? "—"}</td>
                   <td>{o.status}</td>

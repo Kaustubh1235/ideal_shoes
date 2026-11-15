@@ -1,0 +1,2 @@
+jsQR.js — Apache-2.0, (c) Cosmo Wolfe, https://github.com/cozmo/jsQR
+qrcode.js — MIT, (c) 2009 Kazuhiko Arase, https://github.com/kazuhikoarase/qrcode-generator

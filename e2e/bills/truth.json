@@ -1,0 +1,438 @@
+[
+ {
+  "file": "01-real-challan.jpg",
+  "kind": "in",
+  "supplier": "",
+  "billNo": "",
+  "date": "2026-07-21",
+  "sumsOk": true,
+  "rows": [
+   {
+    "qty": 48,
+    "item": "OP AirMix",
+    "rate": 355,
+    "amount": 17040
+   }
+  ]
+ },
+ {
+  "file": "02-printed-invoice.jpg",
+  "kind": "in",
+  "supplier": "Agra Footwear Traders",
+  "billNo": "AFT/1182",
+  "date": "2026-10-04",
+  "sumsOk": true,
+  "rows": [
+   {
+    "qty": 24,
+    "item": "Bata Comfit Black",
+    "rate": 420,
+    "amount": 10080
+   },
+   {
+    "qty": 12,
+    "item": "Bata Comfit Brown",
+    "rate": 420,
+    "amount": 5040
+   },
+   {
+    "qty": 36,
+    "item": "Paragon Slipper Blue",
+    "rate": 140,
+    "amount": 5040
+   },
+   {
+    "qty": 18,
+    "item": "Action School Shoe Black",
+    "rate": 310,
+    "amount": 5580
+   }
+  ]
+ },
+ {
+  "file": "03-handwritten-challan.jpg",
+  "kind": "in",
+  "supplier": "Sharma Shoes",
+  "billNo": "",
+  "date": "2026-10-11",
+  "sumsOk": true,
+  "rows": [
+   {
+    "qty": 30,
+    "item": "Relaxo Flite Navy",
+    "rate": 199,
+    "amount": 5970
+   },
+   {
+    "qty": 20,
+    "item": "Campus Run White",
+    "rate": 650,
+    "amount": 13000
+   },
+   {
+    "qty": 10,
+    "item": "Liberty Gents Sandal Tan",
+    "rate": 540,
+    "amount": 5400
+   }
+  ]
+ },
+ {
+  "file": "04-hindi-parchi.jpg",
+  "kind": "in",
+  "supplier": "गुप्ता ट्रेडर्स",
+  "billNo": "",
+  "date": "2026-10-15",
+  "sumsOk": true,
+  "rows": [
+   {
+    "qty": 24,
+    "item": "रिलैक्सो फ्लाइट नीला",
+    "rate": 199,
+    "amount": 4776
+   },
+   {
+    "qty": 12,
+    "item": "बाटा चप्पल काला",
+    "rate": 260,
+    "amount": 3120
+   }
+  ]
+ },
+ {
+  "file": "05-hinglish-parchi.jpg",
+  "kind": "in",
+  "supplier": "Meenu",
+  "billNo": "",
+  "date": "2026-10-18",
+  "sumsOk": true,
+  "rows": [
+   {
+    "qty": 12,
+    "item": "Bata comfit kala",
+    "rate": 420,
+    "amount": 5040
+   },
+   {
+    "qty": 6,
+    "item": "ladies sandal golden",
+    "rate": 310,
+    "amount": 1860
+   },
+   {
+    "qty": 48,
+    "item": "OP AirMix",
+    "rate": 355,
+    "amount": 17040
+   }
+  ]
+ },
+ {
+  "file": "06-sale-bill.jpg",
+  "kind": "out",
+  "supplier": "",
+  "billNo": "212",
+  "date": "2026-10-20",
+  "sumsOk": true,
+  "rows": [
+   {
+    "qty": 1,
+    "item": "OP AirMix",
+    "rate": 650,
+    "amount": 650
+   },
+   {
+    "qty": 2,
+    "item": "Paragon Slipper Blue",
+    "rate": 220,
+    "amount": 440
+   },
+   {
+    "qty": 1,
+    "item": "Campus Run White",
+    "rate": 999,
+    "amount": 999
+   }
+  ]
+ },
+ {
+  "file": "07-tilted-faint.jpg",
+  "kind": "in",
+  "supplier": "Khan Brothers",
+  "billNo": "77",
+  "date": "2026-10-22",
+  "sumsOk": true,
+  "rows": [
+   {
+    "qty": 15,
+    "item": "Lakhani Sports Grey",
+    "rate": 380,
+    "amount": 5700
+   },
+   {
+    "qty": 25,
+    "item": "Paragon Slipper Black",
+    "rate": 140,
+    "amount": 3500
+   }
+  ]
+ },
+ {
+  "file": "08-crossed-out-row.jpg",
+  "kind": "in",
+  "supplier": "Sharma Shoes",
+  "billNo": "",
+  "date": "2026-10-25",
+  "sumsOk": true,
+  "rows": [
+   {
+    "qty": 8,
+    "item": "Campus Run Black",
+    "rate": 650,
+    "amount": 5200
+   },
+   {
+    "qty": 16,
+    "item": "Relaxo Flite Navy",
+    "rate": 199,
+    "amount": 3184
+   }
+  ]
+ },
+ {
+  "file": "09-no-rates.jpg",
+  "kind": "in",
+  "supplier": "Ghar ka maal",
+  "billNo": "",
+  "date": "2026-10-26",
+  "sumsOk": true,
+  "rows": [
+   {
+    "qty": 40,
+    "item": "Leather Belt Brown",
+    "rate": null,
+    "amount": null
+   },
+   {
+    "qty": 25,
+    "item": "Leather Wallet Black",
+    "rate": null,
+    "amount": null
+   }
+  ]
+ },
+ {
+  "file": "10-sum-mistake.jpg",
+  "kind": "in",
+  "supplier": "Agra Footwear Traders",
+  "billNo": "AFT/1201",
+  "date": "2026-10-28",
+  "sumsOk": false,
+  "rows": [
+   {
+    "qty": 10,
+    "item": "Bata Comfit Black",
+    "rate": 420,
+    "amount": 4200
+   },
+   {
+    "qty": 20,
+    "item": "Paragon Slipper Blue",
+    "rate": 140,
+    "amount": 2800
+   }
+  ]
+ },
+ {
+  "file": "11-hindi-parchi-2.jpg",
+  "kind": "in",
+  "supplier": "वर्मा एंड संस",
+  "billNo": "",
+  "date": "2026-10-30",
+  "sumsOk": true,
+  "rows": [
+   {
+    "qty": 24,
+    "item": "पैरागॉन चप्पल नीला",
+    "rate": 140,
+    "amount": 3360
+   },
+   {
+    "qty": 10,
+    "item": "स्कूल जूता काला",
+    "rate": 310,
+    "amount": 3100
+   }
+  ]
+ },
+ {
+  "file": "12-long-invoice.jpg",
+  "kind": "in",
+  "supplier": "Delhi Shoe House",
+  "billNo": "DSH-5521",
+  "date": "2026-11-02",
+  "sumsOk": true,
+  "rows": [
+   {
+    "qty": 12,
+    "item": "Bata Comfit Black",
+    "rate": 420,
+    "amount": 5040
+   },
+   {
+    "qty": 12,
+    "item": "Bata Comfit Brown",
+    "rate": 420,
+    "amount": 5040
+   },
+   {
+    "qty": 24,
+    "item": "Relaxo Flite Navy",
+    "rate": 199,
+    "amount": 4776
+   },
+   {
+    "qty": 24,
+    "item": "Relaxo Flite Red",
+    "rate": 199,
+    "amount": 4776
+   },
+   {
+    "qty": 10,
+    "item": "Campus Run White",
+    "rate": 650,
+    "amount": 6500
+   },
+   {
+    "qty": 10,
+    "item": "Campus Run Black",
+    "rate": 650,
+    "amount": 6500
+   },
+   {
+    "qty": 36,
+    "item": "Paragon Slipper Blue",
+    "rate": 140,
+    "amount": 5040
+   },
+   {
+    "qty": 36,
+    "item": "Paragon Slipper Black",
+    "rate": 140,
+    "amount": 5040
+   },
+   {
+    "qty": 8,
+    "item": "Liberty Gents Sandal Tan",
+    "rate": 540,
+    "amount": 4320
+   },
+   {
+    "qty": 20,
+    "item": "Action School Shoe Black",
+    "rate": 310,
+    "amount": 6200
+   }
+  ]
+ },
+ {
+  "file": "13-scrawl-challan.jpg",
+  "kind": "in",
+  "supplier": "Sharma Shoes",
+  "billNo": "",
+  "date": "2026-11-03",
+  "sumsOk": true,
+  "rows": [
+   {
+    "qty": 18,
+    "item": "Campus Run Black",
+    "rate": 650,
+    "amount": 11700
+   },
+   {
+    "qty": 24,
+    "item": "Paragon Slipper Blue",
+    "rate": 140,
+    "amount": 3360
+   },
+   {
+    "qty": 12,
+    "item": "Relaxo Flite Red",
+    "rate": 199,
+    "amount": 2388
+   }
+  ]
+ },
+ {
+  "file": "14-scrawl-faint.jpg",
+  "kind": "in",
+  "supplier": "Khan Brothers",
+  "billNo": "81",
+  "date": "2026-11-04",
+  "sumsOk": true,
+  "rows": [
+   {
+    "qty": 30,
+    "item": "Lakhani Sports Grey",
+    "rate": 380,
+    "amount": 11400
+   },
+   {
+    "qty": 6,
+    "item": "Liberty Gents Sandal Tan",
+    "rate": 540,
+    "amount": 3240
+   }
+  ]
+ },
+ {
+  "file": "15-scrawl-hindi.jpg",
+  "kind": "in",
+  "supplier": "गुप्ता ट्रेडर्स",
+  "billNo": "",
+  "date": "2026-11-05",
+  "sumsOk": true,
+  "rows": [
+   {
+    "qty": 36,
+    "item": "रिलैक्सो फ्लाइट नीला",
+    "rate": 199,
+    "amount": 7164
+   },
+   {
+    "qty": 20,
+    "item": "बाटा चप्पल काला",
+    "rate": 260,
+    "amount": 5200
+   }
+  ]
+ },
+ {
+  "file": "16-scrawl-sale.jpg",
+  "kind": "out",
+  "supplier": "",
+  "billNo": "219",
+  "date": "2026-11-06",
+  "sumsOk": true,
+  "rows": [
+   {
+    "qty": 2,
+    "item": "Campus Run Black",
+    "rate": 999,
+    "amount": 1998
+   },
+   {
+    "qty": 3,
+    "item": "Paragon Slipper Blue",
+    "rate": 220,
+    "amount": 660
+   },
+   {
+    "qty": 1,
+    "item": "Lakhani Sports Grey",
+    "rate": 699,
+    "amount": 699
+   }
+  ]
+ }
+]

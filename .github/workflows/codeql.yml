@@ -1,0 +1,31 @@
+name: CodeQL
+
+# GitHub's code scanner looks for injection, unsafe redirects, leaked data and similar bugs in the
+# TypeScript/JavaScript and Python code, on every pull request, on main, and weekly for newly known patterns.
+# Findings show under Security → Code scanning.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "30 21 * * 0" # Sundays 03:00 India time
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, python]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v3

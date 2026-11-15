@@ -12,9 +12,8 @@ Create Date: 2026-01-01 00:00:00
 from __future__ import annotations
 
 from alembic import op
-
-from app.db.base import Base
 from app.db import models  # noqa: F401 -- registers metadata
+from app.db.base import Base
 
 revision = "20260101_0001"
 down_revision = None

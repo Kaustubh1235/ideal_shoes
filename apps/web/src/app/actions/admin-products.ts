@@ -1,5 +1,6 @@
 "use server";
 import { z } from "zod";
+import { requireStaff } from "@/lib/require-staff";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
@@ -20,11 +21,7 @@ const Schema = z.object({
 });
 
 async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.userType !== "staff") {
-    throw new Error("forbidden");
-  }
-  return session.user;
+  return requireStaff();
 }
 
 export async function createProductAction(formData: FormData) {

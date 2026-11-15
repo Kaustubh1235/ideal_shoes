@@ -19,7 +19,7 @@ export default async function AdminProductsPage() {
         <Button asChild><Link href="/admin/products/new"><Plus className="size-4" /> New Product</Link></Button>
       </div>
 
-      <div className="rounded-lg border border-olive-100 bg-cream">
+      <div className="rounded-lg border border-leather-100 bg-cream">
         <Table>
           <TableHeader>
             <TableRow>
@@ -36,7 +36,7 @@ export default async function AdminProductsPage() {
             {products.map((p) => (
               <TableRow key={p.id}>
                 <TableCell className="font-mono text-xs">{p.sku}</TableCell>
-                <TableCell><Link href={`/admin/products/${p.id}`} className="hover:text-olive-700 font-medium">{p.name}</Link></TableCell>
+                <TableCell><Link href={`/admin/products/${p.id}`} className="hover:text-leather-700 font-medium">{p.name}</Link></TableCell>
                 <TableCell>{p.hsnCode}</TableCell>
                 <TableCell>{p._count.variants}</TableCell>
                 <TableCell>{rupeesOnly(p.basePrice)}</TableCell>

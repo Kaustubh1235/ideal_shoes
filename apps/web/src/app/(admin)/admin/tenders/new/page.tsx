@@ -5,7 +5,7 @@ export default function NewTenderPage() {
   return (
     <div className="max-w-2xl">
       <h1 className="font-display text-2xl uppercase">New Tender</h1>
-      <form action={createTenderAction} className="mt-6 space-y-4 rounded-lg border border-olive-100 bg-cream p-6">
+      <form action={createTenderAction} className="mt-6 space-y-4 rounded-lg border border-leather-100 bg-cream p-6">
         <div><Label>Title</Label><Input name="title" required /></div>
         <div><Label>Buyer Organisation</Label><Input name="buyer_org" required /></div>
         <div><Label>Description</Label><Textarea name="description" rows={4} /></div>

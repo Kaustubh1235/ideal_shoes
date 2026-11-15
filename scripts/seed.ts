@@ -20,10 +20,10 @@ async function main() {
   // ---- Categories ----
   const categories: Record<string, string> = {};
   for (const [slug, name] of [
-    ["army_boots", "Army Boots"],
-    ["oxford_shoes", "Oxford Shoes"],
+    ["boots", "Service & Army Boots"],
+    ["shoes", "Formal Shoes"],
     ["jackets", "Jackets"],
-    ["accessories", "Accessories"],
+    ["bags", "Leather Bags"],
   ] as const) {
     const c = await prisma.category.upsert({
       where: { slug },
@@ -39,7 +39,7 @@ async function main() {
     update: {},
     create: {
       id: "00000000-0000-0000-0000-000000000001",
-      name: "Pune HQ",
+      name: "Agra factory",
       gstin: process.env.SELLER_GSTIN || null,
       isActive: true,
     },
@@ -73,7 +73,7 @@ async function main() {
   console.log(`   email: admin@bharatboot.local`);
   console.log(`   password: ${STAFF_PASSWORD}`);
   console.log(`   TOTP secret (add to Google Authenticator / Aegis): ${adminUser.staff?.totpSecret}`);
-  const totp = new OTPAuth.TOTP({ issuer: "BharatBoot", secret: OTPAuth.Secret.fromBase32(adminUser.staff!.totpSecret!), digits: 6, period: 30 });
+  const totp = new OTPAuth.TOTP({ issuer: "IDEALX", secret: OTPAuth.Secret.fromBase32(adminUser.staff!.totpSecret!), digits: 6, period: 30 });
   console.log(`   Current TOTP code (use within 30s): ${totp.generate()}`);
 
   // ---- Dealer price lists ----
@@ -102,7 +102,7 @@ async function main() {
       emailVerifiedAt: new Date(),
       dealer: {
         create: {
-          businessName: "Defence Supplies Co.",
+          businessName: "Sadar Leather Mart",
           gstin: "27AAAPL1234C1ZV",
           pan: "AAAPL1234C",
           status: "approved",
@@ -139,76 +139,76 @@ async function main() {
   // ---- Demo products ----
   const products = [
     {
-      sku: "BBT-ARMY-DMS-01",
-      slug: "dms-army-boot",
-      name: "DMS Army Combat Boot",
-      category: "army_boots",
+      sku: "IDX-BOOT-DMS",
+      slug: "dms-service-boot",
+      name: "DMS Service Boot",
+      category: "boots",
       hsn: "6403",
-      basePrice: 2499_00,
-      mrp: 3500_00,
-      shortDescription: "Direct Moulded Sole, full-grain leather upper, padded ankle collar.",
-      sizes: ["7", "8", "9", "10", "11"],
-      colors: ["Olive Brown"],
+      basePrice: 2899_00,
+      mrp: 3999_00,
+      shortDescription: "Direct-moulded sole, full-grain leather upper, padded ankle collar. Built for all-day service wear.",
+      sizes: ["6", "7", "8", "9", "10", "11"],
+      colors: ["Black", "Dark Brown"],
     },
     {
-      sku: "BBT-ARMY-JUNGLE",
-      slug: "jungle-warfare-boot",
-      name: "Jungle Warfare High-Top",
-      category: "army_boots",
+      sku: "IDX-BOOT-HIGH",
+      slug: "high-ankle-boot",
+      name: "High-Ankle Boot",
+      category: "boots",
       hsn: "6403",
-      basePrice: 3299_00,
-      mrp: 4200_00,
-      shortDescription: "Quick-drain mesh, breathable lining, vibram-pattern sole.",
-      sizes: ["7", "8", "9", "10", "11"],
-      colors: ["Olive Green"],
-    },
-    {
-      sku: "BBT-OXF-CLASSIC",
-      slug: "classic-oxford",
-      name: "Classic Oxford — Captoe",
-      category: "oxford_shoes",
-      hsn: "6403",
-      basePrice: 1899_00,
-      mrp: 2799_00,
-      shortDescription: "Full-grain leather, Goodyear-welt construction, blake-stitched.",
-      sizes: ["7", "8", "9", "10", "11"],
+      basePrice: 3499_00,
+      mrp: 4799_00,
+      shortDescription: "High-ankle lace-up with speed hooks, full-grain upper, stitched rubber sole.",
+      sizes: ["6", "7", "8", "9", "10", "11"],
       colors: ["Black", "Tan"],
     },
     {
-      sku: "BBT-OXF-DERBY",
-      slug: "derby-oxford",
-      name: "Derby Lace-up",
-      category: "oxford_shoes",
+      sku: "IDX-OXF-PLAIN",
+      slug: "plain-toe-oxford",
+      name: "Plain-Toe Oxford",
+      category: "shoes",
       hsn: "6403",
-      basePrice: 1699_00,
-      mrp: 2499_00,
-      shortDescription: "Soft toe, open-laced — comfortable formal everyday.",
-      sizes: ["7", "8", "9", "10", "11"],
-      colors: ["Black"],
+      basePrice: 2699_00,
+      mrp: 3699_00,
+      shortDescription: "Closed-lace Oxford in full-grain leather, leather insole, stitched sole. The office pair.",
+      sizes: ["6", "7", "8", "9", "10", "11"],
+      colors: ["Black", "Dark Brown"],
     },
     {
-      sku: "BBT-JKT-COMBAT",
-      slug: "combat-field-jacket",
-      name: "Combat Field Jacket",
-      category: "jackets",
-      hsn: "6201",
-      basePrice: 2199_00,
-      mrp: 2999_00,
-      shortDescription: "Water-resistant ripstop, four-pocket field design, button-flap closure.",
-      sizes: ["S", "M", "L", "XL"],
-      colors: ["Olive Green", "Sand"],
+      sku: "IDX-OXF-CAPTOE",
+      slug: "cap-toe-oxford",
+      name: "Cap-Toe Oxford",
+      category: "shoes",
+      hsn: "6403",
+      basePrice: 2899_00,
+      mrp: 3999_00,
+      shortDescription: "Cap-toe Oxford, full-grain upper, leather lining, stitched sole. For uniforms and occasions.",
+      sizes: ["6", "7", "8", "9", "10", "11"],
+      colors: ["Black", "Tan"],
     },
     {
-      sku: "BBT-JKT-WIND",
-      slug: "windcheater-jacket",
-      name: "Lightweight Windcheater",
+      sku: "IDX-JKT-FIELD",
+      slug: "field-jacket",
+      name: "Field Jacket",
       category: "jackets",
       hsn: "6201",
-      basePrice: 1299_00,
-      mrp: 1799_00,
-      shortDescription: "Light shell, packable, water-resistant — for transitional weather.",
+      basePrice: 2499_00,
+      mrp: 3499_00,
+      shortDescription: "Four-pocket field jacket, water-resistant shell, button-flap closures. Cut and sewn in-house.",
       sizes: ["S", "M", "L", "XL"],
-      colors: ["Olive", "Black"],
+      colors: ["Dark Brown", "Black"],
+    },
+    {
+      sku: "IDX-BAG-MSGR",
+      slug: "leather-messenger",
+      name: "Leather Messenger",
+      category: "bags",
+      hsn: "4202",
+      basePrice: 3499_00,
+      mrp: 4999_00,
+      shortDescription: "Full-grain leather messenger with a 13-inch laptop sleeve. Made in limited runs.",
+      sizes: ["OS"],
+      colors: ["Tan", "Dark Brown"],
     },
   ];
 
@@ -221,15 +221,15 @@ async function main() {
         slug: p.slug,
         name: p.name,
         shortDescription: p.shortDescription,
-        description: p.shortDescription + "\n\nBuilt at our Pune facility. ISO-9001. 12-month warranty against manufacturing defects.",
+        description: p.shortDescription + "\n\nMade in our own factory in Agra. Exchange within 30 days.",
         categoryId: categories[p.category],
         hsnCode: p.hsn,
         basePrice: p.basePrice,
         mrp: p.mrp,
         status: "active",
         arEnabled: p.category !== "accessories",
-        weightGrams: p.category === "jackets" ? 600 : 1100,
-        metaJson: { countryOfOrigin: "India", material: p.category.startsWith("army") ? "Full-grain leather" : "Various", warrantyMonths: 12 },
+        weightGrams: p.category === "jackets" ? 600 : p.category === "bags" ? 1200 : p.category === "boots" ? 1400 : 1000,
+        metaJson: { countryOfOrigin: "India", material: p.category === "jackets" ? "Water-resistant shell" : "Full-grain leather", madeIn: "Agra, Uttar Pradesh", exchangeDays: 30 },
       },
     });
 
@@ -304,10 +304,10 @@ async function main() {
     return `${sy}-${((sy + 1) % 100).toString().padStart(2, "0")}`;
   })();
   for (const [code, prefix] of [
-    ["BBT-D2C", "BBT/D2C"],
-    ["BBT-B2B", "BBT/B2B"],
-    ["BBT-TND", "BBT/TND"],
-    ["BBT-MAN", "BBT/MAN"],
+    ["IDX-D2C", "IDX/D2C"],
+    ["IDX-B2B", "IDX/B2B"],
+    ["IDX-TND", "IDX/TND"],
+    ["IDX-MAN", "IDX/MAN"],
   ] as const) {
     await prisma.invoiceSeries.upsert({
       where: { code_financialYear: { code, financialYear: fy } },

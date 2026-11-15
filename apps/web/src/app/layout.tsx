@@ -1,30 +1,35 @@
 import type { Metadata } from "next";
-import { Oswald, Source_Sans_3 } from "next/font/google";
+import localFont from "next/font/local";
 import { Toaster } from "sonner";
 import "./globals.css";
 
-const display = Oswald({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+// Self-hosted so builds and pages never depend on fonts.googleapis.com (OFL, see fonts/LICENSE.txt).
+const display = localFont({
+  src: "./fonts/fraunces-latin-wght.woff2",
+  weight: "100 900",
   variable: "--font-display",
   display: "swap",
+  fallback: ["Georgia", "serif"],
 });
 
-const body = Source_Sans_3({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+const body = localFont({
+  src: "./fonts/source-sans-3-latin-wght.woff2",
+  weight: "200 900",
   variable: "--font-body",
   display: "swap",
+  fallback: ["system-ui", "sans-serif"],
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "BharatBoot — Built to Last. Made in India.",
-    template: "%s · BharatBoot",
+    default: "IDEALX — Boots and Formal Shoes from Our Agra Factory",
+    template: "%s · IDEALX",
   },
   description:
-    "Defense-grade army boots, classic Oxford shoes, and combat-tested jackets. Manufactured in India.",
+    "Service and army boots, formal shoes and jackets made in our own factory in Agra and sold direct. The factory that makes boots for service makes your formal shoes.",
   metadataBase: new URL(process.env.AUTH_URL ?? "http://localhost:3000"),
+  openGraph: { siteName: "IDEALX", locale: "en_IN", type: "website" },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -37,7 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           closeButton
           toastOptions={{
             classNames: {
-              toast: "border border-olive-200 bg-cream text-ink",
+              toast: "border border-leather-200 bg-cream text-ink",
               title: "font-medium",
             },
           }}

@@ -1,12 +1,11 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { requireStaff } from "@/lib/require-staff";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
 async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.userType !== "staff") throw new Error("forbidden");
-  return session.user;
+  return requireStaff();
 }
 
 export async function approveDealerAction(dealerUserId: string) {
@@ -42,5 +41,16 @@ export async function suspendDealerAction(dealerUserId: string) {
       entityId: dealerUserId,
     },
   });
+  revalidatePath("/admin/dealers");
+}
+
+/** Dealers apply without a password. Until SMS login is set up, the admin sets one to hand over. */
+export async function setDealerPasswordAction(dealerUserId: string, formData: FormData) {
+  const user = await requireAdmin();
+  const password = String(formData.get("password") ?? "");
+  if (password.length < 10) throw new Error("Use at least 10 characters");
+  const bcrypt = (await import("bcryptjs")).default;
+  await prisma.user.update({ where: { id: dealerUserId, userType: "dealer" }, data: { passwordHash: await bcrypt.hash(password, 10) } });
+  await prisma.auditLog.create({ data: { actorUserId: user.id, action: "dealer.set_password", entityType: "user", entityId: dealerUserId } });
   revalidatePath("/admin/dealers");
 }

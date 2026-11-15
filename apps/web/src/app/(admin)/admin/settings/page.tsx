@@ -20,7 +20,7 @@ export default function AdminSettingsPage() {
         <CardContent>
           <ul className="space-y-2 text-sm">
             {flags.map((f) => (
-              <li key={f.key} className="flex justify-between border-b border-olive-100 pb-2">
+              <li key={f.key} className="flex justify-between border-b border-leather-100 pb-2">
                 <div>
                   <span className="font-mono text-xs mr-3">{f.key}</span>
                   <span className="text-ink/60">{f.note}</span>

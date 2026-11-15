@@ -45,7 +45,7 @@ export function PayButton({
       amount,
       currency: "INR",
       order_id: rzpOrderId,
-      name: "BharatBoot",
+      name: "IDEALX",
       description: `Order ${orderNo}`,
       handler: async (response: any) => {
         try {
@@ -60,7 +60,7 @@ export function PayButton({
             }),
           });
           if (!r.ok) throw new Error("Verification failed");
-          router.push(`/account/orders/${orderId}?ok=1`);
+          router.push(`/checkout/${orderId}/pay?paid=1`);
         } catch (e) {
           toast.error("Payment verification failed. We'll reconcile via webhook.");
         } finally {
