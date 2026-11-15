@@ -48,9 +48,10 @@ class ListingsResult:
     skipped_reason: str | None = None
 
     def as_dict(self) -> dict:
+        # Not "created": that name belongs to Python's log records, and logging this dict uses it as extra fields.
         return {
-            "created": len(self.created),
-            "created_ids": self.created[:20],
+            "products_created": len(self.created),
+            "product_ids": self.created[:20],
             "already": self.already,
             "skipped": self.skipped[:20],
             "skipped_reason": self.skipped_reason,

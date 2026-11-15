@@ -203,11 +203,27 @@ def main() -> int:
         s, h, data = https("GET", img_url)
         assert s == 200 and data[:4] == b"\x89PNG" and h.get("Content-Type", "").startswith("image/png"), (s, h)
 
-        # ---- stock sync pulls Stock Room's numbers ---------------------------------------
-        step(f"worker: inventory.sync_stock copies Stock Room's {start_qty} pairs onto the variant")
+        # ---- a new article "put on website" in Stock Room becomes a draft product here ----------
+        photo = "data:image/png;base64," + base64.b64encode(png()).decode()
+        article = {"brand": "Bata", "article": "Formal Oxford", "colour": "Black", "cat": "shoe", "sizes": [{"size": "7", "qty": 2}, {"size": "8", "qty": 3}],
+                   "cost": 820, "mrp": 1499, "website": {"title": "Bata Formal Oxford - Black", "description": "Black leather oxford.", "hsn": "6403", "price": 1399}, "photo": photo}
+        s, _, b = https("POST", f"{STOCK_BASE}/api/v1/articles", json.dumps(article).encode(), {**xr, "cookie": cookie})
+        assert s == 200 and json.loads(b)["listing"]["status"] == "pending", (s, b[:300])
+
+        # ---- stock sync pulls Stock Room's numbers (and its listings) ----------------------
+        step(f"worker: inventory.sync_stock copies Stock Room's {start_qty} pairs onto the variant, and the new article becomes a draft")
         dc("exec", "-T", "worker", "celery", "-A", "app.worker.celery_app", "call", "inventory.sync_stock")
         q = "select i.on_hand from inventory i join product_variants v on v.id=i.variant_id where v.sku='IDX-BOOT-DMS-9-BLACK'"
         wait_for(lambda: sql(q) == str(start_qty), f"on_hand = {start_qty} after sync")
+        draft = "select p.status || '|' || p.base_price || '|' || p.hsn_code || '|' || (select count(*) from product_variants v where v.product_id=p.id) from products p where p.meta_json->>'stockroom_listing' is not null"
+        wait_for(lambda: sql(draft) == "draft|139900|6403|2", "a draft product from the Stock Room listing")
+        assert sql("select string_agg(i.on_hand::text, ',' order by v.sku) from inventory i join product_variants v on v.id=i.variant_id where v.sku like 'BATA-FORMALOX-BLA-%'") == "2,3"
+        draft_img = sql("select i.url from product_images i join products p on p.id=i.product_id where p.meta_json->>'stockroom_listing' is not null")
+        s, h, data = https("GET", draft_img)
+        assert s == 200 and data[:2] == b"\xff\xd8" and h.get("Content-Type", "").startswith("image/jpeg"), ("the photo is re-saved as a JPEG", s, h)
+        s, _, b = https("GET", f"{STOCK_BASE}/api/v1/articles/listings", headers={**xr, "cookie": cookie})
+        assert json.loads(b)["listings"][0]["status"] == "sent", b[:300]
+        assert https("GET", f"{BASE}/products/bata-formal-oxford-black")[0] == 404, "a draft is not on the website until it is published"
 
         # ---- shopper on a phone: browse, buy as a guest -----------------------------------
         step("shopper (390px): menu, category, product declarations, cart, checkout")

@@ -109,7 +109,12 @@ def task_sync_stock_from_inventory() -> dict:
 
     db = SessionLocal()
     try:
-        listings = import_listings(db).as_dict()
+        try:
+            listings = import_listings(db).as_dict()
+        except Exception:  # a bad listing must never stop the stock sync
+            db.rollback()
+            log.exception("inventory.listings.crashed")
+            listings = {"skipped_reason": "error"}
         return {**sync_stock_from_inventory(db).as_dict(), "listings": listings}
     finally:
         db.close()

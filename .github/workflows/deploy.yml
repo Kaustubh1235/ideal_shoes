@@ -77,11 +77,15 @@ jobs:
         # and deploy.sh accepts it only if it is a full id that is part of main.
         run: ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=yes -o BatchMode=yes -o ServerAliveInterval=30 "${DEPLOY_USER:-ubuntu}@$DEPLOY_HOST" "$SHA"
 
-      - name: Check from outside
+      - uses: actions/checkout@v4
+        if: steps.ssh.outputs.ready == 'true' && vars.SITE_DOMAIN != ''
+        with:
+          sparse-checkout: scripts/smoke_live.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Check the live site from outside (security and acceptance)
         if: steps.ssh.outputs.ready == 'true' && vars.SITE_DOMAIN != ''
         env:
           SITE: ${{ vars.SITE_DOMAIN }}
-        run: |
-          curl -fsS --retry 5 --retry-delay 10 "https://$SITE/api/v1/healthz"
-          curl -fsS --retry 5 --retry-delay 10 -o /dev/null "https://$SITE/"
-          curl -fsS --retry 5 --retry-delay 10 "https://stock.$SITE/healthz"
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: sh scripts/smoke_live.sh "$SITE" "$HOST"

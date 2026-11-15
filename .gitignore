@@ -72,3 +72,4 @@ logs/
 # made by e2e/bills/make_bills.py and the AI readers
 e2e/bills/img/
 e2e/bills/answers.json
+e2e/seed.log

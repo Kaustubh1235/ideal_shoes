@@ -1,8 +1,9 @@
 name: CI
 
-# The shop (Next.js), the API (FastAPI) and their images, on every pull request and on main.
-# Stock Room has its own workflow (inventory-ci.yml). The whole stack end to end runs locally
-# (e2e/stack_e2e.py), not here: it needs Docker Compose with Caddy and real certificates.
+# Everything that must pass before a deploy, on every pull request and on main: the shop (Next.js), the API
+# (FastAPI, with the Postgres security tests), Stock Room (unit, security and browser tests), a secret scan,
+# known-vulnerability audits, the production images, and the whole stack in Docker used like a customer,
+# the owner and a dealer would (user acceptance test). deploy.yml runs only after this whole workflow passes.
 on:
   push:
     branches: [main]
@@ -96,6 +97,69 @@ jobs:
           pip install pip-audit pip-tools
           pip-compile -q apps/api/pyproject.toml -o /tmp/api-req.txt
           pip-audit -r /tmp/api-req.txt --no-deps --disable-pip
+
+  stockroom:
+    name: Stock Room (unit, security and browser tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/inventory
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.3"
+      - name: Unit, API and security tests
+        run: bun test tests
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Playwright
+        run: |
+          pip install playwright==1.64.0
+          python -m playwright install --with-deps chromium
+      - name: Browser test (phone and desktop, English and Hindi)
+        run: python3 e2e/run_e2e.py
+
+  secrets:
+    name: No secrets in the code or its history
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  stack:
+    name: Whole stack in Docker (acceptance test)
+    runs-on: ubuntu-latest
+    needs: [web, api, stockroom]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @bharatboot/db exec prisma generate
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Playwright
+        run: |
+          pip install playwright==1.64.0
+          python -m playwright install --with-deps chromium
+      - name: Build, start and use the whole stack
+        run: sh e2e/ci_stack.sh
+      - name: Logs when it failed
+        if: failure()
+        run: docker compose --env-file .env -f infra/docker/compose.prod.yml -f e2e/compose.e2e.yml logs --tail 80
 
   images:
     name: Production images build

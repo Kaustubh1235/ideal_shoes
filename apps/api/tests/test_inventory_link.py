@@ -114,3 +114,13 @@ def test_sync_skips_when_the_stock_app_is_down_or_refuses():
 
     assert sync_stock_from_inventory(NoDb(), _client(down)).skipped_reason == "unreachable"
     assert sync_stock_from_inventory(NoDb(), _client(lambda r: httpx.Response(401, json={"error": "bad key"}))).skipped_reason == "unreachable"
+
+
+def test_listing_results_can_be_logged():
+    """The import logs its result as extra fields; a name like "created" would crash logging (and the sync)."""
+    import logging
+
+    from app.services.inventory.listings import ListingsResult
+
+    r = ListingsResult(created=["p1"], already=1, skipped=["l2"])
+    logging.getLogger("test").info("inventory.listings.done", extra=r.as_dict())

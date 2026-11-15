@@ -1,0 +1,24 @@
+name: Live check
+
+# Every night, and by hand: read-only checks of the live site from outside (scripts/smoke_live.sh): it is up,
+# HTTPS only, a fake "payment received" is refused, the internal API, admin and Stock Room data stay closed, and
+# only the website and the key-only login are open on the server. Changes nothing. A failure emails the repo owner.
+on:
+  schedule:
+    - cron: "30 0 * * *" # 06:00 India time
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: vars.SITE_DOMAIN != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the live site
+        env:
+          SITE: ${{ vars.SITE_DOMAIN }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: sh scripts/smoke_live.sh "$SITE" "$HOST"
